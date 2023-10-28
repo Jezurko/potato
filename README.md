@@ -1,1 +1,2 @@
-# potato
+# PoTATo
+POints To Analysis TOol
