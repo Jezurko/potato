@@ -1,0 +1,24 @@
+#ifnddef POTATO_DIALECT
+#define POTATO_DIALECT
+
+include "mllir/IR/OpBase.td"
+
+def potato_Dialect : Dialect {
+  let name = "pt";
+  let cppNamespace = "::potato::pt";
+
+  let summary = "Dialect for representing points to analysis operations.";
+
+  let useDefaultTypePrinterParser = 1;
+  let useDefaultAttributePrinterParser = 1;
+
+  let hasConstantMaterializer = 1;
+  }
+}
+
+class potato_Op< string mnemonic, list< Trait > traits = [] >
+  : Op< potato_Dialect, mnemonic, traits >;
+
+include "ops.td"
+
+#endif // POTATO_DIALECT
