@@ -1,9 +1,9 @@
-#ifnddef POTATO_DIALECT
+#ifndef POTATO_DIALECT
 #define POTATO_DIALECT
 
-include "mllir/IR/OpBase.td"
+include "mlir/IR/OpBase.td"
 
-def potato_Dialect : Dialect {
+def Potato_Dialect : Dialect {
   let name = "pt";
   let cppNamespace = "::potato::pt";
 
@@ -13,11 +13,10 @@ def potato_Dialect : Dialect {
   let useDefaultAttributePrinterParser = 1;
 
   let hasConstantMaterializer = 1;
-  }
 }
 
-class potato_Op< string mnemonic, list< Trait > traits = [] >
-  : Op< potato_Dialect, mnemonic, traits >;
+class Potato_Op< string mnemonic, list< Trait > traits = [] >
+  : Op< Potato_Dialect, mnemonic, traits >;
 
 include "ops.td"
 
