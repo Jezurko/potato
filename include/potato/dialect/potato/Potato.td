@@ -4,7 +4,7 @@
 include "mlir/IR/OpBase.td"
 
 def Potato_Dialect : Dialect {
-  let name = "pt";
+  let name = "Potato";
   let cppNamespace = "::potato::pt";
 
   let summary = "Dialect for representing points to analysis operations.";
@@ -13,6 +13,8 @@ def Potato_Dialect : Dialect {
   let useDefaultAttributePrinterParser = 1;
 
   let hasConstantMaterializer = 1;
+
+  let useFoldAPI = kEmitFoldAdaptorFolder;
 }
 
 class Potato_Op< string mnemonic, list< Trait > traits = [] >

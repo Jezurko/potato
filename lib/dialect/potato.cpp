@@ -1,21 +1,23 @@
+#include <mlir/IR/DialectImplementation.h>
+
 #include "potato/dialect/potato/potato.hpp"
 #include "potato/dialect/potato/ops.hpp"
 
 namespace potato::pt
 {
-    void potato::initialize()
+    void PotatoDialect::initialize()
     {
         //registerTypes();
         //registerAttributes();
 
-        addOperation<
+        addOperations<
             #define GET_OP_LIST
-            #include "potato/dialect/potato/potato.cpp.inc"
+            #include "potato/dialect/potato/Potato.cpp.inc"
         >();
 
-        addInterfaces< potatoOpDialectInterface >();
+        //addInterfaces< potatoOpDialectInterface >();
 
     }
 }
 
-#include "potato/dialect/potato/potato.cpp.inc"
+#include "potato/dialect/potato/PotatoDialect.cpp.inc"

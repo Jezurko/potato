@@ -6,7 +6,7 @@ add_mlir_dialect_library(MLIRpotato
         ${PROJECT_SOURCE_DIR}/include/potato
 
         DEPENDS
-        MLIRpotatoIncGen
+        MLIRPotatoIncGen
 
         LINK_LIBS PUBLIC
         MLIRIR

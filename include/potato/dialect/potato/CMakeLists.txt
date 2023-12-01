@@ -1,1 +1,1 @@
-add_mlir_dialect(potato potato)
+add_mlir_dialect(Potato Potato)

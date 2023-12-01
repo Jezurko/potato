@@ -3,7 +3,7 @@
 
 // TableGen generated stuff goes here:
 
-using namespace potato::pt;
+//using namespace potato::pt;
 
 #define GET_OP_CLASSES
-#include "potato/dialect/potato/potato.cpp.inc"
+#include "potato/dialect/potato/PotatoDialect.cpp.inc"
