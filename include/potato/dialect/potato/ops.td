@@ -3,7 +3,7 @@
 
 include "mlir/IR/OpBase.td"
 
-def Poato_AddressOfOp
+def Potato_AddressOfOp
   : Potato_Op< "address_of" >
   , Arguments< ins AnyType:$ptset, AnyType:$var, AnyType:$address >
   , Results< outs AnyType:$ptset >
@@ -11,7 +11,7 @@ def Poato_AddressOfOp
   let assemblyFormat [{ $ptset `<-` `(` $var `:` $address `)` `:` functional-type(operands, results)}]
 }
 
-def Poato_CopyOp
+def Potato_CopyOp
   : Potato_Op< "copy" >
   , Arguments< ins AnyType:$ptset, AnyType:$lhs, AnyType:$rhs >
   , Results< outs AnyType:$ptset >
@@ -20,7 +20,7 @@ def Poato_CopyOp
 
 }
 
-def Poato_AssignOp
+def Potato_AssignOp
   : Potato_Op< "assign" >
   , Arguments< ins AnyType:$ptset, AnyType:$lhs, AnyType:$rhs >
   , Results< outs AnyType:$ptset >
@@ -29,7 +29,7 @@ def Poato_AssignOp
 }
 
 
-def Poato_DereferenceOp
+def Potato_DereferenceOp
   : Potato_Op< "deref" >
   , Arguments< ins AnyType:$ptset, AnyType:$lhs, AnyType:$rhs >
   , Results< outs AnyType:$ptset >
