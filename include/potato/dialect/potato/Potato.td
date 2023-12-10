@@ -14,7 +14,6 @@ def Potato_Dialect : Dialect {
 
   let hasConstantMaterializer = 1;
 
-  let useFoldAPI = kEmitFoldAdaptorFolder;
 }
 
 class Potato_Op< string mnemonic, list< Trait > traits = [] >
