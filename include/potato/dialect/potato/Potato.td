@@ -9,8 +9,8 @@ def Potato_Dialect : Dialect {
 
   let summary = "Dialect for representing points to analysis operations.";
 
-  let useDefaultTypePrinterParser = 1;
-  let useDefaultAttributePrinterParser = 1;
+  //let useDefaultTypePrinterParser = 1;
+  //let useDefaultAttributePrinterParser = 1;
 
   let hasConstantMaterializer = 1;
 

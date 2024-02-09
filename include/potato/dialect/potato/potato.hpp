@@ -10,3 +10,5 @@ POTATO_RELAX_WARNINGS
 POTATO_UNRELAX_WARNINGS
 
 #include "potato/dialect/potato/PotatoDialect.h.inc"
+#include "potato/dialect/potato/Potato.h.inc"
+#include "potato/dialect/potato/ops.hpp"

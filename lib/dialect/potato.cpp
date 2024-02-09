@@ -2,10 +2,8 @@
 
 #include <mlir/IR/DialectImplementation.h>
 
-POTATO_RELAX_WARNINGS
 #include "potato/dialect/potato/potato.hpp"
 #include "potato/dialect/potato/ops.hpp"
-POTATO_UNRELAX_WARNINGS
 
 namespace potato::pt
 {
@@ -22,6 +20,14 @@ namespace potato::pt
         //addInterfaces< potatoOpDialectInterface >();
 
     }
+
+    using DialectParser = mlir::AsmParser;
+    using DialectPrinter = mlir::AsmPrinter;
+
+    mlir::Operation *PotatoDialect::materializeConstant(mlir::OpBuilder &builder, mlir::Attribute value, mlir::Type type, mlir::Location loc)
+    {
+        assert(false);
+    }
+
 }
 
-#include "potato/dialect/potato/PotatoDialect.cpp.inc"
