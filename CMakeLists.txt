@@ -43,5 +43,6 @@ list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake/modules")
 
 add_subdirectory(include)
 add_subdirectory(lib)
+add_subdirectory(tools)
 
 set_project_warnings(MLIRpotato)
