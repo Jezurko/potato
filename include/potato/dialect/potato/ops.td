@@ -34,9 +34,10 @@ def Potato_DereferenceOp
 
 def Potato_MAllocOp
   : Potato_Op< "malloc" >
-  , Arguments<( ins AnyType:$var )>
+  , Arguments<( ins )>
+  , Results<( outs AnyType:$result)>
 {
-  let assemblyFormat = [{ attr-dict `(` $var `:` `new_ptr` `)` `:` functional-type(operands, results) }];
+  let assemblyFormat = [{ attr-dict `(` `new_memory_location` `)` `:` functional-type(operands, results) }];
 }
 
 #endif // POTATO_DIALECT_OPS
