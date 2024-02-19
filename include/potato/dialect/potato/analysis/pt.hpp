@@ -10,6 +10,7 @@ POTATO_RELAX_WARNINGS
 #include <llvm/ADT/DenseMap.h>
 #include <llvm/ADT/DenseSet.h>
 #include <llvm/ADT/SetVector.h>
+#include <llvm/ADT/TypeSwitch.h>
 POTATO_UNRELAX_WARNINGS
 
 #include "potato/dialect/potato/potato.hpp"
@@ -102,7 +103,19 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
         after->pt_relation.insert({op.getResult(), {}});
     }
 
-    void visitOperation(mlir::Operation *op, const pt_lattice &before, pt_lattice *after) override;
+    void visitOperation(mlir::Operation *op, const pt_lattice &before, pt_lattice *after) override {
+        return llvm::TypeSwitch< mlir::Operation *, void >(op)
+            .Case< pt::AddressOfOp,
+                   pt::AssignOp,
+                   pt::CopyOp,
+                   pt::DereferenceOp,
+                   pt::MAllocOp
+            >([&](auto &pt_op) {visit_pt_op(pt_op, before, after);})
+            .Default([&](auto &pt_op) {
+                    pt_op->dump();
+                    llvm_unreachable("Unknown points-to op");
+            });
+    };
 
     void visitCallControlFlowTransfer(mlir::CallOpInterface call,
                                       mlir::dataflow::CallControlFlowAction action,
