@@ -6,7 +6,9 @@ POTATO_RELAX_WARNINGS
 #include <mlir/Analysis/DataFlow/DenseAnalysis.h>
 #include <mlir/Interfaces/CallInterfaces.h>
 #include <mlir/IR/Value.h>
+
 #include <llvm/ADT/DenseMap.h>
+#include <llvm/ADT/DenseSet.h>
 #include <llvm/ADT/SetVector.h>
 POTATO_UNRELAX_WARNINGS
 
@@ -30,25 +32,75 @@ struct pt_lattice : mlir_dense_abstract_lattice
         return res;
     }
 
+    change_result intersect(const pt_lattice &rhs) {
+        change_result res = change_result::NoChange;
+        for (const auto &[key, rhs_value] : rhs.pt_relation) {
+            auto &lhs_value = pt_relation[key];
+            auto to_remove = lhs_value;
+            to_remove.set_subtract(rhs_value);
+            if (!to_remove.empty()) {
+                res |= change_result::Change;
+            }
+            lhs_value.set_subtract(to_remove);
+        }
+        return res;
+    }
+
     change_result join(const mlir_dense_abstract_lattice &rhs) override {
         return this->merge(*static_cast< const pt_lattice *>(&rhs));
     };
 
-    mlir::ChangeResult meet(const mlir_dense_abstract_lattice &rhs) override;
+    mlir::ChangeResult meet(const mlir_dense_abstract_lattice &rhs) override {
+        return this->intersect(*static_cast< const pt_lattice *>(&rhs));
+    };
 };
 
 struct pt_analysis : mlir_dense_dfa< pt_lattice >
 {
+    void visit_pt_op(pt::AddressOfOp &op, const pt_lattice &before, pt_lattice *after) {
+        after->join(before);
+        auto &lhs_pt = after->pt_relation[op.getVar()];
+        lhs_pt.insert(op.getAddress());
+    };
 
-    void visit_pt_op(const pt::AddressOfOp &op, const pt_lattice &before, pt_lattice *after);
+    void visit_pt_op(pt::AssignOp &op, const pt_lattice &before, pt_lattice *after) {
+        after->join(before);
 
-    void visit_pt_op(const pt::CopyOp &op, const pt_lattice &before, pt_lattice *after);
+        auto &lhs_pt = after->pt_relation[op.getLhs()];
+        const auto &rhs_pt = before.pt_relation.find(op.getRhs())->getSecond();
+        for (auto &lhs_val : lhs_pt) {
+            auto &insert_point = after->pt_relation[lhs_val];
+            insert_point.clear();
+            insert_point.set_union(rhs_pt);
+        }
+    };
 
-    void visit_pt_op(const pt::AssignOp &op, const pt_lattice &before, pt_lattice *after);
+    void visit_pt_op(pt::CopyOp &op, const pt_lattice &before, pt_lattice *after) {
+        after->join(before);
 
-    void visit_pt_op(const pt::DereferenceOp &op, const pt_lattice &before, pt_lattice *after);
+        auto &lhs_pt = after->pt_relation[op.getLhs()];
+        const auto &rhs_pt = before.pt_relation.find(op.getRhs())->getSecond();
 
-    void visit_pt_op(const pt::MAllocOp &op, const pt_lattice &before, pt_lattice *after);
+        lhs_pt.clear();
+        lhs_pt.set_union(rhs_pt);
+    };
+
+    void visit_pt_op(pt::DereferenceOp &op, const pt_lattice &before, pt_lattice *after) {
+        after->join(before);
+        auto &lhs_pt = after->pt_relation[op.getLhs()];
+        const auto &rhs_pt = before.pt_relation.find(op.getRhs())->getSecond();
+        for (auto &rhs_val : rhs_pt) {
+            lhs_pt.set_union(before.pt_relation.find(rhs_val)->getSecond());
+        }
+
+    };
+
+    void visit_pt_op(pt::MAllocOp &op, const pt_lattice &before, pt_lattice *after) {
+        after->join(before);
+        //TODO: something more reasonable has to be inserted into the pt set
+        //      probably some custom wrapper around mlir value
+        after->pt_relation.insert({op.getResult(), {}});
+    }
 
     void visitOperation(mlir::Operation *op, const pt_lattice &before, pt_lattice *after) override;
 
