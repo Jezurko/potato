@@ -5,9 +5,9 @@ include "mlir/IR/OpBase.td"
 
 def Potato_AddressOfOp
   : Potato_Op< "address_of" >
-  , Arguments<( ins AnyType:$var, AnyType:$address )>
+  , Arguments<( ins AnyType:$lhs, AnyType:$rhs)>
 {
-  let assemblyFormat = [{ attr-dict `(` $var `:` $address `)` `:` functional-type(operands, results) }];
+  let assemblyFormat = [{ attr-dict `(` $lhs `=` `addr_of` $rhs`)` `:` functional-type(operands, results) }];
 }
 
 def Potato_CopyOp
