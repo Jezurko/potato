@@ -122,11 +122,12 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
                                       const pt_lattice &before,
                                       pt_lattice *after) override;
 
-    void visitRegionBranchControlFlowTransfer(mlir::RegionBranchOpInterface branch,
-                                              std::optional< unsigned > regionFrom,
-                                              std::optional< unsigned > regionTo,
-                                              const pt_lattice &before,
-                                              pt_lattice *after) override;
+    // Default implementation via join should be fine for us (at least for now)
+    //void visitRegionBranchControlFlowTransfer(mlir::RegionBranchOpInterface branch,
+    //                                          std::optional< unsigned > regionFrom,
+    //                                          std::optional< unsigned > regionTo,
+    //                                          const pt_lattice &before,
+    //                                          pt_lattice *after) override;
 };
 
 } // potato::analysis
