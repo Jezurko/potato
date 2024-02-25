@@ -110,11 +110,8 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
                    pt::CopyOp,
                    pt::DereferenceOp,
                    pt::MAllocOp
-            >([&](auto &pt_op) {visit_pt_op(pt_op, before, after);})
-            .Default([&](auto &pt_op) {
-                    pt_op->dump();
-                    llvm_unreachable("Unknown points-to op");
-            });
+            >([&](auto &pt_op) { visit_pt_op(pt_op, before, after); })
+            .Default([&](auto &pt_op) { pt_op->dump(); });
     };
 
     void visitCallControlFlowTransfer(mlir::CallOpInterface call,
