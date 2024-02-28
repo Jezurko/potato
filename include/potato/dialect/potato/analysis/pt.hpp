@@ -20,6 +20,7 @@ namespace potato::analysis {
 
 struct pt_lattice : mlir_dense_abstract_lattice
 {
+    using mlir_dense_abstract_lattice::AbstractDenseLattice;
     pt_map pt_relation;
 
     change_result merge(const pt_lattice &rhs) {
@@ -54,10 +55,17 @@ struct pt_lattice : mlir_dense_abstract_lattice
     mlir::ChangeResult meet(const mlir_dense_abstract_lattice &rhs) override {
         return this->intersect(*static_cast< const pt_lattice *>(&rhs));
     };
+
+    void print(llvm::raw_ostream &os) const override
+    {
+        // TODO
+    }
 };
 
 struct pt_analysis : mlir_dense_dfa< pt_lattice >
 {
+    using mlir_dense_dfa< pt_lattice >::DenseDataFlowAnalysis;
+
     void visit_pt_op(pt::AddressOfOp &op, const pt_lattice &before, pt_lattice *after) {
         after->join(before);
         auto &lhs_pt = after->pt_relation[op.getLhs()];
@@ -125,6 +133,11 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
     //                                          std::optional< unsigned > regionTo,
     //                                          const pt_lattice &before,
     //                                          pt_lattice *after) override;
+    //
+    void setToEntryState(pt_lattice *lattice) override
+    {
+        // TODO
+    }
 };
 
 } // potato::analysis
