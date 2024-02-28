@@ -136,7 +136,8 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
     //
     void setToEntryState(pt_lattice *lattice) override
     {
-        // TODO
+        // TODO: Check if this makes sense?
+        propagateIfChanged(lattice, lattice->join(*lattice));
     }
 };
 
