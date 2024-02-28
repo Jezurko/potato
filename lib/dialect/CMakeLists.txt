@@ -14,3 +14,4 @@ add_mlir_dialect_library(MLIRpotato
         MLIRInferTypeOpInterface
     )
 add_subdirectory(analysis)
+add_subdirectory(passes)
