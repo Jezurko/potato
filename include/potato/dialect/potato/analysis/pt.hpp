@@ -131,10 +131,10 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
             .Default([&](auto &pt_op) { pt_op->dump(); });
     };
 
-    void visitCallControlFlowTransfer(mlir::CallOpInterface call,
-                                      mlir::dataflow::CallControlFlowAction action,
-                                      const pt_lattice &before,
-                                      pt_lattice *after) override;
+    //void visitCallControlFlowTransfer(mlir::CallOpInterface call,
+    //                                  mlir::dataflow::CallControlFlowAction action,
+    //                                  const pt_lattice &before,
+    //                                  pt_lattice *after) override;
 
     // Default implementation via join should be fine for us (at least for now)
     //void visitRegionBranchControlFlowTransfer(mlir::RegionBranchOpInterface branch,
