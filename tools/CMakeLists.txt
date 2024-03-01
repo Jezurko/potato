@@ -5,6 +5,7 @@ set(LIBS
         ${conversion_libs}
 
         MLIROptLib
+        MLIRPotatoPasses
         MLIRpotato
         )
 add_llvm_executable(potato-opt potato-opt.cpp)
