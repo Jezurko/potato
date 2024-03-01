@@ -16,6 +16,8 @@ POTATO_UNRELAX_WARNINGS
 #include "potato/dialect/potato/potato.hpp"
 #include "potato/util/common.hpp"
 
+#include <string>
+
 namespace potato::analysis {
 
 struct pt_lattice : mlir_dense_abstract_lattice
@@ -58,7 +60,14 @@ struct pt_lattice : mlir_dense_abstract_lattice
 
     void print(llvm::raw_ostream &os) const override
     {
-        // TODO
+        for (const auto &[key, vals] : pt_relation) {
+            os << key << " -> {";
+            std::string sep;
+            for (const auto &val : vals) {
+                    os << sep << val;
+                    sep = ", ";
+            }
+        }
     }
 };
 
