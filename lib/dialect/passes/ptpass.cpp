@@ -5,6 +5,7 @@
 POTATO_RELAX_WARNINGS
 #include <mlir/Analysis/DataFlowFramework.h>
 #include <mlir/Analysis/DataFlow/DeadCodeAnalysis.h>
+#include <mlir/Analysis/DataFlow/ConstantPropagationAnalysis.h>
 POTATO_UNRELAX_WARNINGS
 
 #include <memory>
@@ -21,6 +22,7 @@ namespace potato::pt
             auto solver = mlir::DataFlowSolver();
 
             // Load dependencies
+            solver.load< mlir::dataflow::SparseConstantPropagation >();
             solver.load< mlir::dataflow::DeadCodeAnalysis >();
 
             // Load our analysis
