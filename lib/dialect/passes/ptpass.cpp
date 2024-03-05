@@ -28,6 +28,7 @@ namespace potato::pt
 
             if (failed(solver.initializeAndRun(root)))
                 signalPassFailure();
+            analysis::print_analysis_result(solver, root, llvm::outs());
         }
     };
 
