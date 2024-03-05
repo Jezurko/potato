@@ -6,7 +6,7 @@ void print_analysis_result(mlir::DataFlowSolver &solver, mlir_operation *op, llv
     op->walk([&](mlir_operation *op) {
         if (mlir::isa< mlir::ModuleOp >(op))
             return;
-        os << "State in: " << *op << "\n";
+        os << "State in: " << op->getLoc() << "\n";
         if (auto state = solver.lookupState< pt_lattice >(op)) {
             for (const auto &[key, vals] : state->pt_relation) {
                 os << "  " << key << " -> {";
