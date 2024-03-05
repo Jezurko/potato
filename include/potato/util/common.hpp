@@ -10,6 +10,7 @@ POTATO_RELAX_WARNINGS
 POTATO_UNRELAX_WARNINGS
 
 using mlir_value = mlir::Value;
+using mlir_operation = mlir::Operation;
 using change_result = mlir::ChangeResult;
 
 using pt_map = llvm::DenseMap< mlir_value, llvm::SetVector< mlir_value > >;
