@@ -128,7 +128,7 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
                    pt::DereferenceOp,
                    pt::MAllocOp
             >([&](auto &pt_op) { visit_pt_op(pt_op, before, after); })
-            .Default([&](auto &pt_op) { pt_op->dump(); });
+            .Default([&](auto &pt_op) { after->join(before); });
     };
 
     //void visitCallControlFlowTransfer(mlir::CallOpInterface call,
