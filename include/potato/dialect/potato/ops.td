@@ -32,8 +32,8 @@ def Potato_DereferenceOp
   let assemblyFormat = [{ attr-dict `(` $lhs `=` `*` $rhs`)` `:` functional-type(operands, results) }];
 }
 
-def Potato_MAllocOp
-  : Potato_Op< "malloc" >
+def Potato_AllocOp
+  : Potato_Op< "alloc" >
   , Arguments<( ins )>
   , Results<( outs AnyType:$result)>
 {

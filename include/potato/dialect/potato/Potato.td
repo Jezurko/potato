@@ -4,7 +4,7 @@
 include "mlir/IR/OpBase.td"
 
 def Potato_Dialect : Dialect {
-  let name = "Potato";
+  let name = "pt";
   let cppNamespace = "::potato::pt";
 
   let summary = "Dialect for representing points to analysis operations.";

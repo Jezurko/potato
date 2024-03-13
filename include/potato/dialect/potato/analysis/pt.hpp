@@ -114,7 +114,7 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
 
     };
 
-    void visit_pt_op(pt::MAllocOp &op, const pt_lattice &before, pt_lattice *after) {
+    void visit_pt_op(pt::AllocOp &op, const pt_lattice &before, pt_lattice *after) {
         after->join(before);
         //TODO: something more reasonable has to be inserted into the pt set
         //      probably some custom wrapper around mlir value
@@ -130,7 +130,7 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
                    pt::AssignOp,
                    pt::CopyOp,
                    pt::DereferenceOp,
-                   pt::MAllocOp
+                   pt::AllocOp
             >([&](auto &pt_op) { visit_pt_op(pt_op, before, after); })
             .Default([&](auto &pt_op) { after->join(before); });
     };

@@ -1,4 +1,4 @@
-add_mlir_dialect(Potato Potato)
+add_mlir_dialect(Potato pt)
 add_subdirectory(analysis)
 
 set(LLVM_TARGET_DEFINITIONS passes.td)
