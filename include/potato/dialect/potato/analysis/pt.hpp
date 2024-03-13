@@ -117,8 +117,6 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
 
     void visit_pt_op(pt::AllocOp &op, const pt_lattice &before, pt_lattice *after) {
         after->join(before);
-        //TODO: something more reasonable has to be inserted into the pt set
-        //      probably some custom wrapper around mlir value
         static unsigned int count = 0;
         auto set = llvm::SetVector< pt_element >();
         set.insert({value(), "memory_location" + std::to_string(count++)});
