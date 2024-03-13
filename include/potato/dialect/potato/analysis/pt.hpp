@@ -79,6 +79,7 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
     void visit_pt_op(pt::AddressOfOp &op, const pt_lattice &before, pt_lattice *after) {
         after->join(before);
         auto &lhs_pt = after->pt_relation[op.getLhs()];
+        lhs_pt.clear();
         lhs_pt.insert({op.getRhs()});
     };
 
