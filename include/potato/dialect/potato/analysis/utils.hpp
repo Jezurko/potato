@@ -22,9 +22,6 @@ struct pt_element
     value val;
     std::string name;
 
-    pt_element(value &&value, std::string &&name) : val(value), name(name) {};
-    pt_element(value &&value) : val(value), name("") {};
-
     bool operator==(const pt_element &rhs) const {
         if (val || rhs.val)
             return val == rhs.val;
@@ -49,11 +46,11 @@ template<>
 struct DenseMapInfo< pt_element > {
     using value_info = DenseMapInfo< value >;
     static inline pt_element getEmptyKey() {
-        return {value_info::getEmptyKey()};
+        return {value_info::getEmptyKey(), ""};
     }
 
     static inline pt_element getTombstoneKey() {
-        return {value_info::getTombstoneKey()};
+        return {value_info::getTombstoneKey(), ""};
     }
 
     static unsigned getHashValue(const pt_element &val) {

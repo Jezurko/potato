@@ -78,16 +78,17 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
 
     void visit_pt_op(pt::AddressOfOp &op, const pt_lattice &before, pt_lattice *after) {
         after->join(before);
-        auto &lhs_pt = after->pt_relation[op.getLhs()];
+        auto &lhs_pt = after->pt_relation[{op.getLhs(), ""}];
         lhs_pt.clear();
-        lhs_pt.insert({op.getRhs()});
+        auto rhs_elem = before.pt_relation.find({op.getRhs(), ""})->getFirst();
+        lhs_pt.insert(pt_element(rhs_elem));
     };
 
     void visit_pt_op(pt::AssignOp &op, const pt_lattice &before, pt_lattice *after) {
         after->join(before);
 
-        auto &lhs_pt = after->pt_relation[op.getLhs()];
-        const auto &rhs_pt = before.pt_relation.find(op.getRhs())->getSecond();
+        auto &lhs_pt = after->pt_relation[{op.getLhs(), ""}];
+        const auto &rhs_pt = before.pt_relation.find({op.getRhs(), ""})->getSecond();
         for (auto &lhs_val : lhs_pt) {
             auto &insert_point = after->pt_relation[lhs_val];
             insert_point.clear();
@@ -98,8 +99,8 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
     void visit_pt_op(pt::CopyOp &op, const pt_lattice &before, pt_lattice *after) {
         after->join(before);
 
-        auto &lhs_pt = after->pt_relation[op.getLhs()];
-        const auto &rhs_pt = before.pt_relation.find(op.getRhs())->getSecond();
+        auto &lhs_pt = after->pt_relation[{op.getLhs(), ""}];
+        const auto &rhs_pt = before.pt_relation.find({op.getRhs(), ""})->getSecond();
 
         lhs_pt.clear();
         lhs_pt.set_union(rhs_pt);
@@ -107,9 +108,9 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
 
     void visit_pt_op(pt::DereferenceOp &op, const pt_lattice &before, pt_lattice *after) {
         after->join(before);
-        auto &lhs_pt = after->pt_relation[op.getLhs()];
+        auto &lhs_pt = after->pt_relation[{op.getLhs(), ""}];
         lhs_pt.clear();
-        const auto &rhs_pt = before.pt_relation.find(op.getRhs())->getSecond();
+        const auto &rhs_pt = before.pt_relation.find({op.getRhs(), ""})->getSecond();
         for (auto &rhs_val : rhs_pt) {
             if (!before.pt_relation.contains(rhs_val)) {
                 llvm::errs() << "[PoTATo] Dereferencing a value that points to nothing. Possible bug or error\n";
@@ -123,8 +124,9 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
         after->join(before);
         static unsigned int count = 0;
         auto set = llvm::SetVector< pt_element >();
-        set.insert({value(), "mem_loc" + std::to_string(count++)});
-        after->pt_relation.insert({{op.getResult()}, set});
+        set.insert({value(), "mem_loc" + std::to_string(count)});
+        after->pt_relation.insert({{op.getResult(), "var" + std::to_string(count)}, set});
+        count++;
     }
 
     void visitOperation(mlir::Operation *op, const pt_lattice &before, pt_lattice *after) override {
