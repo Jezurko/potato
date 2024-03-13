@@ -57,7 +57,7 @@ struct DenseMapInfo< pt_element > {
     }
 
     static unsigned getHashValue(const pt_element &val) {
-        return hash_combine(value_info::getHashValue(val.val), llvm::hash_value(val.name));
+        return val.val ? value_info::getHashValue(val.val) : (unsigned) llvm::hash_value(val.name);
     }
 
     static bool isEqual(const pt_element &lhs, const pt_element &rhs) {
