@@ -1,4 +1,4 @@
-#include "potato/dialect/potato/Passes.hpp"
+#include "potato/dialect/potato/passes.hpp"
 #include "potato/util/warnings.hpp"
 #include "potato/dialect/potato/analysis/pt.hpp"
 
@@ -10,7 +10,7 @@ POTATO_UNRELAX_WARNINGS
 
 #include <memory>
 
-#include "PassesDetails.hpp"
+#include "passes_details.hpp"
 
 namespace potato::pt
 {
