@@ -108,9 +108,13 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
     void visit_pt_op(pt::DereferenceOp &op, const pt_lattice &before, pt_lattice *after) {
         after->join(before);
         auto &lhs_pt = after->pt_relation[op.getLhs()];
+        lhs_pt.clear();
         const auto &rhs_pt = before.pt_relation.find(op.getRhs())->getSecond();
         for (auto &rhs_val : rhs_pt) {
-            lhs_pt.set_union(before.pt_relation.find(rhs_val)->getSecond());
+            if (!before.pt_relation.contains(rhs_val)) {
+                llvm::errs() << "[PoTATo] Dereferencing a value that points to nothing. Possible bug or error\n";
+            }
+            lhs_pt.set_union(before.pt_relation.lookup(rhs_val));
         }
 
     };
