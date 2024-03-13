@@ -14,6 +14,7 @@ POTATO_RELAX_WARNINGS
 POTATO_UNRELAX_WARNINGS
 
 #include "potato/dialect/potato/potato.hpp"
+#include "potato/dialect/potato/analysis/utils.hpp"
 #include "potato/util/common.hpp"
 
 #include <string>
@@ -23,7 +24,7 @@ namespace potato::analysis {
 struct pt_lattice : mlir_dense_abstract_lattice
 {
     using mlir_dense_abstract_lattice::AbstractDenseLattice;
-    pt_map pt_relation;
+    pt_map< pt_element > pt_relation;
 
     change_result merge(const pt_lattice &rhs) {
         change_result res = change_result::NoChange;
@@ -150,6 +151,6 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
     }
 };
 
-void print_analysis_result(mlir::DataFlowSolver &solver, mlir_operation *op, llvm::raw_ostream &os);
+void print_analysis_result(mlir::DataFlowSolver &solver, operation *op, llvm::raw_ostream &os);
 
 } // potato::analysis
