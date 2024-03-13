@@ -123,7 +123,7 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
         after->join(before);
         static unsigned int count = 0;
         auto set = llvm::SetVector< pt_element >();
-        set.insert({value(), "memory_location" + std::to_string(count++)});
+        set.insert({value(), "mem_loc" + std::to_string(count++)});
         after->pt_relation.insert({{op.getResult()}, set});
     }
 
