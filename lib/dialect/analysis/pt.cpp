@@ -1,9 +1,9 @@
 #include "potato/dialect/potato/analysis/pt.hpp"
 
 namespace potato::analysis {
-void print_analysis_result(mlir::DataFlowSolver &solver, mlir_operation *op, llvm::raw_ostream &os)
+void print_analysis_result(mlir::DataFlowSolver &solver, operation *op, llvm::raw_ostream &os)
 {
-    op->walk([&](mlir_operation *op) {
+    op->walk([&](operation *op) {
         if (mlir::isa< mlir::ModuleOp >(op))
             return;
         os << "State in: " << op->getLoc() << "\n";

@@ -79,7 +79,7 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
     void visit_pt_op(pt::AddressOfOp &op, const pt_lattice &before, pt_lattice *after) {
         after->join(before);
         auto &lhs_pt = after->pt_relation[op.getLhs()];
-        lhs_pt.insert(op.getRhs());
+        lhs_pt.insert({op.getRhs()});
     };
 
     void visit_pt_op(pt::AssignOp &op, const pt_lattice &before, pt_lattice *after) {
@@ -118,7 +118,10 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
         after->join(before);
         //TODO: something more reasonable has to be inserted into the pt set
         //      probably some custom wrapper around mlir value
-        after->pt_relation.insert({op.getResult(), {}});
+        static unsigned int count = 0;
+        auto set = llvm::SetVector< pt_element >();
+        set.insert({value(), "memory_location" + std::to_string(count++)});
+        after->pt_relation.insert({{op.getResult()}, set});
     }
 
     void visitOperation(mlir::Operation *op, const pt_lattice &before, pt_lattice *after) override {
