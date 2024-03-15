@@ -31,6 +31,7 @@ struct pt_element
     void print(llvm::raw_ostream &os) const { os << name << ": " << val; };
 };
 
+auto get_args(ppoint &point) -> mlir_block::BlockArgListType;
 } // namespace potato::analysis
 
 
