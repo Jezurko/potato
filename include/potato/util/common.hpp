@@ -11,14 +11,18 @@ POTATO_UNRELAX_WARNINGS
 #include <map>
 #include <optional>
 
-using value = mlir::Value;
-using operation = mlir::Operation;
+using mlir_value = mlir::Value;
+using mlir_operation = mlir::Operation;
+using mlir_block = mlir::Block;
+using mlir_region = mlir::Region;
 using change_result = mlir::ChangeResult;
-using location = mlir::Location;
+using mlir_location = mlir::Location;
 
-using optional_value = std::optional< value >;
-using optional_operation = std::optional< operation >;
-using optional_location = std::optional< location>;
+using ppoint = mlir::ProgramPoint;
+
+using optional_value = std::optional< mlir_value >;
+using optional_operation = std::optional< mlir_operation >;
+using optional_location = std::optional< mlir_location>;
 
 template <typename lattice >
 using mlir_dense_dfa = mlir::dataflow::DenseDataFlowAnalysis< lattice >;

@@ -19,7 +19,7 @@ using pt_map = llvm::DenseMap< value_t, llvm::SetVector< value_t > >;
 
 struct pt_element
 {
-    value val;
+    mlir_value val;
     std::string name;
 
     bool operator==(const pt_element &rhs) const {
@@ -44,7 +44,7 @@ inline raw_ostream &operator <<(raw_ostream &os, const pt_element &value) {
 
 template<>
 struct DenseMapInfo< pt_element > {
-    using value_info = DenseMapInfo< value >;
+    using value_info = DenseMapInfo< mlir_value >;
     static inline pt_element getEmptyKey() {
         return {value_info::getEmptyKey(), ""};
     }
