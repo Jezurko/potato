@@ -160,10 +160,29 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
             .Default([&](auto &pt_op) { after->join(before); });
     };
 
-    //void visitCallControlFlowTransfer(mlir::CallOpInterface call,
-    //                                  mlir::dataflow::CallControlFlowAction action,
-    //                                  const pt_lattice &before,
-    //                                  pt_lattice *after) override;
+    void visitCallControlFlowTransfer(mlir::CallOpInterface call,
+                                      mlir::dataflow::CallControlFlowAction action,
+                                      const pt_lattice &before,
+                                      pt_lattice *after) override {
+        if (action == mlir::dataflow::CallControlFlowAction::EnterCallee) {
+            auto callee = call.resolveCallable();
+            auto &callee_entry = callee->getRegion(0).front();
+            auto callee_args = callee_entry.getArguments();
+
+            for (auto operands : llvm::zip_equal(callee_args, call.getArgOperands())) {
+                auto arg = std::get< 0 >(operands);
+                const auto &pt_set = before.pt_relation.find({std::get< 1 >(operands), ""})->second;
+                after->new_var(arg, pt_set);
+            }
+        }
+
+        if (action == mlir::dataflow::CallControlFlowAction::ExitCallee) {
+            for (auto result : call.getOperation()->getResults())
+                after->new_var(result);
+        }
+
+        after->join(before);
+    };
 
     // Default implementation via join should be fine for us (at least for now)
     //void visitRegionBranchControlFlowTransfer(mlir::RegionBranchOpInterface branch,
