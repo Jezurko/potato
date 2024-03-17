@@ -26,6 +26,29 @@ struct pt_lattice : mlir_dense_abstract_lattice
     using mlir_dense_abstract_lattice::AbstractDenseLattice;
     pt_map< pt_element > pt_relation;
 
+    static unsigned int mem_loc_count;
+    unsigned int alloc_count();
+
+    auto new_var(mlir_value val) {
+        auto set = llvm::SetVector< pt_element >();
+        auto count = alloc_count();
+        set.insert({mlir_value(), "mem_loc" + std::to_string(count)});
+        return pt_relation.insert({{val, "var" + std::to_string(count)}, set});
+    }
+
+    auto new_var(mlir_value var, const llvm::SetVector< pt_element >& pt_set) {
+        auto set = llvm::SetVector< pt_element >();
+        auto count = alloc_count();
+        return pt_relation.insert({{var, "var" + std::to_string(count)}, pt_set});
+    }
+
+    void init_at_point(ppoint point) {
+        auto args = get_args(point);
+        for (auto &arg : args) {
+            new_var(arg);
+        }
+    }
+
     change_result merge(const pt_lattice &rhs) {
         change_result res = change_result::NoChange;
         for (const auto &[key, rhs_value] : rhs.pt_relation) {
@@ -122,11 +145,7 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
 
     void visit_pt_op(pt::AllocOp &op, const pt_lattice &before, pt_lattice *after) {
         after->join(before);
-        static unsigned int count = 0;
-        auto set = llvm::SetVector< pt_element >();
-        set.insert({value(), "mem_loc" + std::to_string(count)});
-        after->pt_relation.insert({{op.getResult(), "var" + std::to_string(count)}, set});
-        count++;
+        after->new_var(op.getResult());
     }
 
     void visitOperation(mlir::Operation *op, const pt_lattice &before, pt_lattice *after) override {
@@ -155,7 +174,11 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
     void setToEntryState(pt_lattice *lattice) override
     {
         // TODO: Check if this makes sense?
-        propagateIfChanged(lattice, lattice->join(*lattice));
+        ppoint point = lattice->getPoint();
+        auto init_state = pt_lattice(point);
+        init_state.init_at_point(point);
+
+        propagateIfChanged(lattice, lattice->join(init_state));
     }
 };
 
