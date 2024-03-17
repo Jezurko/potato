@@ -91,6 +91,7 @@ struct pt_lattice : mlir_dense_abstract_lattice
                     os << sep << val;
                     sep = ", ";
             }
+            os << "}";
         }
     }
 };
