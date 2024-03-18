@@ -82,6 +82,22 @@ struct pt_lattice : mlir_dense_abstract_lattice
         return this->intersect(*static_cast< const pt_lattice *>(&rhs));
     };
 
+    auto find(const mlir_value &val) const {
+        return pt_relation.find({val, ""});
+    }
+
+    auto find(const pt_element &val) const {
+        return pt_relation.find(val);
+    }
+
+    auto &operator[](const mlir_value &val) {
+        return pt_relation[{val, ""}];
+    }
+
+    auto &operator[](const pt_element &val) {
+        return pt_relation[val];
+    }
+
     void print(llvm::raw_ostream &os) const override
     {
         for (const auto &[key, vals] : pt_relation) {
@@ -102,17 +118,17 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
 
     void visit_pt_op(pt::AddressOfOp &op, const pt_lattice &before, pt_lattice *after) {
         after->join(before);
-        auto &lhs_pt = after->pt_relation[{op.getLhs(), ""}];
+        auto &lhs_pt = (*after)[op.getLhs()];
         lhs_pt.clear();
-        auto rhs_elem = before.pt_relation.find({op.getRhs(), ""})->getFirst();
+        auto rhs_elem = before.find(op.getRhs())->getFirst();
         lhs_pt.insert(pt_element(rhs_elem));
     };
 
     void visit_pt_op(pt::AssignOp &op, const pt_lattice &before, pt_lattice *after) {
         after->join(before);
 
-        auto &lhs_pt = after->pt_relation[{op.getLhs(), ""}];
-        const auto &rhs_pt = before.pt_relation.find({op.getRhs(), ""})->getSecond();
+        auto &lhs_pt = (*after)[op.getLhs()];
+        const auto &rhs_pt = before.find(op.getRhs())->getSecond();
         for (auto &lhs_val : lhs_pt) {
             auto &insert_point = after->pt_relation[lhs_val];
             insert_point.clear();
@@ -123,8 +139,8 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
     void visit_pt_op(pt::CopyOp &op, const pt_lattice &before, pt_lattice *after) {
         after->join(before);
 
-        auto &lhs_pt = after->pt_relation[{op.getLhs(), ""}];
-        const auto &rhs_pt = before.pt_relation.find({op.getRhs(), ""})->getSecond();
+        auto &lhs_pt = (*after)[op.getLhs()];
+        const auto &rhs_pt = before.find(op.getRhs())->getSecond();
 
         lhs_pt.clear();
         lhs_pt.set_union(rhs_pt);
@@ -132,9 +148,9 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
 
     void visit_pt_op(pt::DereferenceOp &op, const pt_lattice &before, pt_lattice *after) {
         after->join(before);
-        auto &lhs_pt = after->pt_relation[{op.getLhs(), ""}];
+        auto &lhs_pt = (*after)[op.getLhs()];
         lhs_pt.clear();
-        const auto &rhs_pt = before.pt_relation.find({op.getRhs(), ""})->getSecond();
+        const auto &rhs_pt = before.find(op.getRhs())->getSecond();
         for (auto &rhs_val : rhs_pt) {
             if (!before.pt_relation.contains(rhs_val)) {
                 llvm::errs() << "[PoTATo] Dereferencing a value that points to nothing. Possible bug or error\n";
@@ -169,10 +185,9 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
             auto &callee_entry = callee->getRegion(0).front();
             auto callee_args = callee_entry.getArguments();
 
-            for (auto operands : llvm::zip_equal(callee_args, call.getArgOperands())) {
-                auto arg = std::get< 0 >(operands);
-                const auto &pt_set = before.pt_relation.find({std::get< 1 >(operands), ""})->second;
-                after->new_var(arg, pt_set);
+            for (const auto &[callee_arg, caller_arg] : llvm::zip_equal(callee_args, call.getArgOperands())) {
+                const auto &pt_set = before.find(caller_arg)->second;
+                after->new_var(callee_arg, pt_set);
             }
         }
 
