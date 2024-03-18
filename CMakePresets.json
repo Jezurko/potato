@@ -1,0 +1,49 @@
+{
+  "version": 6,
+  "cmakeMinimumRequired": {
+    "major": 3,
+    "minor": 23,
+    "patch": 0
+  },
+  "configurePresets": [
+      {
+          "name": "debug",
+          "displayName": "Debug Config",
+          "generator": "Ninja",
+          "binaryDir": "${sourceDir}/build/",
+          "toolchainFile": "${sourceDir}/cmake/lld.toolchain.cmake",
+          "cacheVariables": {
+              "CMAKE_PREFIX_PATH": "$env{CMAKE_PREFIX_PATH}",
+              "CMAKE_C_FLAGS": "-g -O0",
+              "CMAKE_CXX_FLAGS": "-g -O0",
+              "NINJA_COLOUR": "ON"
+          }
+      },
+      {
+          "name": "release",
+          "displayName": "Release Config",
+          "generator": "Ninja",
+          "binaryDir": "${sourceDir}/build/",
+          "toolchainFile": "${sourceDir}/cmake/lld.toolchain.cmake",
+          "cacheVariables": {
+              "CMAKE_PREFIX_PATH": "$env{CMAKE_PREFIX_PATH}",
+              "CMAKE_C_FLAGS": "-O3",
+              "CMAKE_CXX_FLAGS": "-O3",
+              "NINJA_COLOUR": "ON"
+          }
+      }
+  ],
+  "buildPresets": [
+      {
+          "name": "debug",
+          "displayName": "Debug Config build",
+          "configurePreset": "debug"
+      },
+      {
+          "name": "release",
+          "displayName": "Release Config build",
+          "configurePreset": "release"
+      }
+  ]
+
+}
