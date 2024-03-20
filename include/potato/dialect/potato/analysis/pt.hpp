@@ -133,10 +133,7 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
 
     void visit_pt_op(pt::AddressOfOp &op, const pt_lattice &before, pt_lattice *after) {
         after->join(before);
-        auto &lhs_pt = (*after)[op.getLhs()];
-        lhs_pt.clear();
-        auto rhs_elem = before.find(op.getRhs())->getFirst();
-        lhs_pt.insert(pt_element(rhs_elem));
+        after->new_var(op.getPtr(), op.getVal());
     };
 
     void visit_pt_op(pt::AssignOp &op, const pt_lattice &before, pt_lattice *after) {
@@ -163,16 +160,12 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
 
     void visit_pt_op(pt::DereferenceOp &op, const pt_lattice &before, pt_lattice *after) {
         after->join(before);
-        auto &lhs_pt = (*after)[op.getLhs()];
-        lhs_pt.clear();
-        const auto &rhs_pt = before.find(op.getRhs())->getSecond();
+        const auto &rhs_pt = before.find(op.getPtr())->getSecond();
+        auto pointees = pt_lattice::new_pointee_set();
         for (auto &rhs_val : rhs_pt) {
-            if (!before.pt_relation.contains(rhs_val)) {
-                llvm::errs() << "[PoTATo] Dereferencing a value that points to nothing. Possible bug or error\n";
-            }
-            lhs_pt.set_union(before.pt_relation.lookup(rhs_val));
+            pt_lattice::pointee_union(pointees, before.find(rhs_val)->second);
         }
-
+        after->new_var(op.getResult(), std::move(pointees));
     };
 
     void visit_pt_op(pt::AllocOp &op, const pt_lattice &before, pt_lattice *after) {
