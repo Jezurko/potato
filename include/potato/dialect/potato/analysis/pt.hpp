@@ -24,10 +24,27 @@ namespace potato::analysis {
 struct pt_lattice : mlir_dense_abstract_lattice
 {
     using mlir_dense_abstract_lattice::AbstractDenseLattice;
+    using pointee_set = llvm::SetVector< pt_element >;
     pt_map< pt_element > pt_relation;
 
     static unsigned int mem_loc_count;
     unsigned int alloc_count();
+
+    auto find(const mlir_value &val) const {
+        return pt_relation.find({val, ""});
+    }
+
+    auto find(const pt_element &val) const {
+        return pt_relation.find(val);
+    }
+
+    auto &operator[](const mlir_value &val) {
+        return pt_relation[{val, ""}];
+    }
+
+    auto &operator[](const pt_element &val) {
+        return pt_relation[val];
+    }
 
     auto new_var(mlir_value val) {
         auto set = llvm::SetVector< pt_element >();
@@ -40,6 +57,20 @@ struct pt_lattice : mlir_dense_abstract_lattice
         auto set = llvm::SetVector< pt_element >();
         auto count = alloc_count();
         return pt_relation.insert({{var, "var" + std::to_string(count)}, pt_set});
+    }
+
+    auto new_var(mlir_value var, mlir_value pointee) {
+        pointee_set set{};
+        set.insert(find(pointee)->first);
+        return new_var(var, set);
+    }
+
+    static auto new_pointee_set() {
+        return pointee_set();
+    }
+
+    static auto pointee_union(pointee_set &trg, const pointee_set &src) {
+        return trg.set_union(src);
     }
 
     void init_at_point(ppoint point) {
@@ -81,22 +112,6 @@ struct pt_lattice : mlir_dense_abstract_lattice
     mlir::ChangeResult meet(const mlir_dense_abstract_lattice &rhs) override {
         return this->intersect(*static_cast< const pt_lattice *>(&rhs));
     };
-
-    auto find(const mlir_value &val) const {
-        return pt_relation.find({val, ""});
-    }
-
-    auto find(const pt_element &val) const {
-        return pt_relation.find(val);
-    }
-
-    auto &operator[](const mlir_value &val) {
-        return pt_relation[{val, ""}];
-    }
-
-    auto &operator[](const pt_element &val) {
-        return pt_relation[val];
-    }
 
     void print(llvm::raw_ostream &os) const override
     {
