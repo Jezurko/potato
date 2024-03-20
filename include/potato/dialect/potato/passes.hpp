@@ -17,5 +17,4 @@ namespace potato::pt {
     #define GEN_PASS_REGISTRATION
     #include "potato/dialect/potato/Passes.h.inc"
 
-
 } // namespace potato::pt
