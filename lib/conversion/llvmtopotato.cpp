@@ -16,6 +16,7 @@ POTATO_UNRELAX_WARNINGS
 #include "potato/conversion/conversions.hpp"
 #include "potato/dialect/potato/potato.hpp"
 #include "potato/util/common.hpp"
+#include "potato/util/typelist.hpp"
 
 namespace potato::conv::llvmtopt
 {
@@ -78,12 +79,28 @@ namespace potato::conv::llvmtopt
         }
     };
 
+    using pattern_list = util::type_list<
+        alloc_op< mlir::LLVM::AllocaOp >,
+        alloc_op< mlir::LLVM::AddOp >,
+        store_op,
+        load_op
+    >;
+
     struct LLVMIRToPoTAToPass : LLVMIRToPoTAToBase< LLVMIRToPoTAToPass >
     {
+        template< typename list >
+        void add_patterns(mlir::RewritePatternSet &patterns) {
+            if constexpr (list::empty) {
+                return;
+            } else {
+                patterns.add< typename list::head >(patterns.getContext());
+                return add_patterns< typename list::tail >(patterns);
+            }
+        }
+
         void runOnOperation() override {
             mlir::RewritePatternSet patterns(&getContext());
-            patterns.add< alloc_op< mlir::LLVM::AllocaOp > >(&getContext());
-            patterns.add< store_op >(&getContext());
+            add_patterns< pattern_list >(patterns);
         }
     };
 
