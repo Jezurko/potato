@@ -3,9 +3,14 @@
 namespace potato::analysis {
 
 unsigned int pt_lattice::mem_loc_count = 0;
+unsigned int pt_lattice::constant_count = 0;
 
 unsigned int pt_lattice::alloc_count() {
     return mem_loc_count++;
+}
+
+unsigned int pt_lattice::const_count() {
+    return constant_count++;
 }
 
 void print_analysis_result(mlir::DataFlowSolver &solver, mlir_operation *op, llvm::raw_ostream &os)

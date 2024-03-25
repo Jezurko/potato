@@ -17,6 +17,7 @@ POTATO_UNRELAX_WARNINGS
 #include "potato/dialect/potato/analysis/utils.hpp"
 #include "potato/util/common.hpp"
 
+#include <cassert>
 #include <string>
 
 namespace potato::analysis {
@@ -28,7 +29,9 @@ struct pt_lattice : mlir_dense_abstract_lattice
     pt_map< pt_element > pt_relation;
 
     static unsigned int mem_loc_count;
+    static unsigned int constant_count;
     unsigned int alloc_count();
+    unsigned int const_count();
 
     auto find(const mlir_value &val) const {
         return pt_relation.find({val, ""});
@@ -61,7 +64,14 @@ struct pt_lattice : mlir_dense_abstract_lattice
 
     auto new_var(mlir_value var, mlir_value pointee) {
         pointee_set set{};
-        set.insert(find(pointee)->first);
+        auto pointee_it = find(pointee);
+        if (pointee_it == pt_relation.end()) {
+            assert((mlir::isa< pt::ConstantOp, pt::ValuedConstantOp >(var.getDefiningOp())));
+            auto count = const_count();
+            set.insert({pointee, "constant" + std::to_string(count)});
+        } else {
+            set.insert(pointee_it->first);
+        }
         return new_var(var, set);
     }
 
@@ -173,13 +183,25 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
         after->new_var(op.getResult());
     }
 
+    void visit_pt_op(pt::ConstantOp &op, const pt_lattice &before, pt_lattice *after) {
+        after->join(before);
+        after->new_var(op.getResult(), op.getResult());
+    }
+
+    void visit_pt_op(pt::ValuedConstantOp &op, const pt_lattice &before, pt_lattice *after) {
+        after->join(before);
+        after->new_var(op.getResult(), op.getResult());
+    }
+
     void visitOperation(mlir::Operation *op, const pt_lattice &before, pt_lattice *after) override {
         return llvm::TypeSwitch< mlir::Operation *, void >(op)
             .Case< pt::AddressOfOp,
                    pt::AssignOp,
                    pt::CopyOp,
                    pt::DereferenceOp,
-                   pt::AllocOp
+                   pt::AllocOp,
+                   pt::ConstantOp,
+                   pt::ValuedConstantOp
             >([&](auto &pt_op) { visit_pt_op(pt_op, before, after); })
             .Default([&](auto &pt_op) { after->join(before); });
     };
