@@ -36,6 +36,21 @@ namespace potato::conv::llvmtopt
         }
     };
 
+    using alloc_patterns = util::type_list<
+        alloc_op< mlir::LLVM::AllocaOp >,
+        alloc_op< mlir::LLVM::AddOp >,
+        alloc_op< mlir::LLVM::FAddOp >,
+        alloc_op< mlir::LLVM::SubOp >,
+        alloc_op< mlir::LLVM::FSubOp >,
+        alloc_op< mlir::LLVM::MulOp >,
+        alloc_op< mlir::LLVM::FMulOp >,
+        alloc_op< mlir::LLVM::MulOp >,
+        alloc_op< mlir::LLVM::FMulOp >,
+        alloc_op< mlir::LLVM::SDivOp >,
+        alloc_op< mlir::LLVM::UDivOp >,
+        alloc_op< mlir::LLVM::FDivOp >
+    >;
+
     struct store_op : mlir::OpConversionPattern< mlir::LLVM::StoreOp > {
         using base = mlir::OpConversionPattern< mlir::LLVM::StoreOp >;
         using base::base;
@@ -49,6 +64,10 @@ namespace potato::conv::llvmtopt
             return mlir::success();
         }
     };
+
+    using store_patterns = util::type_list<
+        store_op
+    >;
 
     struct load_op : mlir::OpConversionPattern< mlir::LLVM::LoadOp > {
         using base = mlir::OpConversionPattern< mlir::LLVM::LoadOp >;
@@ -64,6 +83,10 @@ namespace potato::conv::llvmtopt
         }
     };
 
+    using load_patterns = util::type_list<
+        load_op
+    >;
+
     struct potato_target : public mlir::ConversionTarget {
         potato_target(mlir::MLIRContext &ctx) : ConversionTarget(ctx) {
             addLegalDialect< pt::PotatoDialect >();
@@ -73,17 +96,17 @@ namespace potato::conv::llvmtopt
                         return mlir::isa< mlir::BranchOpInterface,
                                           mlir::RegionBranchOpInterface,
                                           mlir::CallOpInterface,
-                                          mlir::FunctionOpInterface
+                                          mlir::FunctionOpInterface,
+                                          mlir::LLVM::ReturnOp
                                         > (op);
             });
         }
     };
 
-    using pattern_list = util::type_list<
-        alloc_op< mlir::LLVM::AllocaOp >,
-        alloc_op< mlir::LLVM::AddOp >,
-        store_op,
-        load_op
+    using pattern_list = util::concat<
+        alloc_patterns,
+        store_patterns,
+        load_patterns
     >;
 
     struct LLVMIRToPoTAToPass : LLVMIRToPoTAToBase< LLVMIRToPoTAToPass >
@@ -99,9 +122,19 @@ namespace potato::conv::llvmtopt
         }
 
         void runOnOperation() override {
-            mlir::RewritePatternSet patterns(&getContext());
+            auto &mctx = getContext();
+            mlir::RewritePatternSet patterns(&mctx);
             add_patterns< pattern_list >(patterns);
+            if (failed(applyPartialConversion(getOperation(),
+                                       potato_target(mctx),
+                                       std::move(patterns))))
+                    return signalPassFailure();
         }
     };
 
 } // namespace potato::conv::llvmtopt
+
+std::unique_ptr< mlir::Pass > potato::createLLVMToPotatoPass() {
+    return std::make_unique< potato::conv::llvmtopt::LLVMIRToPoTAToPass >();
+}
+
