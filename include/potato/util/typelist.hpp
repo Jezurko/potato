@@ -33,6 +33,29 @@ namespace potato::util {
         struct pop_front< empty_t_list > {
             using type = type_list< empty_t_list >;
         };
+
+        template< typename ...lists >
+        struct concat {};
+
+        template< typename left, typename right >
+        struct concat_list {};
+
+        template< typename ...left, typename ...right >
+        struct concat_list< type_list< left... >, type_list< right... > >
+        {
+            using type = type_list< left..., right... >;
+        };
+
+        template< typename list >
+        struct concat< list >{
+            using type = list;
+        };
+
+        template< typename list, typename ...rest >
+        struct concat< list, rest... >{
+            using type = typename concat_list< list, typename concat< rest... >::type >::type;
+
+        };
     } // namespace detail
 
     template< typename ...types >
@@ -43,5 +66,8 @@ namespace potato::util {
         using head = typename detail::front< self >::type;
         using tail = typename detail::pop_front< self >::type;
     };
+
+    template< typename ...lists >
+    using concat = typename detail::concat< lists... >::type;
 
 } // namespace potato::util
