@@ -11,6 +11,7 @@ POTATO_RELAX_WARNINGS
 
 #include <llvm/ADT/APFloat.h>
 #include <llvm/ADT/SmallVector.h>
+#include <llvm/ADT/TypeSwitch.h>
 POTATO_UNRELAX_WARNINGS
 
 #include "potato/conversion/conversions.hpp"
@@ -87,6 +88,47 @@ namespace potato::conv::llvmtopt
         load_op
     >;
 
+    struct constant_op : mlir::OpConversionPattern< mlir::LLVM::ConstantOp > {
+        using base = mlir::OpConversionPattern< mlir::LLVM::ConstantOp >;
+        using base::base;
+        using adaptor_t = typename mlir::LLVM::ConstantOp::Adaptor;
+        logical_result matchAndRewrite(mlir::LLVM::ConstantOp op,
+                                       adaptor_t adaptor,
+                                       mlir::ConversionPatternRewriter &rewriter
+        ) const override {
+            rewriter.replaceOpWithNewOp< pt::ConstantOp >(op, op.getType());
+            return mlir::success();
+        }
+    };
+
+    struct val_constant_op : mlir::OpConversionPattern< mlir::LLVM::ConstantOp > {
+        using base = mlir::OpConversionPattern< mlir::LLVM::ConstantOp >;
+        using base::base;
+        using adaptor_t = typename mlir::LLVM::ConstantOp::Adaptor;
+
+        logical_result matchAndRewrite(mlir::LLVM::ConstantOp op,
+                                       adaptor_t adaptor,
+                                       mlir::ConversionPatternRewriter &rewriter
+        ) const override {
+            auto const_attr = op.getValue();
+            auto builder = [&](auto attr){
+                rewriter.replaceOpWithNewOp< pt::ValuedConstantOp >(op, op.getType(), attr);
+                return mlir::success();
+            };
+
+            return llvm::TypeSwitch< mlir::Attribute, logical_result >(const_attr)
+                .Case< mlir::BoolAttr,
+                       mlir::FloatAttr,
+                       mlir::IntegerAttr
+                 >(builder)
+                .Default([&](auto) {return mlir::failure();});
+        }
+    };
+
+    using constant_patterns = util::type_list<
+        constant_op
+    >;
+
     struct potato_target : public mlir::ConversionTarget {
         potato_target(mlir::MLIRContext &ctx) : ConversionTarget(ctx) {
             addLegalDialect< pt::PotatoDialect >();
@@ -106,7 +148,8 @@ namespace potato::conv::llvmtopt
     using pattern_list = util::concat<
         alloc_patterns,
         store_patterns,
-        load_patterns
+        load_patterns,
+        constant_patterns
     >;
 
     struct LLVMIRToPoTAToPass : LLVMIRToPoTAToBase< LLVMIRToPoTAToPass >
