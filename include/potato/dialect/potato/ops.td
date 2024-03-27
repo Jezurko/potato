@@ -26,7 +26,7 @@ def Potato_AssignOp
   , Arguments<( ins Arg< AnyType, "", [MemWrite] >: $lhs,
                     Arg< AnyType, "", [MemRead] >:  $rhs )>
 {
-  let assemblyFormat = [{ attr-dict `*` $lhs `=` $rhs `:` type(operands) }];
+  let assemblyFormat = [{ attr-dict $lhs `=` $rhs `:` type(operands) }];
 }
 
 def Potato_DereferenceOp
@@ -34,7 +34,7 @@ def Potato_DereferenceOp
   , Arguments<( ins Arg< AnyType, "", [MemRead] >:$ptr )>
   , Results<( outs AnyType:$val )>
 {
-  let assemblyFormat = [{ attr-dict `*` $ptr `:` functional-type(operands, results) }];
+  let assemblyFormat = [{ attr-dict $ptr `:` functional-type(operands, results) }];
 }
 
 def Potato_AllocOp
