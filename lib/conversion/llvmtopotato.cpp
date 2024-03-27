@@ -49,7 +49,9 @@ namespace potato::conv::llvmtopt
         alloc_op< mlir::LLVM::FMulOp >,
         alloc_op< mlir::LLVM::SDivOp >,
         alloc_op< mlir::LLVM::UDivOp >,
-        alloc_op< mlir::LLVM::FDivOp >
+        alloc_op< mlir::LLVM::FDivOp >,
+        alloc_op< mlir::LLVM::TruncOp >,
+        alloc_op< mlir::LLVM::ICmpOp >
     >;
 
     struct store_op : mlir::OpConversionPattern< mlir::LLVM::StoreOp > {
