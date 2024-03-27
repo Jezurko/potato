@@ -17,3 +17,11 @@ using namespace potato::pt;
 
 #define GET_OP_CLASSES
 #include "potato/dialect/potato/Potato.cpp.inc"
+
+mlir::OpFoldResult ConstantOp::fold(FoldAdaptor adaptor) {
+    return {};
+}
+
+mlir::OpFoldResult ValuedConstantOp::fold(FoldAdaptor adaptor) {
+    return adaptor.getValue();
+}

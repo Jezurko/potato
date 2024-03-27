@@ -48,6 +48,8 @@ def Potato_ConstantOp
   : Potato_Op< "constant", [ConstantLike, NoMemoryEffect] >
   , Results<( outs AnyType:$result )>
 {
+  let hasFolder = 1;
+
   let assemblyFormat = [{ attr-dict `:` type($result)}];
 }
 
@@ -67,6 +69,9 @@ def Potato_ValuedConstantOp
       build($_builder, $_state, type, mlir::FloatAttr::get(type, value));
     }]>
   ];
+
+  let hasFolder = 1;
+
   let assemblyFormat = [{$value attr-dict `:` type($result)}];
 }
 
