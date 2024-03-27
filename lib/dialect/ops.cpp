@@ -19,7 +19,7 @@ using namespace potato::pt;
 #include "potato/dialect/potato/Potato.cpp.inc"
 
 mlir::OpFoldResult ConstantOp::fold(FoldAdaptor adaptor) {
-    return {};
+    return mlir::UnitAttr::get(this->getContext());
 }
 
 mlir::OpFoldResult ValuedConstantOp::fold(FoldAdaptor adaptor) {
