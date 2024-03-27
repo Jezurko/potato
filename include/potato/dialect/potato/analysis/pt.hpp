@@ -172,10 +172,19 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
 
     void visit_pt_op(pt::DereferenceOp &op, const pt_lattice &before, pt_lattice *after) {
         after->join(before);
-        const auto &rhs_pt = before.find(op.getPtr())->getSecond();
         auto pointees = pt_lattice::new_pointee_set();
+
+        auto rhs_it = before.find(op.getPtr());
+        if (rhs_it == before.end()) {
+            auto new_ptr = after->new_var(op.getPtr());
+            rhs_it = new_ptr.first;
+        }
+        const auto &rhs_pt = rhs_it->getSecond();
+
         for (auto &rhs_val : rhs_pt) {
-            pt_lattice::pointee_union(pointees, before.find(rhs_val)->second);
+            auto rhs_it = before.find(rhs_val);
+            if (rhs_it != before.end())
+                pt_lattice::pointee_union(pointees, rhs_it->second);
         }
         after->new_var(op.getResult(), std::move(pointees));
     };
