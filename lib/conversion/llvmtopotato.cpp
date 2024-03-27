@@ -90,11 +90,12 @@ namespace potato::conv::llvmtopt
         load_op
     >;
 
-    struct constant_op : mlir::OpConversionPattern< mlir::LLVM::ConstantOp > {
-        using base = mlir::OpConversionPattern< mlir::LLVM::ConstantOp >;
+    template< typename source >
+    struct constant_op : mlir::OpConversionPattern< source > {
+        using base = mlir::OpConversionPattern< source >;
         using base::base;
-        using adaptor_t = typename mlir::LLVM::ConstantOp::Adaptor;
-        logical_result matchAndRewrite(mlir::LLVM::ConstantOp op,
+        using adaptor_t = typename source::Adaptor;
+        logical_result matchAndRewrite(source op,
                                        adaptor_t adaptor,
                                        mlir::ConversionPatternRewriter &rewriter
         ) const override {
@@ -128,7 +129,8 @@ namespace potato::conv::llvmtopt
     };
 
     using constant_patterns = util::type_list<
-        constant_op
+        constant_op< mlir::LLVM::ConstantOp >,
+        constant_op< mlir::LLVM::NullOp >
     >;
 
     struct potato_target : public mlir::ConversionTarget {
