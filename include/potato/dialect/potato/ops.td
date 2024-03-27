@@ -3,9 +3,10 @@
 
 include "mlir/IR/OpBase.td"
 include "mlir/IR/BuiltinAttributes.td"
+include "mlir/Interfaces/SideEffectInterfaces.td"
 
 def Potato_AddressOfOp
-  : Potato_Op< "address_of" >
+  : Potato_Op< "address_of", [NoMemoryEffect] >
   , Arguments<( ins AnyType:$val )>
   , Results<( outs AnyType:$ptr )>
 {
@@ -14,21 +15,23 @@ def Potato_AddressOfOp
 
 def Potato_CopyOp
   : Potato_Op< "copy" >
-  , Arguments<( ins AnyType:$lhs, AnyType:$rhs )>
+  , Arguments<( ins Arg< AnyType, "", [MemWrite] >: $lhs,
+                    Arg< AnyType, "", [MemRead] >:  $rhs )>
 {
   let assemblyFormat = [{ attr-dict $lhs `=` $rhs `:` type(operands) }];
 }
 
 def Potato_AssignOp
   : Potato_Op< "assign" >
-  , Arguments<( ins AnyType:$lhs, AnyType:$rhs )>
+  , Arguments<( ins Arg< AnyType, "", [MemWrite] >: $lhs,
+                    Arg< AnyType, "", [MemRead] >:  $rhs )>
 {
   let assemblyFormat = [{ attr-dict `*` $lhs `=` $rhs `:` type(operands) }];
 }
 
 def Potato_DereferenceOp
   : Potato_Op< "deref" >
-  , Arguments<( ins AnyType:$ptr )>
+  , Arguments<( ins Arg< AnyType, "", [MemRead] >:$ptr )>
   , Results<( outs AnyType:$val )>
 {
   let assemblyFormat = [{ attr-dict `*` $ptr `:` functional-type(operands, results) }];
@@ -36,20 +39,20 @@ def Potato_DereferenceOp
 
 def Potato_AllocOp
   : Potato_Op< "alloc" >
-  , Results<( outs AnyType:$result )>
+  , Results<( outs Res< AnyType, "", [MemAlloc] >:$result )>
 {
   let assemblyFormat = [{ attr-dict `:` type($result) }];
 }
 
 def Potato_ConstantOp
-  : Potato_Op< "constant", [ConstantLike] >
+  : Potato_Op< "constant", [ConstantLike, NoMemoryEffect] >
   , Results<( outs AnyType:$result )>
 {
   let assemblyFormat = [{ attr-dict `:` type($result)}];
 }
 
 def Potato_ValuedConstantOp
-  : Potato_Op< "val_constant", [ConstantLike] >
+  : Potato_Op< "val_constant", [ConstantLike, NoMemoryEffect] >
   , Arguments<( ins TypedAttrInterface:$value )>
   , Results<( outs AnyType:$result )>
 {
