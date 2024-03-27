@@ -135,6 +135,8 @@ struct pt_lattice : mlir_dense_abstract_lattice
             os << "}";
         }
     }
+
+    auto end() const { return pt_relation.end(); }
 };
 
 struct pt_analysis : mlir_dense_dfa< pt_lattice >
