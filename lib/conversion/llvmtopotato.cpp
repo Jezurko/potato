@@ -38,20 +38,7 @@ namespace potato::conv::llvmtopt
     };
 
     using alloc_patterns = util::type_list<
-        alloc_op< mlir::LLVM::AllocaOp >,
-        alloc_op< mlir::LLVM::AddOp >,
-        alloc_op< mlir::LLVM::FAddOp >,
-        alloc_op< mlir::LLVM::SubOp >,
-        alloc_op< mlir::LLVM::FSubOp >,
-        alloc_op< mlir::LLVM::MulOp >,
-        alloc_op< mlir::LLVM::FMulOp >,
-        alloc_op< mlir::LLVM::MulOp >,
-        alloc_op< mlir::LLVM::FMulOp >,
-        alloc_op< mlir::LLVM::SDivOp >,
-        alloc_op< mlir::LLVM::UDivOp >,
-        alloc_op< mlir::LLVM::FDivOp >,
-        alloc_op< mlir::LLVM::TruncOp >,
-        alloc_op< mlir::LLVM::ICmpOp >
+        alloc_op< mlir::LLVM::AllocaOp >
     >;
 
     struct store_op : mlir::OpConversionPattern< mlir::LLVM::StoreOp > {
@@ -88,6 +75,38 @@ namespace potato::conv::llvmtopt
 
     using load_patterns = util::type_list<
         load_op
+    >;
+
+    template< typename source >
+    struct copy_op : mlir::OpConversionPattern< source > {
+        using base = mlir::OpConversionPattern< source >;
+        using base::base;
+        using adaptor_t = typename source::Adaptor;
+        logical_result matchAndRewrite(source op,
+                                       adaptor_t adaptor,
+                                       mlir::ConversionPatternRewriter &rewriter
+        ) const override {
+            rewriter.replaceOpWithNewOp< pt::CopyOp >(op, op.getType(), adaptor.getOperands());
+            return mlir::success();
+        }
+    };
+
+    using copy_patterns = util::type_list<
+        copy_op< mlir::LLVM::AddOp >,
+        copy_op< mlir::LLVM::FAddOp >,
+        copy_op< mlir::LLVM::SubOp >,
+        copy_op< mlir::LLVM::FSubOp >,
+        copy_op< mlir::LLVM::MulOp >,
+        copy_op< mlir::LLVM::FMulOp >,
+        copy_op< mlir::LLVM::MulOp >,
+        copy_op< mlir::LLVM::FMulOp >,
+        copy_op< mlir::LLVM::SDivOp >,
+        copy_op< mlir::LLVM::UDivOp >,
+        copy_op< mlir::LLVM::FDivOp >,
+        copy_op< mlir::LLVM::TruncOp >,
+        copy_op< mlir::LLVM::ICmpOp >,
+        copy_op< mlir::LLVM::PtrToIntOp >,
+        copy_op< mlir::LLVM::IntToPtrOp >
     >;
 
     template< typename source >
@@ -151,9 +170,10 @@ namespace potato::conv::llvmtopt
 
     using pattern_list = util::concat<
         alloc_patterns,
+        constant_patterns,
+        copy_patterns,
         store_patterns,
-        load_patterns,
-        constant_patterns
+        load_patterns
     >;
 
     struct LLVMIRToPoTAToPass : LLVMIRToPoTAToBase< LLVMIRToPoTAToPass >

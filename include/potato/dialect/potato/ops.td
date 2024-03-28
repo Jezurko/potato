@@ -5,8 +5,8 @@ include "mlir/IR/OpBase.td"
 include "mlir/IR/BuiltinAttributes.td"
 include "mlir/Interfaces/SideEffectInterfaces.td"
 
-def Potato_AddressOfOp
-  : Potato_Op< "address_of", [NoMemoryEffect] >
+def Potato_AddressOp
+  : Potato_Op< "address", [NoMemoryEffect] >
   , Arguments<( ins AnyType:$val )>
   , Results<( outs AnyType:$ptr )>
 {
@@ -15,10 +15,10 @@ def Potato_AddressOfOp
 
 def Potato_CopyOp
   : Potato_Op< "copy" >
-  , Arguments<( ins Arg< AnyType, "", [MemWrite] >: $lhs,
-                    Arg< AnyType, "", [MemRead] >:  $rhs )>
+  , Arguments<( ins Variadic< AnyType >: $args )>
+  , Results<( outs AnyType:$res )>
 {
-  let assemblyFormat = [{ attr-dict $lhs `=` $rhs `:` type(operands) }];
+  let assemblyFormat = [{ attr-dict $args `:` functional-type(operands, results) }];
 }
 
 def Potato_AssignOp

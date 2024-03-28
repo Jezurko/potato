@@ -143,7 +143,8 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
 {
     using mlir_dense_dfa< pt_lattice >::DenseDataFlowAnalysis;
 
-    void visit_pt_op(pt::AddressOfOp &op, const pt_lattice &before, pt_lattice *after) {
+
+    void visit_pt_op(pt::AddressOp &op, const pt_lattice &before, pt_lattice *after) {
         after->join(before);
         after->new_var(op.getPtr(), op.getVal());
     };
@@ -163,11 +164,15 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
     void visit_pt_op(pt::CopyOp &op, const pt_lattice &before, pt_lattice *after) {
         after->join(before);
 
-        auto &lhs_pt = (*after)[op.getLhs()];
-        const auto &rhs_pt = before.find(op.getRhs())->getSecond();
+        auto pt_set = pt_lattice::new_pointee_set();
 
-        lhs_pt.clear();
-        lhs_pt.set_union(rhs_pt);
+        for (auto operand : op.getOperands()) {
+            auto operand_it = before.find(operand);
+            if (operand_it != before.end()) {
+                after->pointee_union(pt_set, operand_it->getSecond());
+            }
+        }
+        after->new_var(op.getResult(), pt_set);
     };
 
     void visit_pt_op(pt::DereferenceOp &op, const pt_lattice &before, pt_lattice *after) {
@@ -196,7 +201,7 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
 
     void visit_pt_op(pt::ConstantOp &op, const pt_lattice &before, pt_lattice *after) {
         after->join(before);
-        after->new_var(op.getResult(), op.getResult());
+        after->new_var(op.getResult(), pt_lattice::new_pointee_set());
     }
 
     void visit_pt_op(pt::ValuedConstantOp &op, const pt_lattice &before, pt_lattice *after) {
@@ -206,12 +211,12 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
 
     void visitOperation(mlir::Operation *op, const pt_lattice &before, pt_lattice *after) override {
         return llvm::TypeSwitch< mlir::Operation *, void >(op)
-            .Case< pt::AddressOfOp,
+            .Case< pt::AddressOp,
+                   pt::AllocOp,
                    pt::AssignOp,
+                   pt::ConstantOp,
                    pt::CopyOp,
                    pt::DereferenceOp,
-                   pt::AllocOp,
-                   pt::ConstantOp,
                    pt::ValuedConstantOp
             >([&](auto &pt_op) { visit_pt_op(pt_op, before, after); })
             .Default([&](auto &pt_op) { after->join(before); });
