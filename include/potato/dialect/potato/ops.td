@@ -31,8 +31,8 @@ def Potato_AssignOp
 
 def Potato_DereferenceOp
   : Potato_Op< "deref" >
-  , Arguments<( ins Arg< AnyType, "", [MemRead] >:$ptr )>
-  , Results<( outs AnyType:$val )>
+  , Arguments<( ins AnyType: $ptr )>
+  , Results<( outs AnyType: $val )>
 {
   let assemblyFormat = [{ attr-dict $ptr `:` functional-type(operands, results) }];
 }
