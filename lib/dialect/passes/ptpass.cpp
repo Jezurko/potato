@@ -26,7 +26,7 @@ namespace potato::pt
             solver.load< mlir::dataflow::DeadCodeAnalysis >();
 
             // Load our analysis
-            solver.load< analysis::pt_analysis >();
+            solver.load< analysis::pt_analysis< analysis::aa_lattice > >();
 
             if (failed(solver.initializeAndRun(root)))
                 signalPassFailure();

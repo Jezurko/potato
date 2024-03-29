@@ -22,7 +22,7 @@ POTATO_UNRELAX_WARNINGS
 
 namespace potato::analysis {
 
-struct pt_lattice : mlir_dense_abstract_lattice
+struct aa_lattice : mlir_dense_abstract_lattice
 {
     using mlir_dense_abstract_lattice::AbstractDenseLattice;
     using pointee_set = llvm::SetVector< pt_element >;
@@ -90,7 +90,7 @@ struct pt_lattice : mlir_dense_abstract_lattice
         }
     }
 
-    change_result merge(const pt_lattice &rhs) {
+    change_result merge(const aa_lattice &rhs) {
         change_result res = change_result::NoChange;
         for (const auto &[key, rhs_value] : rhs.pt_relation) {
             auto &lhs_value = pt_relation[key];
@@ -101,7 +101,7 @@ struct pt_lattice : mlir_dense_abstract_lattice
         return res;
     }
 
-    change_result intersect(const pt_lattice &rhs) {
+    change_result intersect(const aa_lattice &rhs) {
         change_result res = change_result::NoChange;
         for (const auto &[key, rhs_value] : rhs.pt_relation) {
             auto &lhs_value = pt_relation[key];
@@ -116,11 +116,11 @@ struct pt_lattice : mlir_dense_abstract_lattice
     }
 
     change_result join(const mlir_dense_abstract_lattice &rhs) override {
-        return this->merge(*static_cast< const pt_lattice *>(&rhs));
+        return this->merge(*static_cast< const aa_lattice *>(&rhs));
     };
 
     mlir::ChangeResult meet(const mlir_dense_abstract_lattice &rhs) override {
-        return this->intersect(*static_cast< const pt_lattice *>(&rhs));
+        return this->intersect(*static_cast< const aa_lattice *>(&rhs));
     };
 
     void print(llvm::raw_ostream &os) const override
@@ -139,10 +139,10 @@ struct pt_lattice : mlir_dense_abstract_lattice
     auto end() const { return pt_relation.end(); }
 };
 
+template< typename pt_lattice >
 struct pt_analysis : mlir_dense_dfa< pt_lattice >
 {
     using mlir_dense_dfa< pt_lattice >::DenseDataFlowAnalysis;
-
 
     void visit_pt_op(pt::AddressOp &op, const pt_lattice &before, pt_lattice *after) {
         after->join(before);
@@ -259,7 +259,7 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
         auto init_state = pt_lattice(point);
         init_state.init_at_point(point);
 
-        propagateIfChanged(lattice, lattice->join(init_state));
+        this->propagateIfChanged(lattice, lattice->join(init_state));
     }
 };
 
