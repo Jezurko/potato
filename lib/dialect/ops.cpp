@@ -30,10 +30,15 @@ mlir::OpFoldResult CopyOp::fold(FoldAdaptor) {
     mlir::OpFoldResult res{};
     for (auto operand : getOperands()) {
         if (!(operand.getDefiningOp()->hasTrait< mlir::OpTrait::ConstantLike >())) {
+            // Copy op is joining results of multiple non-constant operations,
+            // conservatively bail out to not lose any information
             if (res)
                 return {};
             res = operand;
         }
+    }
+    if (auto operand = mlir::dyn_cast< mlir::Value >(res)) {
+        operand.setLoc(mlir::FusedLoc::get(getContext(), {operand.getLoc(), this->getLoc()}));
     }
     return res;
 }
