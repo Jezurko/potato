@@ -25,3 +25,15 @@ mlir::OpFoldResult ConstantOp::fold(FoldAdaptor adaptor) {
 mlir::OpFoldResult ValuedConstantOp::fold(FoldAdaptor adaptor) {
     return adaptor.getValue();
 }
+
+mlir::OpFoldResult CopyOp::fold(FoldAdaptor) {
+    mlir::OpFoldResult res{};
+    for (auto operand : getOperands()) {
+        if (!(operand.getDefiningOp()->hasTrait< mlir::OpTrait::ConstantLike >())) {
+            if (res)
+                return {};
+            res = operand;
+        }
+    }
+    return res;
+}

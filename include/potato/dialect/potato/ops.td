@@ -15,10 +15,12 @@ def Potato_AddressOp
 
 def Potato_CopyOp
   : Potato_Op< "copy" >
-  , Arguments<( ins Variadic< AnyType >: $args )>
+  , Arguments<( ins Variadic< AnyType >: $srcs )>
   , Results<( outs AnyType:$res )>
 {
-  let assemblyFormat = [{ attr-dict $args `:` functional-type(operands, results) }];
+  let hasFolder = 1;
+
+  let assemblyFormat = [{ attr-dict $srcs `:` functional-type(operands, results) }];
 }
 
 def Potato_AssignOp
