@@ -9,7 +9,12 @@ def Potato_Dialect : Dialect {
 
   let summary = "Dialect for representing points to analysis operations.";
 
-  //let useDefaultTypePrinterParser = 1;
+  let extraClassDeclaration = [{
+        void registerTypes();
+  }];
+
+
+  let useDefaultTypePrinterParser = 1;
   //let useDefaultAttributePrinterParser = 1;
 
   let hasConstantMaterializer = 1;
@@ -20,5 +25,6 @@ class Potato_Op< string mnemonic, list< Trait > traits = [] >
   : Op< Potato_Dialect, mnemonic, traits >;
 
 include "ops.td"
+include "types.td"
 
 #endif // POTATO_DIALECT

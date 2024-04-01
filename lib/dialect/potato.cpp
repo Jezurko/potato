@@ -4,12 +4,13 @@
 
 #include "potato/dialect/potato/potato.hpp"
 #include "potato/dialect/potato/ops.hpp"
+#include "potato/dialect/potato/types.hpp"
 
 namespace potato::pt
 {
     void PotatoDialect::initialize()
     {
-        //registerTypes();
+        registerTypes();
         //registerAttributes();
 
         addOperations<
