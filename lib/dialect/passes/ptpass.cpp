@@ -1,6 +1,6 @@
-#include "potato/dialect/potato/passes.hpp"
+#include "potato/dialect/passes.hpp"
 #include "potato/util/warnings.hpp"
-#include "potato/dialect/potato/analysis/pt.hpp"
+#include "potato/dialect/analysis/pt.hpp"
 
 POTATO_RELAX_WARNINGS
 #include <mlir/Analysis/DataFlowFramework.h>

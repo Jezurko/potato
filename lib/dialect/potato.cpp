@@ -2,9 +2,9 @@
 
 #include <mlir/IR/DialectImplementation.h>
 
-#include "potato/dialect/potato/potato.hpp"
-#include "potato/dialect/potato/ops.hpp"
-#include "potato/dialect/potato/types.hpp"
+#include "potato/dialect/potato.hpp"
+#include "potato/dialect/ops.hpp"
+#include "potato/dialect/types.hpp"
 
 namespace potato::pt
 {
@@ -15,7 +15,7 @@ namespace potato::pt
 
         addOperations<
             #define GET_OP_LIST
-            #include "potato/dialect/potato/Potato.cpp.inc"
+            #include "potato/dialect/Potato.cpp.inc"
         >();
 
         //addInterfaces< potatoOpDialectInterface >();

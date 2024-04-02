@@ -15,6 +15,6 @@ namespace potato::pt {
     std::unique_ptr< mlir::Pass > createPointsToPass();
 
     #define GEN_PASS_REGISTRATION
-    #include "potato/dialect/potato/Passes.h.inc"
+    #include "potato/dialect/Passes.h.inc"
 
 } // namespace potato::pt

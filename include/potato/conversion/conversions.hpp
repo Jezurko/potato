@@ -12,7 +12,7 @@ POTATO_RELAX_WARNINGS
 #include <mlir/Pass/PassManager.h>
 POTATO_UNRELAX_WARNINGS
 
-#include "potato/dialect/potato/potato.hpp"
+#include "potato/dialect/potato.hpp"
 
 #include <memory>
 

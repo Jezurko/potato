@@ -9,8 +9,8 @@ POTATO_RELAX_WARNINGS
 #include "mlir/Tools/mlir-opt/MlirOptMain.h"
 POTATO_UNRELAX_WARNINGS
 
-#include "potato/dialect/potato/potato.hpp"
-#include "potato/dialect/potato/passes.hpp"
+#include "potato/dialect/potato.hpp"
+#include "potato/dialect/passes.hpp"
 #include "potato/conversion/conversions.hpp"
 
 int main(int argc, char **argv)

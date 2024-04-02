@@ -13,8 +13,8 @@ POTATO_RELAX_WARNINGS
 #include <llvm/ADT/TypeSwitch.h>
 POTATO_UNRELAX_WARNINGS
 
-#include "potato/dialect/potato/potato.hpp"
-#include "potato/dialect/potato/analysis/utils.hpp"
+#include "potato/dialect/potato.hpp"
+#include "potato/dialect/analysis/utils.hpp"
 #include "potato/util/common.hpp"
 
 #include <cassert>

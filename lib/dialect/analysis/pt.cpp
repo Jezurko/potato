@@ -1,4 +1,4 @@
-#include "potato/dialect/potato/analysis/pt.hpp"
+#include "potato/dialect/analysis/pt.hpp"
 
 namespace potato::analysis {
 

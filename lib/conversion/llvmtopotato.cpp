@@ -15,7 +15,7 @@ POTATO_RELAX_WARNINGS
 POTATO_UNRELAX_WARNINGS
 
 #include "potato/conversion/conversions.hpp"
-#include "potato/dialect/potato/potato.hpp"
+#include "potato/dialect/potato.hpp"
 #include "potato/util/common.hpp"
 #include "potato/util/typelist.hpp"
 

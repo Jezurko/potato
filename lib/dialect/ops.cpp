@@ -6,17 +6,17 @@ POTATO_RELAX_WARNINGS
 #include <llvm/ADT/APSInt.h>
 POTATO_UNRELAX_WARNINGS
 
-#include "potato/dialect/potato/potato.hpp"
-#include "potato/dialect/potato/ops.hpp"
+#include "potato/dialect/potato.hpp"
+#include "potato/dialect/ops.hpp"
 
 // TableGen generated stuff goes here:
 
-#include "potato/dialect/potato/PotatoDialect.cpp.inc"
+#include "potato/dialect/PotatoDialect.cpp.inc"
 
 using namespace potato::pt;
 
 #define GET_OP_CLASSES
-#include "potato/dialect/potato/Potato.cpp.inc"
+#include "potato/dialect/Potato.cpp.inc"
 
 mlir::OpFoldResult ConstantOp::fold(FoldAdaptor adaptor) {
     return mlir::UnitAttr::get(this->getContext());
