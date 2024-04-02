@@ -9,7 +9,4 @@ class Potato_Type< string name, string _mnemonic, list< Trait > traits = [] >
 
 def Potato_Pointer : Potato_Type< "Pointer", "ptr" >
 {}
-
-def Potato_Constant : Potato_Type< "Constant", "const" >
-{}
 #endif // POTATO_DIALECT_TYPES
