@@ -15,6 +15,7 @@ POTATO_RELAX_WARNINGS
 POTATO_UNRELAX_WARNINGS
 
 #include "potato/conversion/conversions.hpp"
+#include "potato/conversion/type/converter.hpp"
 #include "potato/dialect/potato.hpp"
 #include "potato/util/common.hpp"
 #include "potato/util/typelist.hpp"
@@ -32,7 +33,8 @@ namespace potato::conv::llvmtopt
                                        adaptor_t adaptor,
                                        mlir::ConversionPatternRewriter &rewriter
         ) const override {
-            rewriter.replaceOpWithNewOp< pt::AllocOp >(op, op.getRes().getType());
+            auto tc = this->getTypeConverter();
+            rewriter.replaceOpWithNewOp< pt::AllocOp >(op, tc->convertType(op.getRes().getType()));
             return mlir::success();
         }
     };
@@ -68,7 +70,12 @@ namespace potato::conv::llvmtopt
                                        adaptor_t adaptor,
                                        mlir::ConversionPatternRewriter &rewriter
         ) const override {
-            rewriter.replaceOpWithNewOp< pt::DereferenceOp >(op, op.getRes().getType(), adaptor.getAddr());
+            auto tc = this->getTypeConverter();
+            rewriter.replaceOpWithNewOp< pt::DereferenceOp >(
+                    op,
+                    tc->convertType(op.getRes().getType()),
+                    adaptor.getAddr()
+            );
             return mlir::success();
         }
     };
@@ -86,7 +93,12 @@ namespace potato::conv::llvmtopt
                                        adaptor_t adaptor,
                                        mlir::ConversionPatternRewriter &rewriter
         ) const override {
-            rewriter.replaceOpWithNewOp< pt::CopyOp >(op, op.getType(), adaptor.getOperands());
+            auto tc = this->getTypeConverter();
+            rewriter.replaceOpWithNewOp< pt::CopyOp >(
+                    op,
+                    tc->convertType(op.getType()),
+                    adaptor.getOperands()
+            );
             return mlir::success();
         }
     };
@@ -118,7 +130,8 @@ namespace potato::conv::llvmtopt
                                        adaptor_t adaptor,
                                        mlir::ConversionPatternRewriter &rewriter
         ) const override {
-            rewriter.replaceOpWithNewOp< pt::ConstantOp >(op, op.getType());
+            auto tc = this->getTypeConverter();
+            rewriter.replaceOpWithNewOp< pt::ConstantOp >(op, tc->convertType(op.getType()));
             return mlir::success();
         }
     };
@@ -179,19 +192,20 @@ namespace potato::conv::llvmtopt
     struct LLVMIRToPoTAToPass : LLVMIRToPoTAToBase< LLVMIRToPoTAToPass >
     {
         template< typename list >
-        void add_patterns(mlir::RewritePatternSet &patterns) {
+        void add_patterns(mlir::RewritePatternSet &patterns, auto &converter) {
             if constexpr (list::empty) {
                 return;
             } else {
-                patterns.add< typename list::head >(patterns.getContext());
-                return add_patterns< typename list::tail >(patterns);
+                patterns.add< typename list::head >(converter, patterns.getContext());
+                return add_patterns< typename list::tail >(patterns, converter);
             }
         }
 
         void runOnOperation() override {
             auto &mctx = getContext();
+            auto tc = to_pt_type();
             mlir::RewritePatternSet patterns(&mctx);
-            add_patterns< pattern_list >(patterns);
+            add_patterns< pattern_list >(patterns, tc);
             if (failed(applyPartialConversion(getOperation(),
                                        potato_target(mctx),
                                        std::move(patterns))))
