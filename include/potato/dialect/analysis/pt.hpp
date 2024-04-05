@@ -209,6 +209,24 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
         after->new_var(op.getResult(), op.getResult());
     }
 
+    void visit_unrealized_cast(mlir::UnrealizedConversionCastOp &op,
+                               const pt_lattice &before, pt_lattice *after)
+    {
+        after->join(before);
+
+        auto pt_set = pt_lattice::new_pointee_set();
+
+        for (auto operand : op.getOperands()) {
+            auto operand_it = before.find(operand);
+            if (operand_it != before.end()) {
+                after->pointee_union(pt_set, operand_it->getSecond());
+            }
+        }
+        for (auto res : op.getResults()) {
+            after->new_var(res, pt_set);
+        }
+    }
+
     void visitOperation(mlir::Operation *op, const pt_lattice &before, pt_lattice *after) override {
         return llvm::TypeSwitch< mlir::Operation *, void >(op)
             .Case< pt::AddressOp,
@@ -219,6 +237,8 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
                    pt::DereferenceOp,
                    pt::ValuedConstantOp
             >([&](auto &pt_op) { visit_pt_op(pt_op, before, after); })
+            .template Case< mlir::UnrealizedConversionCastOp
+            >([&](auto &cast_op) { visit_unrealized_cast(cast_op, before, after); })
             .Default([&](auto &pt_op) { after->join(before); });
     };
 
