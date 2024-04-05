@@ -118,7 +118,9 @@ namespace potato::conv::llvmtopt
         copy_op< mlir::LLVM::TruncOp >,
         copy_op< mlir::LLVM::ICmpOp >,
         copy_op< mlir::LLVM::PtrToIntOp >,
-        copy_op< mlir::LLVM::IntToPtrOp >
+        copy_op< mlir::LLVM::IntToPtrOp >,
+        copy_op< mlir::LLVM::BitcastOp >,
+        copy_op< mlir::LLVM::ZExtOp >
     >;
 
     template< typename source >
