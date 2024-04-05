@@ -1,24 +1,25 @@
 "builtin.module"() ( {
     func.func @foo() {
-        %0 = pt.alloc : i1
-        %1 = pt.alloc : i1
-        %2 = pt.alloc : i1
-        llvm.cond_br %0, ^bb1, ^bb2
+        %0 = pt.alloc : !pt.ptr
+        %1 = pt.alloc : !pt.ptr
+        %2 = pt.alloc : !pt.ptr
+        %3 = builtin.unrealized_conversion_cast %0 : !pt.ptr to i1
+        llvm.cond_br %3, ^bb1, ^bb2
         ^bb1:
-            pt.copy %0 = %1 : i1, i1
+            %4 = pt.copy %1 : (!pt.ptr) -> !pt.ptr
             llvm.br ^bb3
         ^bb2:
-            pt.copy %0 = %2 : i1, i1
+            %5 = pt.copy %1 : (!pt.ptr) -> !pt.ptr
             llvm.br ^bb3
         ^bb3:
-            %4 = func.call @foo2(%0) : (i1) -> (i1)
+            %6 = func.call @foo2(%0) : (!pt.ptr) ->  !pt.ptr
             func.return
     }
-    func.func private @foo2(i1) -> i1 {
-        ^bb0(%0: i1):
-            %1 = pt.alloc : i1
-            pt.assign *%0 = %1 : i1, i1
-            func.return %0 : i1
+    func.func private @foo2 (!pt.ptr) -> !pt.ptr {
+        ^bb0(%0: !pt.ptr):
+            %1 = pt.alloc : !pt.ptr
+            pt.assign %0 = %1 : !pt.ptr, !pt.ptr
+            func.return %0 : !pt.ptr
     }
 
 } ): () -> ()
