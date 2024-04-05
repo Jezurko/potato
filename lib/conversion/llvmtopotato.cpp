@@ -168,16 +168,6 @@ namespace potato::conv::llvmtopt
     struct potato_target : public mlir::ConversionTarget {
         potato_target(mlir::MLIRContext &ctx) : ConversionTarget(ctx) {
             addLegalDialect< pt::PotatoDialect >();
-
-            addDynamicallyLegalDialect< mlir::LLVM::LLVMDialect >(
-                    [&](auto *op){
-                        return mlir::isa< mlir::BranchOpInterface,
-                                          mlir::RegionBranchOpInterface,
-                                          mlir::CallOpInterface,
-                                          mlir::FunctionOpInterface,
-                                          mlir::LLVM::ReturnOp
-                                        > (op);
-            });
         }
     };
 
@@ -202,12 +192,25 @@ namespace potato::conv::llvmtopt
         }
 
         void runOnOperation() override {
-            auto &mctx = getContext();
-            auto tc = to_pt_type();
-            mlir::RewritePatternSet patterns(&mctx);
+            auto &mctx    = getContext();
+            auto tc       = to_pt_type();
+            auto trg      = potato_target(mctx);
+            auto patterns = mlir::RewritePatternSet(&mctx);
+
             add_patterns< pattern_list >(patterns, tc);
+
+            trg.addDynamicallyLegalDialect< mlir::LLVM::LLVMDialect >(
+                    [&](auto *op){
+                        return mlir::isa< mlir::BranchOpInterface,
+                                          mlir::CallOpInterface,
+                                          mlir::FunctionOpInterface,
+                                          mlir::RegionBranchOpInterface,
+                                          mlir::LLVM::ReturnOp
+                                        > (op);
+            });
+
             if (failed(applyPartialConversion(getOperation(),
-                                       potato_target(mctx),
+                                       trg,
                                        std::move(patterns))))
                     return signalPassFailure();
         }
