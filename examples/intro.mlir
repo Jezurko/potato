@@ -1,4 +1,7 @@
 "builtin.module"() ( {
-    %0 = pt.alloc : !pt.ptr
-    %1 = pt.address %0 : (!pt.ptr) -> !pt.ptr
+    func.func @fun() {
+        %0 = pt.alloc : !pt.ptr
+        %1 = pt.address %0 : (!pt.ptr) -> !pt.ptr
+        func.return
+    }
 } ): () -> ()

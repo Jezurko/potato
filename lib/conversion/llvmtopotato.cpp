@@ -164,7 +164,7 @@ namespace potato::conv::llvmtopt
 
     using constant_patterns = util::type_list<
         constant_op< mlir::LLVM::ConstantOp >,
-        constant_op< mlir::LLVM::NullOp >
+        constant_op< mlir::LLVM::ZeroOp >
     >;
 
     struct potato_target : public mlir::ConversionTarget {

@@ -33,6 +33,14 @@ struct aa_lattice : mlir_dense_abstract_lattice
     unsigned int alloc_count();
     unsigned int const_count();
 
+    auto contains(const mlir_value &val) const {
+        return pt_relation.contains({val, ""});
+    }
+
+    auto contains(const pt_element &val) const {
+        return pt_relation.contains(val);
+    }
+
     auto find(const mlir_value &val) const {
         return pt_relation.find({val, ""});
     }
@@ -80,7 +88,7 @@ struct aa_lattice : mlir_dense_abstract_lattice
     }
 
     static auto pointee_union(pointee_set &trg, const pointee_set &src) {
-        return trg.set_union(src);
+        return trg.set_union(src) ? change_result::Change : change_result::NoChange;
     }
 
     void init_at_point(ppoint point) {
@@ -119,7 +127,7 @@ struct aa_lattice : mlir_dense_abstract_lattice
         return this->merge(*static_cast< const aa_lattice *>(&rhs));
     };
 
-    mlir::ChangeResult meet(const mlir_dense_abstract_lattice &rhs) override {
+    change_result meet(const mlir_dense_abstract_lattice &rhs) override {
         return this->intersect(*static_cast< const aa_lattice *>(&rhs));
     };
 
@@ -142,89 +150,117 @@ struct aa_lattice : mlir_dense_abstract_lattice
 template< typename pt_lattice >
 struct pt_analysis : mlir_dense_dfa< pt_lattice >
 {
-    using mlir_dense_dfa< pt_lattice >::DenseDataFlowAnalysis;
+    using base = mlir_dense_dfa< pt_lattice >;
+    using base::base;
+
+    using base::propagateIfChanged;
 
     void visit_pt_op(pt::AddressOp &op, const pt_lattice &before, pt_lattice *after) {
-        after->join(before);
-        after->new_var(op.getPtr(), op.getVal());
+        auto changed = after->join(before);
+        if (after->new_var(op.getPtr(), op.getVal()).second)
+            changed |= change_result::Change;
+        propagateIfChanged(after, changed);
     };
 
     void visit_pt_op(pt::AssignOp &op, const pt_lattice &before, pt_lattice *after) {
-        after->join(before);
+        auto changed = after->join(before);
 
         auto &lhs_pt = (*after)[op.getLhs()];
-        const auto &rhs_pt = before.find(op.getRhs())->getSecond();
+        const auto &rhs_pt = before.find(op.getRhs())->second;
         for (auto &lhs_val : lhs_pt) {
             auto &insert_point = after->pt_relation[lhs_val];
-            insert_point.clear();
-            insert_point.set_union(rhs_pt);
+            if (insert_point != rhs_pt) {
+                insert_point.clear();
+                std::ignore = pt_lattice::pointee_union(insert_point, rhs_pt);
+                changed |= change_result::Change;
+            }
         }
+        propagateIfChanged(after, changed);
     };
 
     void visit_pt_op(pt::CopyOp &op, const pt_lattice &before, pt_lattice *after) {
-        after->join(before);
+        auto changed = after->join(before);
 
         auto pt_set = pt_lattice::new_pointee_set();
 
         for (auto operand : op.getOperands()) {
             auto operand_it = before.find(operand);
             if (operand_it != before.end()) {
-                after->pointee_union(pt_set, operand_it->getSecond());
+                std::ignore = pt_lattice::pointee_union(pt_set, operand_it->second);
             }
         }
-        after->new_var(op.getResult(), pt_set);
+        if (after->contains(op.getResult())) {
+            changed |= pt_lattice::pointee_union((*after)[op.getResult()], pt_set);
+        } else {
+            after->new_var(op.getResult(), pt_set);
+            changed |= change_result::Change;
+        }
+        propagateIfChanged(after, changed);
     };
 
     void visit_pt_op(pt::DereferenceOp &op, const pt_lattice &before, pt_lattice *after) {
-        after->join(before);
-        auto pointees = pt_lattice::new_pointee_set();
+        auto changed = after->join(before);
+        auto new_var = after->new_var(op.getResult(), pt_lattice::new_pointee_set());
+        if (new_var.second)
+            changed |= change_result::Change;
+        auto &pointees = new_var.first->second;
 
-        auto rhs_it = before.find(op.getPtr());
-        if (rhs_it == before.end()) {
-            auto new_ptr = after->new_var(op.getPtr());
-            rhs_it = new_ptr.first;
-        }
-        const auto &rhs_pt = rhs_it->getSecond();
+        auto rhs_pt = before.find(op.getPtr());
 
-        for (auto &rhs_val : rhs_pt) {
-            auto rhs_it = before.find(rhs_val);
-            if (rhs_it != before.end())
-                pt_lattice::pointee_union(pointees, rhs_it->second);
+        if (rhs_pt != before.end()) {
+            for (auto &rhs_val : rhs_pt->second) {
+                auto rhs_it = before.find(rhs_val);
+                if (rhs_it != before.end())
+                    changed |= pt_lattice::pointee_union(pointees, rhs_it->second);
+            }
         }
-        after->new_var(op.getResult(), std::move(pointees));
+        propagateIfChanged(after, changed);
     };
 
     void visit_pt_op(pt::AllocOp &op, const pt_lattice &before, pt_lattice *after) {
-        after->join(before);
-        after->new_var(op.getResult());
+        auto changed = after->join(before);
+        if (after->new_var(op.getResult()).second)
+            changed |= change_result::Change;
+        propagateIfChanged(after, changed);
     }
 
     void visit_pt_op(pt::ConstantOp &op, const pt_lattice &before, pt_lattice *after) {
-        after->join(before);
-        after->new_var(op.getResult(), pt_lattice::new_pointee_set());
+        auto changed = after->join(before);
+        if (after->new_var(op.getResult(), pt_lattice::new_pointee_set()).second)
+            changed |= change_result::Change;
+        propagateIfChanged(after, changed);
+
     }
 
     void visit_pt_op(pt::ValuedConstantOp &op, const pt_lattice &before, pt_lattice *after) {
-        after->join(before);
-        after->new_var(op.getResult(), op.getResult());
+        auto changed = after->join(before);
+        if (after->new_var(op.getResult(), op.getResult()).second)
+            changed |= change_result::Change;
+        propagateIfChanged(after, changed);
     }
 
     void visit_unrealized_cast(mlir::UnrealizedConversionCastOp &op,
                                const pt_lattice &before, pt_lattice *after)
     {
-        after->join(before);
+        auto changed = after->join(before);
 
         auto pt_set = pt_lattice::new_pointee_set();
 
         for (auto operand : op.getOperands()) {
             auto operand_it = before.find(operand);
             if (operand_it != before.end()) {
-                after->pointee_union(pt_set, operand_it->getSecond());
+                std::ignore = pt_lattice::pointee_union(pt_set, operand_it->second);
             }
         }
         for (auto res : op.getResults()) {
-            after->new_var(res, pt_set);
+            if (after->contains(res)) {
+                changed |= pt_lattice::pointee_union((*after)[res], pt_set);
+            } else {
+                after->new_var(res, pt_set);
+                changed |= change_result::Change;
+            }
         }
+        propagateIfChanged(after, changed);
     }
 
     void visitOperation(mlir::Operation *op, const pt_lattice &before, pt_lattice *after) override {
@@ -239,7 +275,7 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
             >([&](auto &pt_op) { visit_pt_op(pt_op, before, after); })
             .template Case< mlir::UnrealizedConversionCastOp
             >([&](auto &cast_op) { visit_unrealized_cast(cast_op, before, after); })
-            .Default([&](auto &pt_op) { after->join(before); });
+            .Default([&](auto &pt_op) { propagateIfChanged(after, after->join(before)); });
     };
 
     void visitCallControlFlowTransfer(mlir::CallOpInterface call,
@@ -262,7 +298,7 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
                 after->new_var(result);
         }
 
-        after->join(before);
+        propagateIfChanged(after, after->join(before));
     };
 
     // Default implementation via join should be fine for us (at least for now)

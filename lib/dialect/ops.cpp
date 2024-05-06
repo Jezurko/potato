@@ -1,9 +1,10 @@
 #include "potato/util/warnings.hpp"
 
 POTATO_RELAX_WARNINGS
-#include <mlir/Support/LLVM.h>
-#include <mlir/IR/BuiltinAttributes.h>
 #include <llvm/ADT/APSInt.h>
+#include <mlir/IR/Builders.h>
+#include <mlir/IR/BuiltinAttributes.h>
+#include <mlir/Support/LLVM.h>
 POTATO_UNRELAX_WARNINGS
 
 #include "potato/dialect/potato.hpp"

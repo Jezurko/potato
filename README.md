@@ -67,7 +67,7 @@ module {
 The `--poitns-to-pass` runs the analysis and prints the lattice for every location in the reduce IR.
 
 # Building
-For building you need to provide the path to you local LLVM 17 install. For most Linux users it will be `/usr/lib/llvm-17`. Then run the cmake commands:
+For building you need to provide the path to you local LLVM 18 install. For most Linux users it will be `/usr/lib/llvm-18`. Then run the cmake commands:
 ```
 cmake --preset debug /
 -DCMAKE_PREFIX_PATH=<path/to/llvm>

@@ -1,6 +1,8 @@
 #include "potato/util/warnings.hpp"
 
+POTATO_RELAX_WARNINGS
 #include <mlir/IR/DialectImplementation.h>
+POTATO_UNRELAX_WARNINGS
 
 #include "potato/dialect/potato.hpp"
 #include "potato/dialect/ops.hpp"
