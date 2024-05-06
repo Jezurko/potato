@@ -106,6 +106,8 @@ namespace potato::conv::llvmtopt
     using copy_patterns = util::type_list<
         copy_op< mlir::LLVM::AddOp >,
         copy_op< mlir::LLVM::FAddOp >,
+        copy_op< mlir::LLVM::FMulAddOp >,
+        copy_op< mlir::LLVM::FNegOp >,
         copy_op< mlir::LLVM::SubOp >,
         copy_op< mlir::LLVM::FSubOp >,
         copy_op< mlir::LLVM::MulOp >,
@@ -117,10 +119,13 @@ namespace potato::conv::llvmtopt
         copy_op< mlir::LLVM::FDivOp >,
         copy_op< mlir::LLVM::TruncOp >,
         copy_op< mlir::LLVM::ICmpOp >,
+        copy_op< mlir::LLVM::FCmpOp >,
         copy_op< mlir::LLVM::PtrToIntOp >,
         copy_op< mlir::LLVM::IntToPtrOp >,
+        copy_op< mlir::LLVM::GEPOp >,
         copy_op< mlir::LLVM::BitcastOp >,
-        copy_op< mlir::LLVM::ZExtOp >
+        copy_op< mlir::LLVM::ZExtOp >,
+        copy_op< mlir::LLVM::SExtOp >
     >;
 
     template< typename source >
@@ -207,7 +212,8 @@ namespace potato::conv::llvmtopt
                                           mlir::CallOpInterface,
                                           mlir::FunctionOpInterface,
                                           mlir::RegionBranchOpInterface,
-                                          mlir::LLVM::ReturnOp
+                                          mlir::LLVM::ReturnOp,
+                                          mlir::LLVM::GlobalOp
                                         > (op);
             });
 
