@@ -118,8 +118,6 @@ namespace potato::conv::llvmtopt
         copy_op< mlir::LLVM::UDivOp >,
         copy_op< mlir::LLVM::FDivOp >,
         copy_op< mlir::LLVM::TruncOp >,
-        copy_op< mlir::LLVM::ICmpOp >,
-        copy_op< mlir::LLVM::FCmpOp >,
         copy_op< mlir::LLVM::PtrToIntOp >,
         copy_op< mlir::LLVM::IntToPtrOp >,
         copy_op< mlir::LLVM::GEPOp >,
@@ -169,7 +167,9 @@ namespace potato::conv::llvmtopt
 
     using constant_patterns = util::type_list<
         constant_op< mlir::LLVM::ConstantOp >,
-        constant_op< mlir::LLVM::ZeroOp >
+        constant_op< mlir::LLVM::ZeroOp >,
+        constant_op< mlir::LLVM::ICmpOp >,
+        constant_op< mlir::LLVM::FCmpOp >
     >;
 
     struct potato_target : public mlir::ConversionTarget {
