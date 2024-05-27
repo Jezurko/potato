@@ -57,6 +57,10 @@ struct aa_lattice : mlir_dense_abstract_lattice
         return pt_relation[val];
     }
 
+    static auto new_symbol(const llvm::StringRef name) {
+        return pt_element(mlir_value(), name.str());
+    }
+
     auto new_var(mlir_value val) {
         auto set = llvm::SetVector< pt_element >();
         auto count = alloc_count();
@@ -157,8 +161,19 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
 
     void visit_pt_op(pt::AddressOp &op, const pt_lattice &before, pt_lattice *after) {
         auto changed = after->join(before);
-        if (after->new_var(op.getPtr(), op.getVal()).second)
-            changed |= change_result::Change;
+        auto val = op.getVal();
+        if (val) {
+            if (after->new_var(op.getPtr(), op.getVal()).second)
+                changed |= change_result::Change;
+        } else {
+            auto symbol_ref = op->getAttrOfType< mlir::FlatSymbolRefAttr >("addr_of");
+            assert(symbol_ref && "Address of op without value or proper attribute.");
+
+            auto pt_set = pt_lattice::new_pointee_set();
+            pt_set.insert(pt_lattice::new_symbol(symbol_ref.getValue()));
+            if (after->new_var(op.getPtr(), pt_set).second)
+                changed |= change_result::Change;
+        }
         propagateIfChanged(after, changed);
     };
 
