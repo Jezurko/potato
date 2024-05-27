@@ -6,8 +6,8 @@ include "mlir/IR/BuiltinAttributes.td"
 include "mlir/Interfaces/SideEffectInterfaces.td"
 
 def Potato_AddressOp
-  : Potato_Op< "address", [NoMemoryEffect] >
-  , Arguments<( ins AnyType:$val )>
+  : Potato_Op< "address" >
+  , Arguments<( ins Optional< AnyType >:$val )>
   , Results<( outs AnyType:$ptr )>
 {
   let assemblyFormat = [{ attr-dict $val `:` functional-type(operands, results) }];
