@@ -172,6 +172,26 @@ namespace potato::conv::llvmtopt
         constant_op< mlir::LLVM::FCmpOp >
     >;
 
+    struct address_of_op : mlir::OpConversionPattern< mlir::LLVM::AddressOfOp > {
+        using base = mlir::OpConversionPattern< mlir::LLVM::AddressOfOp >;
+        using base::base;
+        using adaptor_t = typename mlir::LLVM::AddressOfOp::Adaptor;
+
+        logical_result matchAndRewrite(mlir::LLVM::AddressOfOp op,
+                                       adaptor_t adaptor,
+                                       mlir::ConversionPatternRewriter &rewriter
+        ) const override {
+            auto attrs = mlir::NamedAttrList();
+            attrs.append("addr_of", op.getGlobalNameAttr());
+            rewriter.replaceOpWithNewOp< pt::AddressOp >(op, op.getRes().getType(), mlir::ValueRange{}, attrs);
+            return mlir::success();
+        }
+    };
+
+    using address_patterns = util::type_list<
+        address_of_op
+    >;
+
     struct potato_target : public mlir::ConversionTarget {
         potato_target(mlir::MLIRContext &ctx) : ConversionTarget(ctx) {
             addLegalDialect< pt::PotatoDialect >();
@@ -183,7 +203,8 @@ namespace potato::conv::llvmtopt
         constant_patterns,
         copy_patterns,
         store_patterns,
-        load_patterns
+        load_patterns,
+        address_patterns
     >;
 
     struct LLVMIRToPoTAToPass : LLVMIRToPoTAToBase< LLVMIRToPoTAToPass >
