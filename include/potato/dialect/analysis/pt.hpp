@@ -181,7 +181,8 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
         auto changed = after->join(before);
 
         auto &lhs_pt = (*after)[op.getLhs()];
-        const auto &rhs_pt = before.find(op.getRhs())->second;
+        const auto &rhs = before.find(op.getRhs());
+        auto rhs_pt = rhs != before.end() ? rhs->second : pt_lattice::new_pointee_set();
         for (auto &lhs_val : lhs_pt) {
             auto &insert_point = after->pt_relation[lhs_val];
             if (insert_point != rhs_pt) {
