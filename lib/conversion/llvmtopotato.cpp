@@ -103,6 +103,33 @@ namespace potato::conv::llvmtopt
         }
     };
 
+    struct memcpy_insensitive : mlir::OpConversionPattern< mlir::LLVM::MemcpyOp > {
+        using source = mlir::LLVM::MemcpyOp;
+        using base = mlir::OpConversionPattern< source >;
+        using base::base;
+        using adaptor_t = typename source::Adaptor;
+        logical_result matchAndRewrite(source op,
+                                       adaptor_t adaptor,
+                                       mlir::ConversionPatternRewriter &rewriter
+        ) const override {
+            // We model the assign op in a way that it rewrites the pt set
+            // In this case we need to first merge the pt sets, because the memcpy
+            // may rewrite only part of the target location.
+            auto merged = rewriter.create< pt::CopyOp >(op.getLoc(),
+                                          pt::PointerType::get(rewriter.getContext()),
+                                          mlir::ValueRange{adaptor.getSrc(), adaptor.getDst()}
+            );
+
+            rewriter.replaceOpWithNewOp< pt::AssignOp >(
+                    op,
+                    adaptor.getSrc(),
+                    merged
+            );
+            return mlir::success();
+        }
+    };
+
+
     using copy_patterns = util::type_list<
         copy_op< mlir::LLVM::AddOp >,
         copy_op< mlir::LLVM::FAddOp >,
@@ -123,7 +150,8 @@ namespace potato::conv::llvmtopt
         copy_op< mlir::LLVM::GEPOp >,
         copy_op< mlir::LLVM::BitcastOp >,
         copy_op< mlir::LLVM::ZExtOp >,
-        copy_op< mlir::LLVM::SExtOp >
+        copy_op< mlir::LLVM::SExtOp >,
+        memcpy_insensitive
     >;
 
     template< typename source >
