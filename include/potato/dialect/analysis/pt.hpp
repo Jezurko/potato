@@ -13,7 +13,7 @@ POTATO_RELAX_WARNINGS
 #include <llvm/ADT/TypeSwitch.h>
 POTATO_UNRELAX_WARNINGS
 
-#include "potato/dialect/potato.hpp"
+#include "potato/dialect/ops.hpp"
 #include "potato/dialect/analysis/utils.hpp"
 #include "potato/util/common.hpp"
 
@@ -159,20 +159,24 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
 
     using base::propagateIfChanged;
 
+    change_result add_var(pt_lattice *lattice, mlir_value val, const auto &set) {
+        if (lattice->new_var(val, set).second)
+            return change_result::Change;
+        return change_result::NoChange;
+    }
+
     void visit_pt_op(pt::AddressOp &op, const pt_lattice &before, pt_lattice *after) {
         auto changed = after->join(before);
         auto val = op.getVal();
         if (val) {
-            if (after->new_var(op.getPtr(), op.getVal()).second)
-                changed |= change_result::Change;
+            changed |= add_var(after, op.getPtr(), op.getVal());
         } else {
             auto symbol_ref = op->getAttrOfType< mlir::FlatSymbolRefAttr >("addr_of");
             assert(symbol_ref && "Address of op without value or proper attribute.");
 
             auto pt_set = pt_lattice::new_pointee_set();
             pt_set.insert(pt_lattice::new_symbol(symbol_ref.getValue()));
-            if (after->new_var(op.getPtr(), pt_set).second)
-                changed |= change_result::Change;
+            changed |= add_var(after, op.getPtr(), op.getVal());
         }
         propagateIfChanged(after, changed);
     };
@@ -242,16 +246,14 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
 
     void visit_pt_op(pt::ConstantOp &op, const pt_lattice &before, pt_lattice *after) {
         auto changed = after->join(before);
-        if (after->new_var(op.getResult(), pt_lattice::new_pointee_set()).second)
-            changed |= change_result::Change;
+        changed |= add_var(after, op.getResult(), pt_lattice::new_pointee_set());
         propagateIfChanged(after, changed);
 
     }
 
     void visit_pt_op(pt::ValuedConstantOp &op, const pt_lattice &before, pt_lattice *after) {
         auto changed = after->join(before);
-        if (after->new_var(op.getResult(), op.getResult()).second)
-            changed |= change_result::Change;
+        changed |= add_var(after, op.getResult(), op.getResult());
         propagateIfChanged(after, changed);
     }
 
