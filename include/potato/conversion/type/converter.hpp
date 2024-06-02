@@ -5,11 +5,11 @@
 POTATO_RELAX_WARNINGS
 #include <mlir/IR/BuiltinDialect.h>
 #include <mlir/IR/Types.h>
-#include <mlir/IR/FunctionInterfaces.h>
+#include <mlir/Interfaces/FunctionInterfaces.h>
 #include <mlir/Transforms/DialectConversion.h>
 POTATO_UNRELAX_WARNINGS
 
-#include "potato/dialect/potato.hpp"
+#include "potato/dialect/types.hpp"
 #include "potato/util/common.hpp"
 
 namespace potato::conv {
