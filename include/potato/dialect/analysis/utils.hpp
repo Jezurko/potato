@@ -4,7 +4,7 @@
 
 POTATO_RELAX_WARNINGS
 #include <llvm/ADT/DenseMap.h>
-#include <llvm/ADT/SetVector.h>
+#include <llvm/ADT/DenseSet.h>
 #include <llvm/ADT/Hashing.h>
 POTATO_UNRELAX_WARNINGS
 
@@ -14,8 +14,12 @@ POTATO_UNRELAX_WARNINGS
 
 namespace potato::analysis {
 
-template < typename value_t >
-using pt_map = llvm::DenseMap< value_t, llvm::SetVector< value_t > >;
+template < typename value_t, template< typename >typename set_t >
+using pt_map = llvm::DenseMap< value_t, set_t< value_t > >;
+
+// Allows using DenseSet with above template without having to specify default args
+template< typename value_t >
+using dense_set = llvm::DenseSet< value_t >;
 
 struct pt_element
 {
