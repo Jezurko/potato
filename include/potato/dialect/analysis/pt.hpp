@@ -8,7 +8,6 @@ POTATO_RELAX_WARNINGS
 #include <mlir/IR/Value.h>
 
 #include <llvm/ADT/DenseMap.h>
-#include <llvm/ADT/DenseSet.h>
 #include <llvm/ADT/SetVector.h>
 #include <llvm/ADT/TypeSwitch.h>
 POTATO_UNRELAX_WARNINGS
@@ -26,6 +25,7 @@ struct aa_lattice : mlir_dense_abstract_lattice
 {
     using mlir_dense_abstract_lattice::AbstractDenseLattice;
     using pointee_set = llvm::SetVector< pt_element >;
+
     pt_map< pt_element > pt_relation;
 
     static unsigned int mem_loc_count;
@@ -62,14 +62,14 @@ struct aa_lattice : mlir_dense_abstract_lattice
     }
 
     auto new_var(mlir_value val) {
-        auto set = llvm::SetVector< pt_element >();
+        auto set = pointee_set();
         auto count = alloc_count();
         set.insert({mlir_value(), "mem_loc" + std::to_string(count)});
         return pt_relation.insert({{val, "var" + std::to_string(count)}, set});
     }
 
-    auto new_var(mlir_value var, const llvm::SetVector< pt_element >& pt_set) {
-        auto set = llvm::SetVector< pt_element >();
+    auto new_var(mlir_value var, const pointee_set& pt_set) {
+        auto set = pointee_set();
         auto count = alloc_count();
         return pt_relation.insert({{var, "var" + std::to_string(count)}, pt_set});
     }
