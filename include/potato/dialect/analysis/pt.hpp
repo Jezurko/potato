@@ -135,20 +135,9 @@ struct aa_lattice : mlir_dense_abstract_lattice
         return this->intersect(*static_cast< const aa_lattice *>(&rhs));
     };
 
-    void print(llvm::raw_ostream &os) const override
-    {
-        for (const auto &[key, vals] : pt_relation) {
-            os << key << " -> {";
-            std::string sep;
-            for (const auto &val : vals) {
-                    os << sep << val;
-                    sep = ", ";
-            }
-            os << "}";
-        }
-    }
-
     auto end() const { return pt_relation.end(); }
+
+    void print(llvm::raw_ostream &os) const override;
 };
 
 template< typename pt_lattice >
