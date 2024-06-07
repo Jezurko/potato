@@ -13,6 +13,19 @@ unsigned int aa_lattice::const_count() {
     return constant_count++;
 }
 
+void aa_lattice::print(llvm::raw_ostream &os) const
+{
+    for (const auto &[key, vals] : pt_relation) {
+        os << key << " -> {";
+        std::string sep;
+        for (const auto &val : vals) {
+                os << sep << val;
+                sep = ", ";
+        }
+        os << "}";
+    }
+}
+
 void print_analysis_result(mlir::DataFlowSolver &solver, mlir_operation *op, llvm::raw_ostream &os)
 {
     op->walk([&](mlir_operation *op) {
