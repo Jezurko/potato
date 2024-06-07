@@ -4,6 +4,7 @@
 
 POTATO_RELAX_WARNINGS
 #include <mlir/Analysis/DataFlow/DenseAnalysis.h>
+#include <mlir/Analysis/AliasAnalysis.h>
 #include <mlir/IR/Value.h>
 #include <llvm/ADT/SetVector.h>
 POTATO_UNRELAX_WARNINGS
@@ -22,6 +23,9 @@ using mlir_loc = mlir::Location;
 using logical_result = mlir::LogicalResult;
 
 using ppoint = mlir::ProgramPoint;
+
+using alias_res = mlir::AliasResult;
+using alias_kind = mlir::AliasResult::Kind;
 
 using optional_value = std::optional< mlir_value >;
 using optional_operation = std::optional< mlir_operation >;
