@@ -138,6 +138,27 @@ struct aa_lattice : mlir_dense_abstract_lattice
     auto end() const { return pt_relation.end(); }
 
     void print(llvm::raw_ostream &os) const override;
+
+    alias_res alias(auto lhs, auto rhs) const {
+        const auto lhs_it = find(lhs);
+        const auto rhs_it = find(rhs);
+        // If we do not know at least one of the arguments we can not deduce any aliasing information
+        // TODO: can this happen with correct usage? Should we emit a warning?
+        if (lhs_it == end() || rhs_it() == end())
+            return alias_res(alias_kind::MayAlias);
+
+        const auto &lhs_pt = *lhs_it;
+        const auto &rhs_pt = *rhs_it;
+
+        if (sets_intersect(*lhs_it, *rhs_it)) {
+            if (lhs_pt.size() == 1 && rhs_pt.size() == 1) {
+                return alias_res(alias_kind::MustAlias);
+            }
+            return alias_res(alias_kind::MayAlias);
+        }
+
+        return alias_res(alias_kind::NoAlias);
+    }
 };
 
 template< typename pt_lattice >
