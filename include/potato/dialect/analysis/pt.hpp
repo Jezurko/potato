@@ -268,6 +268,10 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
         propagateIfChanged(after, changed);
     }
 
+    void visit_pt_op(pt::UnknownPtrOp &op, const pt_lattice &before, pt_lattice *after) {
+        assert(false);
+    }
+
     void visit_unrealized_cast(mlir::UnrealizedConversionCastOp &op,
                                const pt_lattice &before, pt_lattice *after)
     {
@@ -300,7 +304,8 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
                    pt::ConstantOp,
                    pt::CopyOp,
                    pt::DereferenceOp,
-                   pt::ValuedConstantOp
+                   pt::ValuedConstantOp,
+                   pt::UnknownPtrOp
             >([&](auto &pt_op) { visit_pt_op(pt_op, before, after); })
             .template Case< mlir::UnrealizedConversionCastOp
             >([&](auto &cast_op) { visit_unrealized_cast(cast_op, before, after); })
