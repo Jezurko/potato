@@ -305,10 +305,11 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
                    pt::CopyOp,
                    pt::DereferenceOp,
                    pt::ValuedConstantOp,
-                   pt::UnknownPtrOp
-            >([&](auto &pt_op) { visit_pt_op(pt_op, before, after); })
-            .template Case< mlir::UnrealizedConversionCastOp
-            >([&](auto &cast_op) { visit_unrealized_cast(cast_op, before, after); })
+                   pt::UnknownPtrOp >
+            ([&](auto &pt_op) { visit_pt_op(pt_op, before, after); })
+            .template Case< mlir::UnrealizedConversionCastOp >(
+                    [&](auto &cast_op) { visit_unrealized_cast(cast_op, before, after); }
+            )
             .Default([&](auto &pt_op) { propagateIfChanged(after, after->join(before)); });
     };
 
