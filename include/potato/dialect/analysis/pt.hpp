@@ -200,14 +200,32 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
 
         auto &lhs_pt = (*after)[op.getLhs()];
         const auto &rhs = before.find(op.getRhs());
-        auto rhs_pt = rhs != before.end() ? rhs->second : pt_lattice::new_pointee_set();
-        for (auto &lhs_val : lhs_pt) {
-            auto &insert_point = after->pt_relation[lhs_val];
-            if (insert_point != rhs_pt) {
-                insert_point.clear();
-                std::ignore = pt_lattice::pointee_union(insert_point, rhs_pt);
-                changed |= change_result::Change;
+
+        // If lhs points only to one location, we can be slightly more precise
+        // by replacing the points-to set
+        if (lhs_pt.is_concrete() && lhs_pt.get_set_ref().size() == 1) {
+            changed |= lhs_pt.clear();
+            if (rhs != before.end()) {
+                changed |= pt_lattice::pointee_union(lhs_pt, rhs->getSecond());
             }
+        }
+
+        auto rhs_pt = rhs != before.end() ? rhs->getSecond() : pt_lattice::new_top_set();
+
+        if (rhs_pt.is_bottom()) {
+            return propagateIfChanged(after, changed);
+        }
+
+        if (lhs_pt.is_top()) {
+            for (auto &[_, pt_set] : after->pt_relation) {
+                changed |= pt_set.join(rhs_pt);
+            }
+        }
+
+        for (const auto &lhs_val : lhs_pt.get_set_ref()) {
+            auto &insert_point = after->pt_relation[lhs_val];
+            std::ignore = pt_lattice::pointee_union(insert_point, rhs_pt);
+            changed |= change_result::Change;
         }
         propagateIfChanged(after, changed);
     };
