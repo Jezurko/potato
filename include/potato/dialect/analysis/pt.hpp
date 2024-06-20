@@ -14,6 +14,7 @@ POTATO_RELAX_WARNINGS
 POTATO_UNRELAX_WARNINGS
 
 #include "potato/dialect/ops.hpp"
+#include "potato/dialect/analysis/lattice.hpp"
 #include "potato/dialect/analysis/utils.hpp"
 #include "potato/util/common.hpp"
 
@@ -25,9 +26,9 @@ namespace potato::analysis {
 struct aa_lattice : mlir_dense_abstract_lattice
 {
     using mlir_dense_abstract_lattice::AbstractDenseLattice;
-    using pointee_set = llvm::DenseSet< pt_element >;
+    using pointee_set = lattice_set< pt_element >;
 
-    pt_map< pt_element, dense_set > pt_relation;
+    pt_map< pt_element, lattice_set > pt_relation;
 
     static unsigned int mem_loc_count;
     static unsigned int constant_count;
@@ -92,8 +93,12 @@ struct aa_lattice : mlir_dense_abstract_lattice
         return pointee_set();
     }
 
+    static auto new_top_set() {
+        return pointee_set::make_top();
+    }
+
     static auto pointee_union(pointee_set &trg, const pointee_set &src) {
-        return llvm::set_union(trg, src) ? change_result::Change : change_result::NoChange;
+        return trg.join(src);
     }
 
     void init_at_point(ppoint point) {
@@ -107,9 +112,7 @@ struct aa_lattice : mlir_dense_abstract_lattice
         change_result res = change_result::NoChange;
         for (const auto &[key, rhs_value] : rhs.pt_relation) {
             auto &lhs_value = pt_relation[key];
-            if (llvm::set_union(lhs_value, rhs_value)) {
-                res |= change_result::Change;
-            }
+            res |= lhs_value.join(rhs_value);
         }
         return res;
     }
@@ -118,12 +121,12 @@ struct aa_lattice : mlir_dense_abstract_lattice
         change_result res = change_result::NoChange;
         for (const auto &[key, rhs_value] : rhs.pt_relation) {
             auto &lhs_value = pt_relation[key];
-            auto to_remove = lhs_value;
-            llvm::set_subtract(to_remove, rhs_value);
+            auto to_remove = lhs_value.get_set();
+            llvm::set_subtract(to_remove, rhs_value.get_set_ref());
             if (!to_remove.empty()) {
                 res |= change_result::Change;
             }
-            llvm::set_subtract(lhs_value, to_remove);
+            lhs_value.subtract(to_remove);
         }
         return res;
     }
