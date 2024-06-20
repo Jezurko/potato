@@ -120,13 +120,10 @@ struct aa_lattice : mlir_dense_abstract_lattice
     change_result intersect(const aa_lattice &rhs) {
         change_result res = change_result::NoChange;
         for (const auto &[key, rhs_value] : rhs.pt_relation) {
+            // non-existent entry would be considered top, so creating a new entry
+            // and intersecting it will create the correct value
             auto &lhs_value = pt_relation[key];
-            auto to_remove = lhs_value.get_set();
-            llvm::set_subtract(to_remove, rhs_value.get_set_ref());
-            if (!to_remove.empty()) {
-                res |= change_result::Change;
-            }
-            lhs_value.subtract(to_remove);
+            res |= lhs_value.meet(rhs_value);
         }
         return res;
     }
