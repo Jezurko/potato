@@ -28,13 +28,13 @@ namespace potato::analysis {
         bool is_bottom() const { return state == state::concrete && set.empty(); }
 
         change_result join(const lattice_set< value_t > &rhs) {
-            if (rhs.is_top()) {
-                if (!is_top()) {
-                    state = state::top;
-                    set.clear();
-                    return change_result::Change;
-                }
+            if (is_top()) {
                 return change_result::NoChange;
+            }
+            if (rhs.is_top()) {
+                state = state::top;
+                set.clear();
+                return change_result::Change;
             }
             if (llvm::set_union(set, rhs.get_set_ref())) {
                 return change_result::Change;
