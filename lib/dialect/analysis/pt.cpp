@@ -16,17 +16,7 @@ unsigned int aa_lattice::const_count() {
 void aa_lattice::print(llvm::raw_ostream &os) const
 {
     for (const auto &[key, vals] : pt_relation) {
-        os << key << " -> {";
-        if (vals.is_top()) {
-            os << " TOP }";
-            return;
-        }
-        std::string sep;
-        for (const auto &val : vals.get_set_ref()) {
-                os << sep << val;
-                sep = ", ";
-        }
-        os << "}";
+        os << key << " -> " << vals;
     }
 }
 
@@ -40,8 +30,8 @@ void print_analysis_result(mlir::DataFlowSolver &solver, mlir_operation *op, llv
             for (const auto &[key, vals] : state->pt_relation) {
                 os << "  " << key << " -> {";
                 if (vals.is_top()) {
-                    os << " TOP }";
-                    return;
+                    os << " TOP }\n";
+                    continue;
                 }
                 std::string sep;
                 for (const auto &val : vals.get_set_ref()) {
