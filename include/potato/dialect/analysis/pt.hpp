@@ -287,7 +287,9 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
     }
 
     void visit_pt_op(pt::UnknownPtrOp &op, const pt_lattice &before, pt_lattice *after) {
-        assert(false);
+        auto changed = after->join(before);
+        changed |= add_var(after, op.getResult(), pt_lattice::new_top_set());
+        propagateIfChanged(after, changed);
     }
 
     void visit_unrealized_cast(mlir::UnrealizedConversionCastOp &op,
