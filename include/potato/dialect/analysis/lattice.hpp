@@ -28,6 +28,7 @@ namespace potato::analysis {
         bool is_top() const { return state == state::top; }
         bool is_concrete() const { return state == state::concrete && !set.empty(); }
         bool is_bottom() const { return state == state::concrete && set.empty(); }
+        bool is_single_target() const { return state == state::concrete && set.size() == 1; }
 
         change_result join(const lattice_set< value_t > &rhs) {
             if (is_top()) {
