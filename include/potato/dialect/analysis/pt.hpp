@@ -71,7 +71,6 @@ struct aa_lattice : mlir_dense_abstract_lattice
     }
 
     auto new_var(mlir_value var, const pointee_set& pt_set) {
-        auto set = pointee_set();
         auto count = alloc_count();
         return pt_relation.insert({{var, "var" + std::to_string(count)}, pt_set});
     }
@@ -200,7 +199,7 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
 
         // If lhs points only to one location, we can be slightly more precise
         // by replacing the points-to set
-        if (lhs_pt.is_concrete() && lhs_pt.get_set_ref().size() == 1) {
+        if (lhs_pt.is_single_target()) {
             changed |= lhs_pt.clear();
             if (rhs != before.end()) {
                 changed |= pt_lattice::pointee_union(lhs_pt, rhs->getSecond());
