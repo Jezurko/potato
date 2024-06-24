@@ -335,17 +335,18 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
 
         for (auto operand : op.getOperands()) {
             auto operand_it = before.find(operand);
+            // We can ignore the change results as they will be resolved by set_var
             if (operand_it != before.end()) {
                 std::ignore = pt_lattice::pointee_union(pt_set, operand_it->second);
+            } else {
+                // If we didn't find the value, we should safely assume it can point anywhere
+                std::ignore = pt_lattice::pointee_union(pt_set, pt_lattice::new_top_set());
+                // Further joins won't change anything because we are already top
+                break;
             }
         }
         for (auto res : op.getResults()) {
-            if (after->contains(res)) {
-                changed |= pt_lattice::pointee_union((*after)[res], pt_set);
-            } else {
-                after->new_var(res, pt_set);
-                changed |= change_result::Change;
-            }
+            changed |= set_var(after, res, pt_set);
         }
         propagateIfChanged(after, changed);
     }
