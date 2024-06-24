@@ -204,15 +204,17 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
     void visit_pt_op(pt::AddressOp &op, const pt_lattice &before, pt_lattice *after) {
         auto changed = after->join(before);
         auto val = op.getVal();
+
         if (val) {
-            changed |= add_var(after, op.getPtr(), op.getVal());
+            changed |= set_var(after, op.getPtr(), op.getVal());
         } else {
             auto symbol_ref = op->getAttrOfType< mlir::FlatSymbolRefAttr >("addr_of");
             assert(symbol_ref && "Address of op without value or proper attribute.");
 
             auto pt_set = pt_lattice::new_pointee_set();
             pt_set.insert(pt_lattice::new_symbol(symbol_ref.getValue()));
-            changed |= add_var(after, op.getPtr(), op.getVal());
+
+            changed |= set_var(after, val, pt_set);
         }
         propagateIfChanged(after, changed);
     };
