@@ -169,9 +169,35 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
 
     using base::propagateIfChanged;
 
-    change_result add_var(pt_lattice *lattice, mlir_value val, const auto &set) {
-        if (lattice->new_var(val, set).second)
+    // TODO: These should most likely move to the lattice
+    change_result set_var(pt_lattice *lattice, mlir_value val, const pt_lattice::pointee_set &set) {
+        auto [var, inserted] = lattice->new_var(val, set);
+        if (inserted) {
             return change_result::Change;
+        } else {
+            auto &var_pt_set = var->second;
+            if (var_pt_set != set) {
+                var_pt_set = {set};
+                return change_result::Change;
+            }
+        }
+        return change_result::NoChange;
+    }
+
+    change_result set_var(pt_lattice *lattice, mlir_value val, mlir_value pointee) {
+        auto [var, inserted] = lattice->new_var(val, pointee);
+        if (inserted) {
+            return change_result::Change;
+        } else {
+            auto &var_pt_set = var->second;
+            auto [var, inserted] = lattice->new_var(pointee, pt_lattice::new_pointee_set());
+            auto cmp_set = pt_lattice::new_pointee_set();
+            cmp_set.insert(var->first);
+            if (var_pt_set != cmp_set) {
+                var_pt_set = {cmp_set};
+                return change_result::Change;
+            }
+        }
         return change_result::NoChange;
     }
 
