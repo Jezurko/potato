@@ -227,18 +227,11 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
 
         auto &lhs_pt = (*after)[op.getLhs()];
         const auto &rhs = before.find(op.getRhs());
+        const auto &rhs_pt = rhs != before.end() ? rhs->getSecond() : pt_lattice::new_top_set();
 
-        // If lhs points only to one location, we can be slightly more precise
-        // by replacing the points-to set
-        // TODO: This might be too specific for some analyses?
-        if (lhs_pt.is_single_target()) {
-            changed |= lhs_pt.clear();
-            if (rhs != before.end()) {
-                changed |= pt_lattice::pointee_union(lhs_pt, rhs->getSecond());
-            }
-        }
-
-        auto &rhs_pt = rhs != before.end() ? rhs->getSecond() : pt_lattice::new_top_set();
+        // TODO: If lhs points only to one location, we can be slightly more precise
+        // by replacing the points-to set. Is it worth? Will it be compatible with various
+        // analyses?
 
         if (rhs_pt.is_bottom()) {
             return propagateIfChanged(after, changed);
