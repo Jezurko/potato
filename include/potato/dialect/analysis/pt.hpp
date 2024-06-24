@@ -35,6 +35,9 @@ struct aa_lattice : mlir_dense_abstract_lattice
     unsigned int alloc_count();
     unsigned int const_count();
 
+    // TODO: Probably replace most of the following functions with some custom API that doesn't introduce
+    //       so many random return values with iterators and stuff
+
     auto contains(const mlir_value &val) const {
         return pt_relation.contains({val, ""});
     }
@@ -227,6 +230,7 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
 
         // If lhs points only to one location, we can be slightly more precise
         // by replacing the points-to set
+        // TODO: This might be too specific for some analyses?
         if (lhs_pt.is_single_target()) {
             changed |= lhs_pt.clear();
             if (rhs != before.end()) {
