@@ -265,12 +265,8 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
                 std::ignore = pt_lattice::pointee_union(pt_set, operand_it->second);
             }
         }
-        if (after->contains(op.getResult())) {
-            changed |= pt_lattice::pointee_union((*after)[op.getResult()], pt_set);
-        } else {
-            after->new_var(op.getResult(), pt_set);
-            changed |= change_result::Change;
-        }
+
+        changed |= set_var(after, op.getResult(), pt_set);
         propagateIfChanged(after, changed);
     };
 
