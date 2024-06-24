@@ -234,7 +234,7 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
             }
         }
 
-        auto rhs_pt = rhs != before.end() ? rhs->getSecond() : pt_lattice::new_top_set();
+        auto &rhs_pt = rhs != before.end() ? rhs->getSecond() : pt_lattice::new_top_set();
 
         if (rhs_pt.is_bottom()) {
             return propagateIfChanged(after, changed);
@@ -244,12 +244,12 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
             for (auto &[_, pt_set] : after->pt_relation) {
                 changed |= pt_set.join(rhs_pt);
             }
+            return propagateIfChanged(after, changed);
         }
 
         for (const auto &lhs_val : lhs_pt.get_set_ref()) {
             auto &insert_point = after->pt_relation[lhs_val];
-            std::ignore = pt_lattice::pointee_union(insert_point, rhs_pt);
-            changed |= change_result::Change;
+            changed |= pt_lattice::pointee_union(insert_point, rhs_pt);
         }
         propagateIfChanged(after, changed);
     };
