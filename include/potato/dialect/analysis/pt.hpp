@@ -272,20 +272,30 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
 
     void visit_pt_op(pt::DereferenceOp &op, const pt_lattice &before, pt_lattice *after) {
         auto changed = after->join(before);
-        auto new_var = after->new_var(op.getResult(), pt_lattice::new_pointee_set());
-        if (new_var.second)
-            changed |= change_result::Change;
-        auto &pointees = new_var.first->second;
 
-        auto rhs_pt = before.find(op.getPtr());
+        const auto rhs_pt_it = before.find(op.getPtr());
+        if (rhs_pt_it == before.end() || rhs_pt_it->second.is_top()) {
 
-        if (rhs_pt != before.end()) {
-            for (auto &rhs_val : rhs_pt->second) {
-                auto rhs_it = before.find(rhs_val);
-                if (rhs_it != before.end())
-                    changed |= pt_lattice::pointee_union(pointees, rhs_it->second);
+            changed |= set_var(after, op.getResult(), pt_lattice::new_top_set());
+            propagateIfChanged(after, changed);
+            return;
+        }
+
+        auto pointees = pt_lattice::new_pointee_set();
+        for (const auto &rhs_val : rhs_pt_it->second.get_set_ref()) {
+            auto rhs_it = before.find(rhs_val);
+            // We can ignore the change results as they will be resolved by set_var
+            if (rhs_it != before.end()) {
+                std::ignore = pt_lattice::pointee_union(pointees, rhs_it->second);
+            } else {
+                // If we didn't find the value, we should safely assume it can point anywhere
+                std::ignore = pt_lattice::pointee_union(pointees, pt_lattice::new_top_set());
+                // Further joins won't change anything because we are already top
+                break;
             }
         }
+        changed |= set_var(after, op.getResult(), pointees);
+
         propagateIfChanged(after, changed);
     };
 
