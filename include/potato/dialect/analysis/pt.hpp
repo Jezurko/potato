@@ -308,20 +308,21 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
 
     void visit_pt_op(pt::ConstantOp &op, const pt_lattice &before, pt_lattice *after) {
         auto changed = after->join(before);
-        changed |= add_var(after, op.getResult(), pt_lattice::new_pointee_set());
+        changed |= set_var(after, op.getResult(), pt_lattice::new_pointee_set());
         propagateIfChanged(after, changed);
 
     }
 
     void visit_pt_op(pt::ValuedConstantOp &op, const pt_lattice &before, pt_lattice *after) {
         auto changed = after->join(before);
-        changed |= add_var(after, op.getResult(), op.getResult());
+        // TODO: should this really form a self-loop?
+        changed |= set_var(after, op.getResult(), op.getResult());
         propagateIfChanged(after, changed);
     }
 
     void visit_pt_op(pt::UnknownPtrOp &op, const pt_lattice &before, pt_lattice *after) {
         auto changed = after->join(before);
-        changed |= add_var(after, op.getResult(), pt_lattice::new_top_set());
+        changed |= set_var(after, op.getResult(), pt_lattice::new_top_set());
         propagateIfChanged(after, changed);
     }
 
