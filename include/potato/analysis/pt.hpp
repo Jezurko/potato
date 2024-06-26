@@ -14,8 +14,8 @@ POTATO_RELAX_WARNINGS
 POTATO_UNRELAX_WARNINGS
 
 #include "potato/dialect/ops.hpp"
-#include "potato/dialect/analysis/lattice.hpp"
-#include "potato/dialect/analysis/utils.hpp"
+#include "potato/analysis/lattice.hpp"
+#include "potato/analysis/utils.hpp"
 #include "potato/util/common.hpp"
 
 #include <cassert>

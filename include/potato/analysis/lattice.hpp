@@ -5,7 +5,7 @@ POTATO_RELAX_WARNINGS
 #include <llvm/ADT/SetOperations.h>
 POTATO_UNRELAX_WARNINGS
 
-#include "potato/dialect/analysis/utils.hpp"
+#include "potato/analysis/utils.hpp"
 #include "potato/util/common.hpp"
 
 namespace potato::analysis {
