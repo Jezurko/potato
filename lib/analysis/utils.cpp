@@ -1,4 +1,4 @@
-#include "potato/dialect/analysis/utils.hpp"
+#include "potato/analysis/utils.hpp"
 
 namespace potato::analysis {
 auto get_args(ppoint &point) -> mlir_block::BlockArgListType {
