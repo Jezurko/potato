@@ -55,6 +55,21 @@ def Potato_ConstantOp
   let assemblyFormat = [{ attr-dict `:` type($result)}];
 }
 
+def Potato_UnknownPtrOp
+  : Potato_Op< "unknown.ptr" >
+  , Arguments<( ins Variadic< AnyType >:$srcs )>
+  , Results<( outs AnyType:$res )>
+{
+  let summary = "Op that creates a pointer pointing anywhere.";
+  let description = [{
+      This operation is a way to introduce the "top" value of the points-to lattice into the IR.
+      This operation might be used when the user has some operation that might cause some unpredictable effects (e.g. overflow)
+      or when they are not interested in some of the computed information and would prefer faster convergence.
+    }];
+
+  let assemblyFormat = [{ attr-dict $srcs `:` functional-type(operands, results) }];
+}
+
 def Potato_ValuedConstantOp
   : Potato_Op< "val_constant", [ConstantLike, NoMemoryEffect] >
   , Arguments<( ins TypedAttrInterface:$value )>

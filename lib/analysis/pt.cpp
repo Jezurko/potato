@@ -1,4 +1,4 @@
-#include "potato/dialect/analysis/pt.hpp"
+#include "potato/analysis/pt.hpp"
 
 namespace potato::analysis {
 
@@ -13,6 +13,13 @@ unsigned int aa_lattice::const_count() {
     return constant_count++;
 }
 
+void aa_lattice::print(llvm::raw_ostream &os) const
+{
+    for (const auto &[key, vals] : pt_relation) {
+        os << key << " -> " << vals;
+    }
+}
+
 void print_analysis_result(mlir::DataFlowSolver &solver, mlir_operation *op, llvm::raw_ostream &os)
 {
     op->walk([&](mlir_operation *op) {
@@ -22,8 +29,12 @@ void print_analysis_result(mlir::DataFlowSolver &solver, mlir_operation *op, llv
         if (auto state = solver.lookupState< aa_lattice >(op)) {
             for (const auto &[key, vals] : state->pt_relation) {
                 os << "  " << key << " -> {";
+                if (vals.is_top()) {
+                    os << " TOP }\n";
+                    continue;
+                }
                 std::string sep;
-                for (const auto &val : vals) {
+                for (const auto &val : vals.get_set_ref()) {
                         os << sep << val;
                         sep = ", ";
                 }

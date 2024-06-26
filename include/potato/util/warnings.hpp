@@ -13,7 +13,8 @@
   _Pragma( "GCC diagnostic ignored \"-Wunused-function\"")
 
 #define POTATO_CLANG_RELAX_WARNINGS \
-  _Pragma( "GCC diagnostic ignored \"-Wambiguous-reversed-operator\"" )
+  _Pragma( "GCC diagnostic ignored \"-Wambiguous-reversed-operator\"" ) \
+  _Pragma( "GCC diagnostic ignored \"-Wdeprecated-this-capture\"")
 
 #define POTATO_GCC_RELAX_WARNINGS \
   _Pragma( "GCC diagnostic ignored \"-Wuseless-cast\"" ) \

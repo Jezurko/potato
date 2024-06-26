@@ -9,12 +9,13 @@ POTATO_RELAX_WARNINGS
 
 #include <llvm/ADT/DenseMap.h>
 #include <llvm/ADT/DenseSet.h>
-#include <llvm/ADT/SetVector.h>
+#include <llvm/ADT/SetOperations.h>
 #include <llvm/ADT/TypeSwitch.h>
 POTATO_UNRELAX_WARNINGS
 
 #include "potato/dialect/ops.hpp"
-#include "potato/dialect/analysis/utils.hpp"
+#include "potato/analysis/lattice.hpp"
+#include "potato/analysis/utils.hpp"
 #include "potato/util/common.hpp"
 
 #include <cassert>
@@ -25,13 +26,17 @@ namespace potato::analysis {
 struct aa_lattice : mlir_dense_abstract_lattice
 {
     using mlir_dense_abstract_lattice::AbstractDenseLattice;
-    using pointee_set = llvm::SetVector< pt_element >;
-    pt_map< pt_element > pt_relation;
+    using pointee_set = lattice_set< pt_element >;
+
+    pt_map< pt_element, lattice_set > pt_relation;
 
     static unsigned int mem_loc_count;
     static unsigned int constant_count;
     unsigned int alloc_count();
     unsigned int const_count();
+
+    // TODO: Probably replace most of the following functions with some custom API that doesn't introduce
+    //       so many random return values with iterators and stuff
 
     auto contains(const mlir_value &val) const {
         return pt_relation.contains({val, ""});
@@ -62,14 +67,13 @@ struct aa_lattice : mlir_dense_abstract_lattice
     }
 
     auto new_var(mlir_value val) {
-        auto set = llvm::SetVector< pt_element >();
+        auto set = pointee_set();
         auto count = alloc_count();
         set.insert({mlir_value(), "mem_loc" + std::to_string(count)});
         return pt_relation.insert({{val, "var" + std::to_string(count)}, set});
     }
 
-    auto new_var(mlir_value var, const llvm::SetVector< pt_element >& pt_set) {
-        auto set = llvm::SetVector< pt_element >();
+    auto new_var(mlir_value var, const pointee_set& pt_set) {
         auto count = alloc_count();
         return pt_relation.insert({{var, "var" + std::to_string(count)}, pt_set});
     }
@@ -91,8 +95,12 @@ struct aa_lattice : mlir_dense_abstract_lattice
         return pointee_set();
     }
 
+    static auto new_top_set() {
+        return pointee_set::make_top();
+    }
+
     static auto pointee_union(pointee_set &trg, const pointee_set &src) {
-        return trg.set_union(src) ? change_result::Change : change_result::NoChange;
+        return trg.join(src);
     }
 
     void init_at_point(ppoint point) {
@@ -106,9 +114,7 @@ struct aa_lattice : mlir_dense_abstract_lattice
         change_result res = change_result::NoChange;
         for (const auto &[key, rhs_value] : rhs.pt_relation) {
             auto &lhs_value = pt_relation[key];
-            if (lhs_value.set_union(rhs_value)) {
-                res |= change_result::Change;
-            }
+            res |= lhs_value.join(rhs_value);
         }
         return res;
     }
@@ -116,13 +122,10 @@ struct aa_lattice : mlir_dense_abstract_lattice
     change_result intersect(const aa_lattice &rhs) {
         change_result res = change_result::NoChange;
         for (const auto &[key, rhs_value] : rhs.pt_relation) {
+            // non-existent entry would be considered top, so creating a new entry
+            // and intersecting it will create the correct value
             auto &lhs_value = pt_relation[key];
-            auto to_remove = lhs_value;
-            to_remove.set_subtract(rhs_value);
-            if (!to_remove.empty()) {
-                res |= change_result::Change;
-            }
-            lhs_value.set_subtract(to_remove);
+            res |= lhs_value.meet(rhs_value);
         }
         return res;
     }
@@ -135,20 +138,30 @@ struct aa_lattice : mlir_dense_abstract_lattice
         return this->intersect(*static_cast< const aa_lattice *>(&rhs));
     };
 
-    void print(llvm::raw_ostream &os) const override
-    {
-        for (const auto &[key, vals] : pt_relation) {
-            os << key << " -> {";
-            std::string sep;
-            for (const auto &val : vals) {
-                    os << sep << val;
-                    sep = ", ";
-            }
-            os << "}";
-        }
-    }
-
     auto end() const { return pt_relation.end(); }
+
+    void print(llvm::raw_ostream &os) const override;
+
+    alias_res alias(auto lhs, auto rhs) const {
+        const auto lhs_it = find(lhs);
+        const auto rhs_it = find(rhs);
+        // If we do not know at least one of the arguments we can not deduce any aliasing information
+        // TODO: can this happen with correct usage? Should we emit a warning?
+        if (lhs_it == end() || rhs_it() == end())
+            return alias_res(alias_kind::MayAlias);
+
+        const auto &lhs_pt = *lhs_it;
+        const auto &rhs_pt = *rhs_it;
+
+        if (sets_intersect(*lhs_it, *rhs_it)) {
+            if (lhs_pt.size() == 1 && rhs_pt.size() == 1) {
+                return alias_res(alias_kind::MustAlias);
+            }
+            return alias_res(alias_kind::MayAlias);
+        }
+
+        return alias_res(alias_kind::NoAlias);
+    }
 };
 
 template< typename pt_lattice >
@@ -159,24 +172,52 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
 
     using base::propagateIfChanged;
 
-    change_result add_var(pt_lattice *lattice, mlir_value val, const auto &set) {
-        if (lattice->new_var(val, set).second)
+    // TODO: These should most likely move to the lattice
+    change_result set_var(pt_lattice *lattice, mlir_value val, const pt_lattice::pointee_set &set) {
+        auto [var, inserted] = lattice->new_var(val, set);
+        if (inserted) {
             return change_result::Change;
+        } else {
+            auto &var_pt_set = var->second;
+            if (var_pt_set != set) {
+                var_pt_set = {set};
+                return change_result::Change;
+            }
+        }
+        return change_result::NoChange;
+    }
+
+    change_result set_var(pt_lattice *lattice, mlir_value val, mlir_value pointee) {
+        auto [var, inserted] = lattice->new_var(val, pointee);
+        if (inserted) {
+            return change_result::Change;
+        } else {
+            auto &var_pt_set = var->second;
+            auto [var, inserted] = lattice->new_var(pointee, pt_lattice::new_pointee_set());
+            auto cmp_set = pt_lattice::new_pointee_set();
+            cmp_set.insert(var->first);
+            if (var_pt_set != cmp_set) {
+                var_pt_set = {cmp_set};
+                return change_result::Change;
+            }
+        }
         return change_result::NoChange;
     }
 
     void visit_pt_op(pt::AddressOp &op, const pt_lattice &before, pt_lattice *after) {
         auto changed = after->join(before);
         auto val = op.getVal();
+
         if (val) {
-            changed |= add_var(after, op.getPtr(), op.getVal());
+            changed |= set_var(after, op.getPtr(), op.getVal());
         } else {
             auto symbol_ref = op->getAttrOfType< mlir::FlatSymbolRefAttr >("addr_of");
             assert(symbol_ref && "Address of op without value or proper attribute.");
 
             auto pt_set = pt_lattice::new_pointee_set();
             pt_set.insert(pt_lattice::new_symbol(symbol_ref.getValue()));
-            changed |= add_var(after, op.getPtr(), op.getVal());
+
+            changed |= set_var(after, val, pt_set);
         }
         propagateIfChanged(after, changed);
     };
@@ -186,14 +227,26 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
 
         auto &lhs_pt = (*after)[op.getLhs()];
         const auto &rhs = before.find(op.getRhs());
-        auto rhs_pt = rhs != before.end() ? rhs->second : pt_lattice::new_pointee_set();
-        for (auto &lhs_val : lhs_pt) {
-            auto &insert_point = after->pt_relation[lhs_val];
-            if (insert_point != rhs_pt) {
-                insert_point.clear();
-                std::ignore = pt_lattice::pointee_union(insert_point, rhs_pt);
-                changed |= change_result::Change;
+        const auto &rhs_pt = rhs != before.end() ? rhs->getSecond() : pt_lattice::new_top_set();
+
+        // TODO: If lhs points only to one location, we can be slightly more precise
+        // by replacing the points-to set. Is it worth? Will it be compatible with various
+        // analyses?
+
+        if (rhs_pt.is_bottom()) {
+            return propagateIfChanged(after, changed);
+        }
+
+        if (lhs_pt.is_top()) {
+            for (auto &[_, pt_set] : after->pt_relation) {
+                changed |= pt_set.join(rhs_pt);
             }
+            return propagateIfChanged(after, changed);
+        }
+
+        for (const auto &lhs_val : lhs_pt.get_set_ref()) {
+            auto &insert_point = after->pt_relation[lhs_val];
+            changed |= pt_lattice::pointee_union(insert_point, rhs_pt);
         }
         propagateIfChanged(after, changed);
     };
@@ -209,31 +262,37 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
                 std::ignore = pt_lattice::pointee_union(pt_set, operand_it->second);
             }
         }
-        if (after->contains(op.getResult())) {
-            changed |= pt_lattice::pointee_union((*after)[op.getResult()], pt_set);
-        } else {
-            after->new_var(op.getResult(), pt_set);
-            changed |= change_result::Change;
-        }
+
+        changed |= set_var(after, op.getResult(), pt_set);
         propagateIfChanged(after, changed);
     };
 
     void visit_pt_op(pt::DereferenceOp &op, const pt_lattice &before, pt_lattice *after) {
         auto changed = after->join(before);
-        auto new_var = after->new_var(op.getResult(), pt_lattice::new_pointee_set());
-        if (new_var.second)
-            changed |= change_result::Change;
-        auto &pointees = new_var.first->second;
 
-        auto rhs_pt = before.find(op.getPtr());
+        const auto rhs_pt_it = before.find(op.getPtr());
+        if (rhs_pt_it == before.end() || rhs_pt_it->second.is_top()) {
 
-        if (rhs_pt != before.end()) {
-            for (auto &rhs_val : rhs_pt->second) {
-                auto rhs_it = before.find(rhs_val);
-                if (rhs_it != before.end())
-                    changed |= pt_lattice::pointee_union(pointees, rhs_it->second);
+            changed |= set_var(after, op.getResult(), pt_lattice::new_top_set());
+            propagateIfChanged(after, changed);
+            return;
+        }
+
+        auto pointees = pt_lattice::new_pointee_set();
+        for (const auto &rhs_val : rhs_pt_it->second.get_set_ref()) {
+            auto rhs_it = before.find(rhs_val);
+            // We can ignore the change results as they will be resolved by set_var
+            if (rhs_it != before.end()) {
+                std::ignore = pt_lattice::pointee_union(pointees, rhs_it->second);
+            } else {
+                // If we didn't find the value, we should safely assume it can point anywhere
+                std::ignore = pt_lattice::pointee_union(pointees, pt_lattice::new_top_set());
+                // Further joins won't change anything because we are already top
+                break;
             }
         }
+        changed |= set_var(after, op.getResult(), pointees);
+
         propagateIfChanged(after, changed);
     };
 
@@ -246,14 +305,21 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
 
     void visit_pt_op(pt::ConstantOp &op, const pt_lattice &before, pt_lattice *after) {
         auto changed = after->join(before);
-        changed |= add_var(after, op.getResult(), pt_lattice::new_pointee_set());
+        changed |= set_var(after, op.getResult(), pt_lattice::new_pointee_set());
         propagateIfChanged(after, changed);
 
     }
 
     void visit_pt_op(pt::ValuedConstantOp &op, const pt_lattice &before, pt_lattice *after) {
         auto changed = after->join(before);
-        changed |= add_var(after, op.getResult(), op.getResult());
+        // TODO: should this really form a self-loop?
+        changed |= set_var(after, op.getResult(), op.getResult());
+        propagateIfChanged(after, changed);
+    }
+
+    void visit_pt_op(pt::UnknownPtrOp &op, const pt_lattice &before, pt_lattice *after) {
+        auto changed = after->join(before);
+        changed |= set_var(after, op.getResult(), pt_lattice::new_top_set());
         propagateIfChanged(after, changed);
     }
 
@@ -266,17 +332,18 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
 
         for (auto operand : op.getOperands()) {
             auto operand_it = before.find(operand);
+            // We can ignore the change results as they will be resolved by set_var
             if (operand_it != before.end()) {
                 std::ignore = pt_lattice::pointee_union(pt_set, operand_it->second);
+            } else {
+                // If we didn't find the value, we should safely assume it can point anywhere
+                std::ignore = pt_lattice::pointee_union(pt_set, pt_lattice::new_top_set());
+                // Further joins won't change anything because we are already top
+                break;
             }
         }
         for (auto res : op.getResults()) {
-            if (after->contains(res)) {
-                changed |= pt_lattice::pointee_union((*after)[res], pt_set);
-            } else {
-                after->new_var(res, pt_set);
-                changed |= change_result::Change;
-            }
+            changed |= set_var(after, res, pt_set);
         }
         propagateIfChanged(after, changed);
     }
@@ -289,10 +356,12 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
                    pt::ConstantOp,
                    pt::CopyOp,
                    pt::DereferenceOp,
-                   pt::ValuedConstantOp
-            >([&](auto &pt_op) { visit_pt_op(pt_op, before, after); })
-            .template Case< mlir::UnrealizedConversionCastOp
-            >([&](auto &cast_op) { visit_unrealized_cast(cast_op, before, after); })
+                   pt::ValuedConstantOp,
+                   pt::UnknownPtrOp >
+            ([&](auto &pt_op) { visit_pt_op(pt_op, before, after); })
+            .template Case< mlir::UnrealizedConversionCastOp >(
+                    [&](auto &cast_op) { visit_unrealized_cast(cast_op, before, after); }
+            )
             .Default([&](auto &pt_op) { propagateIfChanged(after, after->join(before)); });
     };
 
