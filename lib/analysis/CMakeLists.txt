@@ -5,3 +5,4 @@ add_mlir_dialect_library(MLIRPotatoAnalysis
     LINK_LIBS PUBLIC
     MLIRpotato
 )
+add_subdirectory(trad)
