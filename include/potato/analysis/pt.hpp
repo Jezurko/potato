@@ -30,10 +30,15 @@ struct aa_lattice : mlir_dense_abstract_lattice
 
     pt_map< pt_element, lattice_set > pt_relation;
 
+    static unsigned int variable_count;
     static unsigned int mem_loc_count;
-    static unsigned int constant_count;
+    unsigned int var_count();
     unsigned int alloc_count();
-    unsigned int const_count();
+
+    std::optional< std::string > var_name = {};
+    std::optional< std::string > alloc_name = {};
+    std::string get_var_name();
+    std::string get_alloc_name();
 
     // TODO: Probably replace most of the following functions with some custom API that doesn't introduce
     //       so many random return values with iterators and stuff
@@ -80,14 +85,12 @@ struct aa_lattice : mlir_dense_abstract_lattice
 
     auto new_var(mlir_value val) {
         auto set = pointee_set();
-        auto count = alloc_count();
-        set.insert({mlir_value(), "mem_loc" + std::to_string(count)});
-        return pt_relation.insert({{val, "var" + std::to_string(count)}, set});
+        set.insert({mlir_value(), get_alloc_name()});
+        return pt_relation.insert({{val, get_var_name()}, set});
     }
 
     auto new_var(mlir_value var, const pointee_set& pt_set) {
-        auto count = alloc_count();
-        return pt_relation.insert({{var, "var" + std::to_string(count)}, pt_set});
+        return pt_relation.insert({{var, get_var_name()}, pt_set});
     }
 
     auto new_var(mlir_value var, mlir_value pointee) {
@@ -95,8 +98,7 @@ struct aa_lattice : mlir_dense_abstract_lattice
         auto pointee_it = find(pointee);
         if (pointee_it == pt_relation.end()) {
             assert((mlir::isa< pt::ConstantOp, pt::ValuedConstantOp >(var.getDefiningOp())));
-            auto count = const_count();
-            set.insert({pointee, "constant" + std::to_string(count)});
+            set.insert({pointee, get_alloc_name()});
         } else {
             set.insert(pointee_it->first);
         }
