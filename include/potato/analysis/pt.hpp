@@ -229,10 +229,6 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
         const auto &rhs = before.find(op.getRhs());
         const auto &rhs_pt = rhs != before.end() ? rhs->getSecond() : pt_lattice::new_top_set();
 
-        // TODO: If lhs points only to one location, we can be slightly more precise
-        // by replacing the points-to set. Is it worth? Will it be compatible with various
-        // analyses?
-
         if (rhs_pt.is_bottom()) {
             return propagateIfChanged(after, changed);
         }
