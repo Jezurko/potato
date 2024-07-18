@@ -66,6 +66,18 @@ struct aa_lattice : mlir_dense_abstract_lattice
         return pt_element(mlir_value(), name.str());
     }
 
+    static auto new_pointee_set() {
+        return pointee_set();
+    }
+
+    static auto new_top_set() {
+        return pointee_set::make_top();
+    }
+
+    static auto pointee_union(pointee_set &trg, const pointee_set &src) {
+        return trg.join(src);
+    }
+
     auto new_var(mlir_value val) {
         auto set = pointee_set();
         auto count = alloc_count();
@@ -91,16 +103,35 @@ struct aa_lattice : mlir_dense_abstract_lattice
         return new_var(var, set);
     }
 
-    static auto new_pointee_set() {
-        return pointee_set();
+    change_result set_var(mlir_value val, const pointee_set &set) {
+        auto [var, inserted] = new_var(val, set);
+        if (inserted) {
+            return change_result::Change;
+        } else {
+            auto &var_pt_set = var->second;
+            if (var_pt_set != set) {
+                var_pt_set = {set};
+                return change_result::Change;
+            }
+        }
+        return change_result::NoChange;
     }
 
-    static auto new_top_set() {
-        return pointee_set::make_top();
-    }
-
-    static auto pointee_union(pointee_set &trg, const pointee_set &src) {
-        return trg.join(src);
+    change_result set_var(mlir_value val, mlir_value pointee) {
+        auto [var, inserted] = new_var(val, pointee);
+        if (inserted) {
+            return change_result::Change;
+        } else {
+            auto &var_pt_set = var->second;
+            auto [var, inserted] = new_var(pointee, new_pointee_set());
+            auto cmp_set = new_pointee_set();
+            cmp_set.insert(var->first);
+            if (var_pt_set != cmp_set) {
+                var_pt_set = {cmp_set};
+                return change_result::Change;
+            }
+        }
+        return change_result::NoChange;
     }
 
     void init_at_point(ppoint point) {
@@ -172,44 +203,12 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
 
     using base::propagateIfChanged;
 
-    // TODO: These should most likely move to the lattice
-    change_result set_var(pt_lattice *lattice, mlir_value val, const pt_lattice::pointee_set &set) {
-        auto [var, inserted] = lattice->new_var(val, set);
-        if (inserted) {
-            return change_result::Change;
-        } else {
-            auto &var_pt_set = var->second;
-            if (var_pt_set != set) {
-                var_pt_set = {set};
-                return change_result::Change;
-            }
-        }
-        return change_result::NoChange;
-    }
-
-    change_result set_var(pt_lattice *lattice, mlir_value val, mlir_value pointee) {
-        auto [var, inserted] = lattice->new_var(val, pointee);
-        if (inserted) {
-            return change_result::Change;
-        } else {
-            auto &var_pt_set = var->second;
-            auto [var, inserted] = lattice->new_var(pointee, pt_lattice::new_pointee_set());
-            auto cmp_set = pt_lattice::new_pointee_set();
-            cmp_set.insert(var->first);
-            if (var_pt_set != cmp_set) {
-                var_pt_set = {cmp_set};
-                return change_result::Change;
-            }
-        }
-        return change_result::NoChange;
-    }
-
     void visit_pt_op(pt::AddressOp &op, const pt_lattice &before, pt_lattice *after) {
         auto changed = after->join(before);
         auto val = op.getVal();
 
         if (val) {
-            changed |= set_var(after, op.getPtr(), op.getVal());
+            changed |= after->set_var(op.getPtr(), op.getVal());
         } else {
             auto symbol_ref = op->getAttrOfType< mlir::FlatSymbolRefAttr >("addr_of");
             assert(symbol_ref && "Address of op without value or proper attribute.");
@@ -217,7 +216,7 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
             auto pt_set = pt_lattice::new_pointee_set();
             pt_set.insert(pt_lattice::new_symbol(symbol_ref.getValue()));
 
-            changed |= set_var(after, val, pt_set);
+            changed |= after->set_var(val, pt_set);
         }
         propagateIfChanged(after, changed);
     };
@@ -259,7 +258,7 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
             }
         }
 
-        changed |= set_var(after, op.getResult(), pt_set);
+        changed |= after->set_var(op.getResult(), pt_set);
         propagateIfChanged(after, changed);
     };
 
@@ -269,7 +268,7 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
         const auto rhs_pt_it = before.find(op.getPtr());
         if (rhs_pt_it == before.end() || rhs_pt_it->second.is_top()) {
 
-            changed |= set_var(after, op.getResult(), pt_lattice::new_top_set());
+            changed |= after->set_var(op.getResult(), pt_lattice::new_top_set());
             propagateIfChanged(after, changed);
             return;
         }
@@ -287,7 +286,7 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
                 break;
             }
         }
-        changed |= set_var(after, op.getResult(), pointees);
+        changed |= after->set_var(op.getResult(), pointees);
 
         propagateIfChanged(after, changed);
     };
@@ -301,7 +300,7 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
 
     void visit_pt_op(pt::ConstantOp &op, const pt_lattice &before, pt_lattice *after) {
         auto changed = after->join(before);
-        changed |= set_var(after, op.getResult(), pt_lattice::new_pointee_set());
+        changed |= after->set_var(op.getResult(), pt_lattice::new_pointee_set());
         propagateIfChanged(after, changed);
 
     }
@@ -309,13 +308,13 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
     void visit_pt_op(pt::ValuedConstantOp &op, const pt_lattice &before, pt_lattice *after) {
         auto changed = after->join(before);
         // TODO: should this really form a self-loop?
-        changed |= set_var(after, op.getResult(), op.getResult());
+        changed |= after->set_var(op.getResult(), op.getResult());
         propagateIfChanged(after, changed);
     }
 
     void visit_pt_op(pt::UnknownPtrOp &op, const pt_lattice &before, pt_lattice *after) {
         auto changed = after->join(before);
-        changed |= set_var(after, op.getResult(), pt_lattice::new_top_set());
+        changed |= after->set_var(op.getResult(), pt_lattice::new_top_set());
         propagateIfChanged(after, changed);
     }
 
@@ -339,7 +338,7 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
             }
         }
         for (auto res : op.getResults()) {
-            changed |= set_var(after, res, pt_set);
+            changed |= after->set_var(res, pt_set);
         }
         propagateIfChanged(after, changed);
     }
