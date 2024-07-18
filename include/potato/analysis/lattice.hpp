@@ -30,10 +30,7 @@ namespace potato::analysis {
         bool is_bottom() const { return state == state::concrete && set.empty(); }
         bool is_single_target() const { return state == state::concrete && set.size() == 1; }
 
-        bool operator==(const lattice_set< value_t > &rhs) const {
-            if (state != rhs.state) { return false; }
-            return set == rhs.set;
-        }
+        bool operator==(const lattice_set< value_t > &rhs) const = default;
 
         change_result join(const lattice_set< value_t > &rhs) {
             if (is_top()) {
