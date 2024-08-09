@@ -179,7 +179,7 @@ namespace potato::conv::llvmtopt
                                        mlir::ConversionPatternRewriter &rewriter
         ) const override {
             auto const_attr = op.getValue();
-            auto builder = [&](auto attr){
+            auto builder = [&](auto attr) {
                 rewriter.replaceOpWithNewOp< pt::ValuedConstantOp >(op, op.getType(), attr);
                 return mlir::success();
             };
