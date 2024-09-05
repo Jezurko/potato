@@ -108,6 +108,41 @@ namespace potato::analysis::trad {
         propagateIfChanged(after, changed);
     }
 
+    void llvm_andersen::visit_load(mllvm::LoadOp &op, const llaa_lattice &before, llaa_lattice *after) {
+        auto changed = after->join(before);
+
+        const auto rhs_pt_it = before.pt_relation.find({op.getAddr(), ""});
+        if (rhs_pt_it == before.pt_relation.end() || rhs_pt_it->second.is_top()) {
+            changed |= after->set_var(op.getResult(), llaa_lattice::set_t::make_top());
+            return propagateIfChanged(after, changed);
+        }
+        const auto rhs_pt = rhs_pt_it->second;
+        auto pointees = llaa_lattice::set_t();
+        for (const auto &rhs_val : rhs_pt_it->second.get_set_ref()) {
+            auto rhs_it = before.pt_relation.find(rhs_val);
+            if (rhs_it != before.pt_relation.end()) {
+                std::ignore = pointees.join(rhs_it->second);
+            } else {
+                std::ignore = pointees.join(llaa_lattice::set_t::make_top());
+                break;
+            }
+        }
+        changed |= after->set_var(op.getResult(), pointees);
+        propagateIfChanged(after, changed);
+    }
+
+    void llvm_andersen::visit_constant(mllvm::ConstantOp &op, const llaa_lattice &before, llaa_lattice *after) {
+        auto changed = after->join(before);
+        changed |= after->set_var(op.getResult(), llaa_lattice::set_t());
+        propagateIfChanged(after, changed);
+    }
+
+    void llvm_andersen::visit_cmp(mlir::Operation *op, const llaa_lattice &before, llaa_lattice *after) {
+        auto changed = after->join(before);
+        changed |= after->set_var(op->getResult(0), llaa_lattice::set_t());
+        propagateIfChanged(after, changed);
+    }
+
     void llvm_andersen::visitOperation(mlir::Operation *op, const llaa_lattice &before, llaa_lattice *after) {
         return llvm::TypeSwitch< mlir::Operation *, void >(op)
             .Case< mllvm::AllocaOp >([&](auto &op) { visit_alloc(op, before, after); })
