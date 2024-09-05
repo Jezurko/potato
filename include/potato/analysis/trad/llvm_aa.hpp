@@ -56,10 +56,8 @@ struct llvm_andersen : mlir::dataflow::DenseForwardDataFlowAnalysis< llaa_lattic
     void visit_load(mllvm::LoadOp &op, const llaa_lattice &before, llaa_lattice *after);
     void visit_constant(mllvm::ConstantOp &op, const llaa_lattice &before, llaa_lattice *after);
     void visit_addresof(mllvm::AddressOfOp &op, const llaa_lattice &before, llaa_lattice *after);
-
-    // TODO: implement here
-    void visit_arith(auto &op, const llaa_lattice &before, llaa_lattice *after);
-    void visit_cmp(auto &op, const llaa_lattice &before, llaa_lattice *after);
+    void visit_cmp(mlir::Operation *op, const llaa_lattice &before, llaa_lattice *after);
+    void visit_arith(mlir::Operation *op, const llaa_lattice &before, llaa_lattice *after);
 
     void visitOperation(mlir::Operation *op, const llaa_lattice &before, llaa_lattice *after) override;
     void visitCallControlFlowTransfer(mlir::CallOpInterface call,
