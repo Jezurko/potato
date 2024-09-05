@@ -109,12 +109,11 @@ struct aa_lattice : mlir_dense_abstract_lattice
         auto [var, inserted] = new_var(val, set);
         if (inserted) {
             return change_result::Change;
-        } else {
-            auto &var_pt_set = var->second;
-            if (var_pt_set != set) {
-                var_pt_set = {set};
-                return change_result::Change;
-            }
+        }
+        auto &var_pt_set = var->second;
+        if (var_pt_set != set) {
+            var_pt_set = {set};
+            return change_result::Change;
         }
         return change_result::NoChange;
     }
