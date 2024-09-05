@@ -143,6 +143,20 @@ namespace potato::analysis::trad {
         propagateIfChanged(after, changed);
     }
 
+    void llvm_andersen::visit_arith(mlir::Operation *op, const llaa_lattice &before, llaa_lattice *after) {
+        auto changed = after->join(before);
+        for (auto operand : op->getOperands()) {
+            auto operand_it = before.pt_relation.find({operand, ""});
+            if (operand_it != before.pt_relation.end()) {
+                if (!operand_it->second.is_bottom()) {
+                    changed |= after->set_var(op->getResult(0), llaa_lattice::set_t());
+                }
+            }
+        }
+        changed |= after->set_var(op->getResult(0), llaa_lattice::set_t());
+        propagateIfChanged(after, changed);
+    }
+
     void llvm_andersen::visitOperation(mlir::Operation *op, const llaa_lattice &before, llaa_lattice *after) {
         return llvm::TypeSwitch< mlir::Operation *, void >(op)
             .Case< mllvm::AllocaOp >([&](auto &op) { visit_alloc(op, before, after); })
