@@ -54,6 +54,26 @@ namespace potato::analysis::trad {
         return pt_relation.insert({{val, get_var_name()}, set});
     }
 
+    std::pair< llaa_lattice::relation_t::iterator, bool > llaa_lattice::new_var(
+            mlir_value val,
+            const set_t &pt_set
+    ) {
+        return pt_relation.insert({{val, get_var_name()}, pt_set});
+    }
+
+    change_result llaa_lattice::set_var(mlir_value val, const set_t &pt_set) {
+        auto [var, inserted] = new_var(val, pt_set);
+        if (inserted) {
+            return change_result::Change;
+        }
+        auto &var_pt_set = var->second;
+        if (var_pt_set != pt_set) {
+            var_pt_set = {pt_set};
+            return change_result::Change;
+        }
+        return change_result::NoChange;
+    }
+
     void llvm_andersen::visit_alloc(mllvm::AllocaOp &op, const llaa_lattice &before, llaa_lattice *after) {
         auto changed = after->join(before);
         if (after->new_var(op.getResult()).second)

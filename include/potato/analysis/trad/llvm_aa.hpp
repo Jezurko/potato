@@ -37,6 +37,7 @@ struct llaa_lattice : mlir::dataflow::AbstractDenseLattice {
     change_result meet(const mlir::dataflow::AbstractDenseLattice &rhs) override;
     std::pair< relation_t::iterator, bool > new_var(mlir_value var);
     std::pair< relation_t::iterator, bool > new_var(mlir_value, const set_t &pt_set);
+    change_result set_var(mlir_value val, const set_t &pt_set);
     void print(llvm::raw_ostream &os) const override;
 };
 
