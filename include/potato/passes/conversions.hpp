@@ -21,9 +21,9 @@ namespace potato
     std::unique_ptr< mlir::Pass > createLLVMToPotatoPass();
 
     #define GEN_PASS_REGISTRATION
-    #include "potato/conversion/Conversions.h.inc"
+    #include "potato/passes/Conversions.h.inc"
 
     #define GEN_PASS_CLASSES
-    #include "potato/conversion/Conversions.h.inc"
+    #include "potato/passes/Conversions.h.inc"
 
 } // namespace potato

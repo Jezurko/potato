@@ -14,4 +14,3 @@ add_mlir_dialect_library(MLIRpotato
         MLIRIR
         MLIRInferTypeOpInterface
     )
-add_subdirectory(passes)

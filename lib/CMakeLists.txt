@@ -1,3 +1,3 @@
 add_subdirectory(analysis)
-add_subdirectory(conversion)
+add_subdirectory(passes)
 add_subdirectory(dialect)
