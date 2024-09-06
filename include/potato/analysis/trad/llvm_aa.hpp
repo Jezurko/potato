@@ -66,4 +66,6 @@ struct llvm_andersen : mlir::dataflow::DenseForwardDataFlowAnalysis< llaa_lattic
                                       llaa_lattice *after) override;
     void setToEntryState(llaa_lattice *lattice) override;
 };
+
+void print_analysis_result(mlir::DataFlowSolver &solver, mlir_operation *op, llvm::raw_ostream &os);
 } // namespace potato::trad::analysis

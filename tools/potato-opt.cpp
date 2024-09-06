@@ -11,7 +11,7 @@ POTATO_UNRELAX_WARNINGS
 
 #include "potato/dialect/potato.hpp"
 #include "potato/dialect/passes.hpp"
-#include "potato/conversion/conversions.hpp"
+#include "potato/passes/conversions.hpp"
 
 int main(int argc, char **argv)
 {

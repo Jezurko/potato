@@ -14,8 +14,8 @@ POTATO_RELAX_WARNINGS
 #include <llvm/ADT/TypeSwitch.h>
 POTATO_UNRELAX_WARNINGS
 
-#include "potato/conversion/conversions.hpp"
-#include "potato/conversion/type/converter.hpp"
+#include "potato/passes/conversions.hpp"
+#include "potato/passes/type/converter.hpp"
 #include "potato/dialect/potato.hpp"
 #include "potato/util/common.hpp"
 #include "potato/util/typelist.hpp"
