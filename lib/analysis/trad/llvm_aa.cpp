@@ -189,4 +189,15 @@ namespace potato::analysis::trad {
 
         propagateIfChanged(after, after->join(before));
     }
+
+    void llvm_andersen::setToEntryState(llaa_lattice *lattice) {
+        ppoint point = lattice->getPoint();
+        auto init_state = llaa_lattice(point);
+        if (auto block = mlir::dyn_cast< mlir_block * >(point)) {
+            for (auto &arg : block->getArguments()) {
+                lattice->new_var(arg);
+            }
+        }
+        this->propagateIfChanged(lattice, lattice->join(init_state));
+    }
 } // namespace potato::trad::analysis
