@@ -6,6 +6,7 @@ POTATO_RELAX_WARNINGS
 POTATO_UNRELAX_WARNINGS
 
 #include "potato/analysis/trad/llvm_aa.hpp"
+#include "potato/util/common.hpp"
 
 namespace potato::analysis::trad {
 
@@ -199,5 +200,10 @@ namespace potato::analysis::trad {
             }
         }
         this->propagateIfChanged(lattice, lattice->join(init_state));
+    }
+
+    void print_analysis_result(mlir::DataFlowSolver &solver, mlir_operation *op, llvm::raw_ostream &os)
+    {
+        potato::util::print_analysis_result< llaa_lattice >(solver, op, os);
     }
 } // namespace potato::trad::analysis
