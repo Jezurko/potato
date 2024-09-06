@@ -5,6 +5,7 @@
 POTATO_RELAX_WARNINGS
 #include <mlir/Analysis/DataFlow/DenseAnalysis.h>
 #include <mlir/Analysis/AliasAnalysis.h>
+#include <mlir/IR/BuiltinOps.h>
 #include <mlir/IR/Value.h>
 #include <llvm/ADT/SetVector.h>
 POTATO_UNRELAX_WARNINGS
@@ -49,5 +50,30 @@ namespace potato::util {
          }
        }
        return changed;
+    }
+
+    template< typename analysis_lattice >
+    void print_analysis_result(mlir::DataFlowSolver &solver, mlir_operation *op, llvm::raw_ostream &os)
+    {
+        op->walk([&](mlir_operation *op) {
+            if (mlir::isa< mlir::ModuleOp >(op))
+                return;
+            os << "State in: " << op->getLoc() << "\n";
+            if (auto state = solver.lookupState< analysis_lattice >(op)) {
+                for (const auto &[key, vals] : state->pt_relation) {
+                    os << "  " << key << " -> {";
+                    if (vals.is_top()) {
+                        os << " TOP }\n";
+                        continue;
+                    }
+                    std::string sep;
+                    for (const auto &val : vals.get_set_ref()) {
+                            os << sep << val;
+                            sep = ", ";
+                    }
+                    os << "}\n";
+                }
+            }
+        });
     }
 } // namespace potato::util
