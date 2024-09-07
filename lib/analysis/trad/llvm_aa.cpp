@@ -75,6 +75,12 @@ namespace potato::analysis::trad {
         return change_result::NoChange;
     }
 
+    void llaa_lattice::print(llvm::raw_ostream &os) const {
+        for (const auto &[key, vals] : pt_relation) {
+            os << key << " -> " << vals;
+        }
+    }
+
     void llvm_andersen::visit_alloc(mllvm::AllocaOp &op, const llaa_lattice &before, llaa_lattice *after) {
         auto changed = after->join(before);
         if (after->new_var(op.getResult()).second)
