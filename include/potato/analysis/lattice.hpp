@@ -9,9 +9,6 @@ POTATO_UNRELAX_WARNINGS
 #include "potato/util/common.hpp"
 
 namespace potato::analysis {
-    template< typename T >
-    concept printable = requires(T a, llvm::raw_ostream &os) { a.print(os); };
-
     template< typename value_t >
     struct lattice_set {
         enum class state {
@@ -94,7 +91,7 @@ namespace potato::analysis {
         static lattice_set< value_t > make_top() { return { state::top }; }
 
         void print(llvm::raw_ostream &os) const
-        requires printable< value_t >
+        requires util::printable< value_t >
         {
             if (is_top()) {
                 os << "{ TOP }";
@@ -110,7 +107,7 @@ namespace potato::analysis {
         }
 
         void print(llvm::raw_ostream &os) const
-        requires (!printable< value_t >)
+        requires (!util::printable< value_t >)
         {
             if (is_top()) {
                 os << "{ TOP }";
