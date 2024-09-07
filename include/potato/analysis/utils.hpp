@@ -12,8 +12,12 @@ POTATO_UNRELAX_WARNINGS
 
 #include <string>
 
-namespace potato::analysis {
+namespace potato::util {
+    template< typename T >
+    concept printable = requires(T a, llvm::raw_ostream &os) { a.print(os); };
+}
 
+namespace potato::analysis {
 template < typename value_t, template< typename >typename set_t >
 using pt_map = llvm::DenseMap< value_t, set_t< value_t > >;
 
