@@ -276,4 +276,9 @@ namespace potato::analysis::trad {
     {
         potato::util::print_analysis_result< llaa_lattice >(solver, op, os);
     }
+
+    void print_analysis_stats(mlir::DataFlowSolver &solver, mlir_operation *op, llvm::raw_ostream &os)
+    {
+        potato::util::print_analysis_stats< llaa_lattice >(solver, op, os);
+    }
 } // namespace potato::trad::analysis

@@ -404,4 +404,6 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
 
 void print_analysis_result(mlir::DataFlowSolver &solver, mlir_operation *op, llvm::raw_ostream &os);
 
+void print_analysis_stats(mlir::DataFlowSolver &solver, mlir_operation *op, llvm::raw_ostream &os);
+
 } // potato::analysis

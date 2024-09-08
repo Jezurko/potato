@@ -76,4 +76,47 @@ namespace potato::util {
             }
         });
     }
+
+    template< typename analysis_lattice >
+    void print_analysis_stats(mlir::DataFlowSolver &solver, mlir_operation *op, llvm::raw_ostream &os)
+    {
+        int top_glob = 0, bottom_glob = 0, single_elem_glob = 0, multiple_elem_glob = 0;
+        op->walk([&](mlir_operation *op) {
+            if (mlir::isa< mlir::ModuleOp >(op))
+                return;
+            int top = 0, bottom = 0, single_elem = 0, multiple_elem = 0;
+            if (auto state = solver.lookupState< analysis_lattice >(op)) {
+                for (const auto &[key, vals] : state->pt_relation) {
+                    if (vals.is_top())
+                        top++;
+
+                    if (vals.is_bottom())
+                        bottom++;
+
+                    if (vals.is_concrete()) {
+                        if (vals.is_single_target())
+                            single_elem++;
+                        else
+                            multiple_elem++;
+                    }
+                }
+            top_glob += top;
+            bottom_glob += bottom;
+            single_elem_glob += single_elem;
+            multiple_elem_glob += multiple_elem;
+            os << "State in: " << op->getLoc() << "\n";
+            os << "Tops: " << top
+               << " Bottoms: " << bottom
+               << " Single element: " << single_elem
+               << " Multiple element: " << multiple_elem;
+            os << "\n";
+            }
+        });
+        os << "Global state\n";
+        os << "Tops: " << top_glob
+           << " Bottoms: " << bottom_glob
+           << " Single element: " << single_elem_glob
+           << " Multiple element: " << multiple_elem_glob;
+        os << "\n";
+    }
 } // namespace potato::util
