@@ -183,6 +183,14 @@ namespace potato::analysis::trad {
         propagateIfChanged(after, changed);
     }
 
+    void llvm_andersen::visit_addr_of(mllvm::AddressOfOp &op, const llaa_lattice &before, llaa_lattice *after) {
+        auto changed = after->join(before);
+        auto set = llaa_lattice::set_t();
+        set.insert(pt_element(mlir::Value(), op.getGlobalName().str()));
+        changed |= after->set_var(op.getResult(), set);
+        propagateIfChanged(after, changed);
+    }
+
     void llvm_andersen::visit_cmp(mlir::Operation *op, const llaa_lattice &before, llaa_lattice *after) {
         auto changed = after->join(before);
         changed |= after->set_var(op->getResult(0), llaa_lattice::set_t());
@@ -210,6 +218,7 @@ namespace potato::analysis::trad {
             .Case< mllvm::LoadOp >([&](auto &op) { visit_load(op, before, after); })
             .Case< mllvm::ConstantOp >([&](auto &op) { visit_constant(op, before, after); })
             .Case< mllvm::GEPOp >([&](auto &op) { visit_gep(op, before, after); })
+            .Case< mllvm::AddressOfOp >([&](auto &op) { visit_addr_of(op, before, after); })
             .Case< mllvm::ICmpOp, mllvm::FCmpOp >([&](auto &op) { visit_cmp(op, before, after); })
             .Case< mllvm::GlobalOp, mllvm::LLVMFuncOp, mllvm::BrOp, mllvm::CondBrOp, mllvm::ReturnOp >([&](auto &) { propagateIfChanged(after, after->join(before)); })
             .Default([&](auto &op) { op->dump(); assert(false); });
