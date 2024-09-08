@@ -173,6 +173,16 @@ namespace potato::analysis::trad {
         propagateIfChanged(after, changed);
     }
 
+    void llvm_andersen::visit_gep(mllvm::GEPOp &op, const llaa_lattice &before, llaa_lattice *after) {
+        auto changed = after->join(before);
+        if (op->hasAttr(op.getInboundsAttrName())) {
+            changed |= after->set_var(op.getResult(), op.getBase());
+        } else {
+            changed |= after->set_var(op.getResult(), llaa_lattice::set_t::make_top());
+        }
+        propagateIfChanged(after, changed);
+    }
+
     void llvm_andersen::visit_cmp(mlir::Operation *op, const llaa_lattice &before, llaa_lattice *after) {
         auto changed = after->join(before);
         changed |= after->set_var(op->getResult(0), llaa_lattice::set_t());
@@ -199,6 +209,7 @@ namespace potato::analysis::trad {
             .Case< mllvm::StoreOp >([&](auto &op) { visit_store(op, before, after); })
             .Case< mllvm::LoadOp >([&](auto &op) { visit_load(op, before, after); })
             .Case< mllvm::ConstantOp >([&](auto &op) { visit_constant(op, before, after); })
+            .Case< mllvm::GEPOp >([&](auto &op) { visit_gep(op, before, after); })
             .Case< mllvm::ICmpOp, mllvm::FCmpOp >([&](auto &op) { visit_cmp(op, before, after); })
             .Default([&](auto &op) { assert(false); propagateIfChanged(after, after->join(before)); });
     }
