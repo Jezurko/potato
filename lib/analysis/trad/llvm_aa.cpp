@@ -211,7 +211,8 @@ namespace potato::analysis::trad {
             .Case< mllvm::ConstantOp >([&](auto &op) { visit_constant(op, before, after); })
             .Case< mllvm::GEPOp >([&](auto &op) { visit_gep(op, before, after); })
             .Case< mllvm::ICmpOp, mllvm::FCmpOp >([&](auto &op) { visit_cmp(op, before, after); })
-            .Default([&](auto &op) { assert(false); propagateIfChanged(after, after->join(before)); });
+            .Case< mllvm::GlobalOp, mllvm::LLVMFuncOp, mllvm::BrOp, mllvm::CondBrOp, mllvm::ReturnOp >([&](auto &) { propagateIfChanged(after, after->join(before)); })
+            .Default([&](auto &op) { op->dump(); assert(false); });
     }
 
     void llvm_andersen::visitCallControlFlowTransfer(mlir::CallOpInterface call,
