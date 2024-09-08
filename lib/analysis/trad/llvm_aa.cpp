@@ -212,7 +212,7 @@ namespace potato::analysis::trad {
             auto operand_it = before.pt_relation.find({operand, ""});
             if (operand_it != before.pt_relation.end()) {
                 if (!operand_it->second.is_bottom()) {
-                    changed |= after->set_var(op->getResult(0), llaa_lattice::set_t());
+                    changed |= after->set_var(op->getResult(0), llaa_lattice::set_t::make_top());
                 }
             }
         }
