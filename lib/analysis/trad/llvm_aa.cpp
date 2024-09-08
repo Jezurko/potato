@@ -62,6 +62,17 @@ namespace potato::analysis::trad {
         return pt_relation.insert({{val, get_var_name()}, pt_set});
     }
 
+    std::pair< llaa_lattice::relation_t::iterator, bool > llaa_lattice::new_var(mlir_value var, mlir_value pointee) {
+        llaa_lattice::set_t set{};
+        auto pointee_it = pt_relation.find({pointee, ""});
+        if (pointee_it == pt_relation.end()) {
+            set.insert({pointee, get_alloc_name()});
+        } else {
+            set.insert(pointee_it->first);
+        }
+        return new_var(var, set);
+    }
+
     change_result llaa_lattice::set_var(mlir_value val, const set_t &pt_set) {
         auto [var, inserted] = new_var(val, pt_set);
         if (inserted) {
@@ -74,6 +85,24 @@ namespace potato::analysis::trad {
         }
         return change_result::NoChange;
     }
+
+    change_result llaa_lattice::set_var(mlir_value val, mlir_value pointee) {
+        auto [var, inserted] = new_var(val, pointee);
+        if (inserted) {
+            return change_result::Change;
+        } else {
+            auto &var_pt_set = var->second;
+            auto [var, inserted] = new_var(pointee, llaa_lattice::set_t());
+            auto cmp_set = llaa_lattice::set_t();
+            cmp_set.insert(var->first);
+            if (var_pt_set != cmp_set) {
+                var_pt_set = {cmp_set};
+                return change_result::Change;
+            }
+        }
+        return change_result::NoChange;
+    }
+
 
     void llaa_lattice::print(llvm::raw_ostream &os) const {
         for (const auto &[key, vals] : pt_relation) {
