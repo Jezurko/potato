@@ -191,6 +191,15 @@ namespace potato::analysis::trad {
         propagateIfChanged(after, changed);
     }
 
+    void llvm_andersen::visit_sext(mllvm::SExtOp &op, const llaa_lattice &before, llaa_lattice *after) {
+        auto changed = after->join(before);
+        auto set = llaa_lattice::set_t();
+        auto arg_pt_it = before.pt_relation.find({op.getArg(), ""});
+        std::ignore = set.join(arg_pt_it->second);
+        changed |= after->set_var(op.getResult(), set);
+        propagateIfChanged(after, changed);
+    }
+
     void llvm_andersen::visit_cmp(mlir::Operation *op, const llaa_lattice &before, llaa_lattice *after) {
         auto changed = after->join(before);
         changed |= after->set_var(op->getResult(0), llaa_lattice::set_t());
@@ -218,6 +227,7 @@ namespace potato::analysis::trad {
             .Case< mllvm::LoadOp >([&](auto &op) { visit_load(op, before, after); })
             .Case< mllvm::ConstantOp >([&](auto &op) { visit_constant(op, before, after); })
             .Case< mllvm::GEPOp >([&](auto &op) { visit_gep(op, before, after); })
+            .Case< mllvm::SExtOp >([&](auto &op) { visit_sext(op, before, after); })
             .Case< mllvm::AddressOfOp >([&](auto &op) { visit_addr_of(op, before, after); })
             .Case< mllvm::ICmpOp, mllvm::FCmpOp >([&](auto &op) { visit_cmp(op, before, after); })
             .Case< mllvm::FAddOp, mllvm::FDivOp, mllvm::FMulOp, mllvm::FSubOp, mllvm::FMulAddOp,
