@@ -220,6 +220,10 @@ namespace potato::analysis::trad {
             .Case< mllvm::GEPOp >([&](auto &op) { visit_gep(op, before, after); })
             .Case< mllvm::AddressOfOp >([&](auto &op) { visit_addr_of(op, before, after); })
             .Case< mllvm::ICmpOp, mllvm::FCmpOp >([&](auto &op) { visit_cmp(op, before, after); })
+            .Case< mllvm::FAddOp, mllvm::FDivOp, mllvm::FMulOp, mllvm::FSubOp, mllvm::FMulAddOp,
+                   mllvm::AddOp, mllvm::UDivOp, mllvm::SDivOp, mllvm::MulOp, mllvm::SubOp,
+                   mllvm::FNegOp
+            >([&](auto &op) { visit_arith(op, before, after); })
             .Case< mllvm::GlobalOp, mllvm::LLVMFuncOp, mllvm::BrOp, mllvm::CondBrOp, mllvm::ReturnOp >([&](auto &) { propagateIfChanged(after, after->join(before)); })
             .Default([&](auto &op) { op->dump(); assert(false); });
     }
