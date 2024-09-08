@@ -10,14 +10,14 @@ POTATO_RELAX_WARNINGS
 POTATO_UNRELAX_WARNINGS
 
 #include "potato/dialect/potato.hpp"
-#include "potato/dialect/passes.hpp"
+#include "potato/passes/analysis.hpp"
 #include "potato/passes/conversions.hpp"
 
 int main(int argc, char **argv)
 {
     mlir::registerAllPasses();
     // Register potato passes here
-    // Dialect passes
+    // Analysis passes
     potato::pt::registerPasses();
     // Conversion passes
     potato::registerPasses();
