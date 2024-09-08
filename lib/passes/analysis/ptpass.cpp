@@ -1,6 +1,6 @@
 #include "potato/passes/analysis.hpp"
 #include "potato/util/warnings.hpp"
-#include "potato/analysis/trad/llvm_aa.hpp"
+#include "potato/analysis/pt.hpp"
 
 POTATO_RELAX_WARNINGS
 #include <mlir/Analysis/DataFlowFramework.h>
@@ -26,11 +26,11 @@ namespace potato::pt
             solver.load< mlir::dataflow::DeadCodeAnalysis >();
 
             // Load our analysis
-            solver.load< analysis::trad::llvm_andersen >();
+            solver.load< analysis::pt_analysis< analysis::aa_lattice > >();
 
             if (failed(solver.initializeAndRun(root)))
                 signalPassFailure();
-            analysis::trad::print_analysis_result(solver, root, llvm::outs());
+            analysis::print_analysis_result(solver, root, llvm::outs());
         }
     };
 
