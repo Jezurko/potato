@@ -6,12 +6,12 @@ This allows PoTATo to focus only on the relevant information and also to perform
 From the users perspective, PoTATo simplifies the problem of implementing a points-to analysis to implementing a conversion pass to the points-to dialect.
 This conversion is further simplified by the fact, that PoTATo doesn't require from the user to convert control-flow and function call related operations.
 
-The core algorithm is based on the MLIR Analysis framework, that provides the necesssary tools for computing the analysis.
-This core algorithm is user-configurable, by choosing a prefered points-to lattice representation, or by providing a custom implementation of the lattice.
+The core algorithm is based on the MLIR Analysis framework, that provides the necessary tools for computing the analysis.
+This core algorithm is user-configurable, by choosing a preferred points-to lattice representation, or by providing a custom implementation of the lattice.
 
 PoTATo has been presented as a poster on the 2024 EuroLLVM Developers' Meeting.
 You can see the poster in a [trip report](https://blog.trailofbits.com/2024/06/21/eurollvm-2024-trip-report/) made by my colleagues from Trail of Bits.
-The [poster](Zhttps://blog.trailofbits.com/wp-content/uploads/2024/06/image3.png) is not entirely up to date, but still might provide useful insight into the core concepts and goals.
+The [poster](https://blog.trailofbits.com/wp-content/uploads/2024/06/image3.png) is not entirely up to date, but still might provide useful insight into the core concepts and goals.
 
 # Showcase
 Let's take a simple LLVM IR program:
@@ -26,7 +26,7 @@ builtin.module {
     %x = llvm.load %a2 : !llvm.ptr<i32>
 }
 ```
-This program can be converted to the PoTATo dialect by invcking the included LLVM IR conversion pass:
+This program can be converted to the PoTATo dialect by invoking the included LLVM IR conversion pass:
 ```
 $ potato-opt --llvm-ir-to-potato <source-file>
 builtin.module { 
