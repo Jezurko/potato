@@ -9,6 +9,10 @@ This conversion is further simplified by the fact, that PoTATo doesn't require f
 The core algorithm is based on the MLIR Analysis framework, that provides the necesssary tools for computing the analysis.
 This core algorithm is user-configurable, by choosing a prefered points-to lattice representation, or by providing a custom implementation of the lattice.
 
+PoTATo has been presented as a poster on the 2024 EuroLLVM Developers' Meeting.
+You can see the poster in a [trip report](https://blog.trailofbits.com/2024/06/21/eurollvm-2024-trip-report/) made by my colleagues from Trail of Bits.
+The [poster](Zhttps://blog.trailofbits.com/wp-content/uploads/2024/06/image3.png) is not entirely up to date, but still might provide useful insight into the core concepts and goals.
+
 # Showcase
 Let's take a simple LLVM IR program:
 ```
