@@ -149,7 +149,7 @@ namespace potato::conv::llvmtopt
 
             rewriter.replaceOpWithNewOp< pt::AssignOp >(
                     op,
-                    adaptor.getSrc(),
+                    adaptor.getDst(),
                     merged
             );
             return mlir::success();
