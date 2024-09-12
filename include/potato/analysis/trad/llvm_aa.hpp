@@ -53,14 +53,13 @@ struct llvm_andersen : mlir::dataflow::DenseForwardDataFlowAnalysis< llaa_lattic
 
     using base::propagateIfChanged;
 
-    void visit_alloc(mllvm::AllocaOp &op, const llaa_lattice &before, llaa_lattice *after);
-    void visit_store(mllvm::StoreOp &op, const llaa_lattice &before, llaa_lattice *after);
-    void visit_load(mllvm::LoadOp &op, const llaa_lattice &before, llaa_lattice *after);
-    void visit_constant(mllvm::ConstantOp &op, const llaa_lattice &before, llaa_lattice *after);
-    void visit_addresof(mllvm::AddressOfOp &op, const llaa_lattice &before, llaa_lattice *after);
-    void visit_gep(mllvm::GEPOp &op, const llaa_lattice &before, llaa_lattice *after);
-    void visit_addr_of(mllvm::AddressOfOp &op, const llaa_lattice &before, llaa_lattice *after);
-    void visit_sext(mllvm::SExtOp &op, const llaa_lattice &before, llaa_lattice *after);
+    void visit_op(mllvm::AllocaOp &op, const llaa_lattice &before, llaa_lattice *after);
+    void visit_op(mllvm::StoreOp &op, const llaa_lattice &before, llaa_lattice *after);
+    void visit_op(mllvm::LoadOp &op, const llaa_lattice &before, llaa_lattice *after);
+    void visit_op(mllvm::ConstantOp &op, const llaa_lattice &before, llaa_lattice *after);
+    void visit_op(mllvm::GEPOp &op, const llaa_lattice &before, llaa_lattice *after);
+    void visit_op(mllvm::AddressOfOp &op, const llaa_lattice &before, llaa_lattice *after);
+    void visit_op(mllvm::SExtOp &op, const llaa_lattice &before, llaa_lattice *after);
     void visit_cmp(mlir::Operation *op, const llaa_lattice &before, llaa_lattice *after);
     void visit_arith(mlir::Operation *op, const llaa_lattice &before, llaa_lattice *after);
 
