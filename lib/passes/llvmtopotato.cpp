@@ -103,6 +103,33 @@ namespace potato::conv::llvmtopt
         }
     };
 
+    struct gep_insensitive : mlir::OpConversionPattern< mlir::LLVM::GEPOp > {
+        using source = mlir::LLVM::GEPOp;
+        using base = mlir::OpConversionPattern< source >;
+        using base::base;
+        using adaptor_t = typename source::Adaptor;
+        logical_result matchAndRewrite(source op,
+                                       adaptor_t adaptor,
+                                       mlir::ConversionPatternRewriter &rewriter
+        ) const override {
+            auto tc = this->getTypeConverter();
+            if (op->hasAttr(op.getInboundsAttrName())) {
+                rewriter.replaceOpWithNewOp< pt::CopyOp >(
+                        op,
+                        tc->convertType(op.getType()),
+                        adaptor.getBase()
+                );
+                return mlir::success();
+            }
+            rewriter.replaceOpWithNewOp< pt::UnknownPtrOp >(
+                    op,
+                    tc->convertType(op.getType()),
+                    adaptor.getOperands()
+            );
+            return mlir::success();
+        }
+    };
+
     struct memcpy_insensitive : mlir::OpConversionPattern< mlir::LLVM::MemcpyOp > {
         using source = mlir::LLVM::MemcpyOp;
         using base = mlir::OpConversionPattern< source >;
@@ -147,10 +174,10 @@ namespace potato::conv::llvmtopt
         copy_op< mlir::LLVM::TruncOp >,
         copy_op< mlir::LLVM::PtrToIntOp >,
         copy_op< mlir::LLVM::IntToPtrOp >,
-        copy_op< mlir::LLVM::GEPOp >,
         copy_op< mlir::LLVM::BitcastOp >,
         copy_op< mlir::LLVM::ZExtOp >,
         copy_op< mlir::LLVM::SExtOp >,
+        gep_insensitive,
         memcpy_insensitive
     >;
 
