@@ -9,6 +9,7 @@ message("${CMAKE_BINARY_DIR}")
 include(prevent_in_source_builds)
 include(compiler_warnings)
 include(ninja_colour)
+include(sanitizers)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_EXTENSIONS OFF)
@@ -41,10 +42,9 @@ add_definitions(${LLVM_DEFINITIONS})
 set(LLVM_LIT_ARGS "-sv" CACHE STRING "lit default options")
 list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake/modules")
 
-#include(sanitizers)
-
 add_subdirectory(include)
 add_subdirectory(lib)
 add_subdirectory(tools)
 
 set_project_warnings(MLIRpotato)
+enable_sanitizers(MLIRpotato)
