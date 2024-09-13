@@ -15,7 +15,7 @@ POTATO_UNRELAX_WARNINGS
 
 int main(int argc, char **argv)
 {
-    mlir::registerAllPasses();
+    mlir::registerTransformsPasses();
     // Register potato passes here
     // Analysis passes
     potato::pt::registerPasses();
