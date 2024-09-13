@@ -240,9 +240,11 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
             return propagateIfChanged(after, changed);
         }
 
-        for (const auto &lhs_val : lhs_pt.get_set_ref()) {
-            auto &insert_point = after->pt_relation[lhs_val];
-            changed |= pt_lattice::pointee_union(insert_point, rhs_pt);
+        for (auto &lhs_val : lhs_pt.get_set_ref()) {
+            auto insert_point = after->pt_relation.find(lhs_val);
+            if (insert_point == after->pt_relation.end())
+                continue;
+            changed |= pt_lattice::pointee_union(insert_point->second, rhs_pt);
         }
         propagateIfChanged(after, changed);
     };
