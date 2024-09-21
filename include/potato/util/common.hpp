@@ -23,6 +23,7 @@ using mlir_loc = mlir::Location;
 using logical_result = mlir::LogicalResult;
 
 using ppoint = mlir::ProgramPoint;
+using call_cf_action = mlir::dataflow::CallControlFlowAction;
 
 using alias_res = mlir::AliasResult;
 using alias_kind = mlir::AliasResult::Kind;
