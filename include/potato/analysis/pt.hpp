@@ -261,7 +261,7 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
             auto pt_set = pt_lattice::new_pointee_set();
             pt_set.insert(pt_lattice::new_symbol(symbol_ref.getValue()));
 
-            changed |= after->set_var(val, pt_set);
+            changed |= after->set_var(op.getPtr(), pt_set);
         }
         propagateIfChanged(after, changed);
     };
