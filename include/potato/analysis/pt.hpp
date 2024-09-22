@@ -399,6 +399,15 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
         propagateIfChanged(after, changed);
     }
 
+    std::vector< mlir::Operation * > get_function_returns(mlir::FunctionOpInterface func) {
+        std::vector< mlir::Operation * > returns;
+        for (auto &op : func.getFunctionBody().getOps()) {
+            if (op.hasTrait< mlir::OpTrait::ReturnLike >())
+                returns.push_back(&op);
+        }
+        return returns;
+    }
+
     void visitOperation(mlir::Operation *op, const pt_lattice &before, pt_lattice *after) override {
         return llvm::TypeSwitch< mlir::Operation *, void >(op)
             .Case< pt::AddressOp,
