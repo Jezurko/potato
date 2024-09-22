@@ -442,7 +442,7 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
         // TODO: Check if this makes sense?
         ppoint point = lattice->getPoint();
         auto init_state = pt_lattice(point);
-        init_state.init_at_point(point);
+        std::ignore = init_state.init_at_point(point);
 
         this->propagateIfChanged(lattice, lattice->join(init_state));
     }
