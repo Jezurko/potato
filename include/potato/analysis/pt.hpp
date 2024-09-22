@@ -5,6 +5,7 @@
 POTATO_RELAX_WARNINGS
 #include <mlir/Analysis/DataFlow/DenseAnalysis.h>
 #include <mlir/Interfaces/CallInterfaces.h>
+#include <mlir/Interfaces/FunctionInterfaces.h>
 #include <mlir/IR/Value.h>
 
 #include <llvm/ADT/DenseMap.h>
@@ -433,27 +434,80 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
             .Default([&](auto &pt_op) { propagateIfChanged(after, after->join(before)); });
     };
 
-    void visitCallControlFlowTransfer(mlir::CallOpInterface call,
-                                      mlir::dataflow::CallControlFlowAction action,
-                                      const pt_lattice &before,
-                                      pt_lattice *after) override {
-        if (action == mlir::dataflow::CallControlFlowAction::EnterCallee) {
-            auto callee = call.resolveCallable();
+    void visitCallControlFlowTransfer(
+        mlir::CallOpInterface call, call_cf_action action,
+        const pt_lattice &before, pt_lattice *after
+    ) override {
+        auto changed       = after->join(before);
+        auto callee = call.resolveCallable();
+        auto func   = mlir::dyn_cast< mlir::FunctionOpInterface >(callee);
+
+        if (action == call_cf_action::EnterCallee) {
+
             auto &callee_entry = callee->getRegion(0).front();
-            auto callee_args = callee_entry.getArguments();
+            auto callee_args   = callee_entry.getArguments();
 
-            for (const auto &[callee_arg, caller_arg] : llvm::zip_equal(callee_args, call.getArgOperands())) {
-                const auto &pt_set = before.find(caller_arg)->second;
-                after->new_var(callee_arg, pt_set);
+            for (const auto &[callee_arg, caller_arg] :
+                 llvm::zip_equal(callee_args, call.getArgOperands()))
+            {
+                const auto &caller_pt_set = before.find(caller_arg)->second;
+                changed |= after->join_var(callee_arg, caller_pt_set);
             }
+            return propagateIfChanged(after, changed);
         }
 
-        if (action == mlir::dataflow::CallControlFlowAction::ExitCallee) {
-            for (auto result : call.getOperation()->getResults())
-                after->new_var(result);
+        if (action == call_cf_action::ExitCallee) {
+            auto call_op = call.getOperation();
+
+            if (!func) {
+                changed |= after->set_all_unknown();
+                for (auto result : call.getOperation()->getResults()) {
+                    changed |= after->set_var(result, pt_lattice::new_top_set());
+                }
+                return propagateIfChanged(after, changed);
+            }
+            std::vector< mlir::Operation * > returns = get_function_returns(func);
+            std::vector< const pt_lattice * > return_states = get_or_create_for(call, returns);
+
+            // TODO: Check if the function assigns to a location pointed-to by one of the args?
+            // If yes/unknown, mark all as unknown?
+            for (const auto &arg : callee->getRegion(0).front().getArguments()) {
+                // TODO: Explore call-site sensitivity by having a specific representation for the arguments?
+                // If arg at the start points to TOP, then we know nothing
+                auto start_state = this->template getOrCreate< pt_lattice >(&*func.getFunctionBody().begin());
+                auto arg_pt = start_state->lookup(arg);
+                if (!arg_pt || arg_pt->is_top()) {
+                    return propagateIfChanged(after, changed | after->set_all_unknown());
+                }
+
+                // go through returns and analyze arg pts, join into call operand pt
+                for (auto state : return_states) {
+                    auto arg_at_ret = state->lookup(arg);
+                    changed |= after->join_var(call_op->getOperand(arg.getArgNumber()), *arg_at_ret);
+                }
+            }
+
+            for (size_t i = 0; i < call_op->getNumResults(); ++i) {
+                auto returns_pt = pt_lattice::new_pointee_set();
+                for (const auto &[state, ret] : llvm::zip_equal(return_states, returns)) {
+                    auto res_pt = state->lookup(ret->getOperand(i));
+                    // TODO: Check this: if the result wasn't found, it means that it is unreachable
+                    if (res_pt)
+                        std::ignore = returns_pt.join(*res_pt);
+                }
+                changed |= after->join_var(call_op->getResult(i), std::move(returns_pt));
+            }
+            return propagateIfChanged(after, changed);
         }
 
-        propagateIfChanged(after, after->join(before));
+        if (action == call_cf_action::ExternalCallee) {
+            // TODO:
+            // Try to check for "known" functions
+            // Try to resolve function pointer calls? (does it happen here?)
+            // Make the set of known functions a customization point?
+            return propagateIfChanged(after, changed | after->set_all_unknown());
+        }
+
     };
 
     // Default implementation via join should be fine for us (at least for now)
