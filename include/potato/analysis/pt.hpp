@@ -43,14 +43,6 @@ struct aa_lattice : mlir_dense_abstract_lattice
     // TODO: Probably replace most of the following functions with some custom API that doesn't introduce
     //       so many random return values with iterators and stuff
 
-    auto contains(const mlir_value &val) const {
-        return pt_relation.contains({val, ""});
-    }
-
-    auto contains(const pt_element &val) const {
-        return pt_relation.contains(val);
-    }
-
     auto find(const mlir_value &val) const {
         return pt_relation.find({val, ""});
     }
@@ -59,8 +51,34 @@ struct aa_lattice : mlir_dense_abstract_lattice
         return pt_relation.find(val);
     }
 
-    auto &operator[](const mlir_value &val) {
-        return pt_relation[{val, ""}];
+    auto find(const mlir_value &val) {
+        return pt_relation.find({val, ""});
+    }
+
+    auto find(const pt_element &val) {
+        return pt_relation.find(val);
+    }
+
+    const lattice_set< pt_element > * lookup(const pt_element &val) const {
+        auto it = pt_relation.find(val);
+        if (it == pt_relation.end())
+            return nullptr;
+        return &it->second;
+    }
+
+    const lattice_set< pt_element > * lookup(const mlir_value &val) const {
+        return lookup({ val, "" });
+    }
+
+    lattice_set< pt_element > * lookup(const pt_element &val) {
+        auto it = pt_relation.find(val);
+        if (it == pt_relation.end())
+            return nullptr;
+        return &it->second;
+    }
+
+    lattice_set< pt_element > * lookup(const mlir_value &val) {
+        return lookup({ val, "" });
     }
 
     auto &operator[](const pt_element &val) {
