@@ -408,6 +408,14 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
         return returns;
     }
 
+    std::vector< const pt_lattice * > get_or_create_for(mlir::Operation * dep, const std::vector< mlir::Operation * > &ops) {
+        std::vector< const pt_lattice * > states;
+        for (const auto &op : ops) {
+            states.push_back(this->template getOrCreateFor< pt_lattice >(dep, op));
+        }
+        return states;
+    }
+
     void visitOperation(mlir::Operation *op, const pt_lattice &before, pt_lattice *after) override {
         return llvm::TypeSwitch< mlir::Operation *, void >(op)
             .Case< pt::AddressOp,
