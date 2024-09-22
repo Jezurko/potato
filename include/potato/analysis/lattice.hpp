@@ -59,6 +59,14 @@ namespace potato::analysis {
             return change_result::NoChange;
         }
 
+        change_result set_top() {
+            if (is_top())
+                return change_result::NoChange;
+            state = state::top;
+            // clear set?
+            return change_result::Change;
+        }
+
         auto insert(value_t &&element) {
             return set.insert(element);
         }
