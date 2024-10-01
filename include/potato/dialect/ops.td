@@ -55,6 +55,14 @@ def Potato_ConstantOp
   let assemblyFormat = [{ attr-dict `:` type($result)}];
 }
 
+def Potato_GlobalVarOp
+  : Potato_Op< "global" >
+  , Arguments<( ins SymbolNameAttr:$name, BoolAttr:$local )>
+{
+  let regions = (region AnyRegion:$init);
+  let assemblyFormat = [{ attr-dict $name `local` `:` $local ($init^)? }];
+}
+
 def Potato_UnknownPtrOp
   : Potato_Op< "unknown.ptr" >
   , Arguments<( ins Variadic< AnyType >:$srcs )>
