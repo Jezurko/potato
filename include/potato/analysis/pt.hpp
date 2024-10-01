@@ -399,6 +399,24 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
         propagateIfChanged(after, changed);
     }
 
+    void visit_branch_interface(mlir::BranchOpInterface &op, const pt_lattice &before, pt_lattice *after) {
+        auto changed = after->join(before);
+
+        for (const auto &[i, successor] : llvm::enumerate(op->getSuccessors())) {
+            auto changed_succ = change_result::NoChange;
+            auto succ_state = this->template getOrCreate< pt_lattice >(successor);
+            for (const auto &[pred_op, succ_arg] :
+                llvm::zip_equal(op.getSuccessorOperands(i).getForwardedOperands(), successor->getArguments())
+            ) {
+                auto operand_pt = after->lookup(pred_op);
+                changed_succ |= after->join_var(succ_arg, *operand_pt);
+            }
+            propagateIfChanged(succ_state, changed_succ);
+        }
+
+        propagateIfChanged(after, changed);
+    };
+
     std::vector< mlir::Operation * > get_function_returns(mlir::FunctionOpInterface func) {
         std::vector< mlir::Operation * > returns;
         for (auto &op : func.getFunctionBody().getOps()) {
@@ -431,6 +449,7 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
             .template Case< mlir::UnrealizedConversionCastOp >(
                     [&](auto &cast_op) { visit_unrealized_cast(cast_op, before, after); }
             )
+            .template Case< mlir::BranchOpInterface >([&](auto &branch_op) { visit_branch_interface(branch_op, before, after); })
             .Default([&](auto &pt_op) { propagateIfChanged(after, after->join(before)); });
     };
 
