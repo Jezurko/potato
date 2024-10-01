@@ -216,6 +216,11 @@ namespace potato::analysis::trad {
         propagateIfChanged(after, changed);
     }
 
+    void llvm_andersen::visit_op(mllvm::GlobalOp &op, const llaa_lattice &before, llaa_lattice *after) {
+        auto changed = after->join(before);
+        propagateIfChanged(after, changed);
+    }
+
     void llvm_andersen::visit_op(mlir::BranchOpInterface &op, const llaa_lattice &before, llaa_lattice *after) {
         auto changed = after->join(before);
 
