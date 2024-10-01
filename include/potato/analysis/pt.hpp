@@ -285,6 +285,7 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
         }
 
         if (lhs_pt.is_top()) {
+            // TODO: do not access the relation by name
             for (auto &[_, pt_set] : after->pt_relation) {
                 changed |= pt_set.join(rhs_pt);
             }
@@ -293,6 +294,7 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
 
         for (auto &lhs_val : lhs_pt.get_set_ref()) {
             auto insert_point = after->lookup(lhs_val);
+            // unknown insert point ~ top
             if (!insert_point)
                 continue;
             changed |= pt_lattice::pointee_union(*insert_point, rhs_pt);
