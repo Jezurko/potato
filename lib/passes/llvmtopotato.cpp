@@ -236,9 +236,12 @@ namespace potato::conv::llvmtopt
                                        adaptor_t adaptor,
                                        mlir::ConversionPatternRewriter &rewriter
         ) const override {
-            auto attrs = mlir::NamedAttrList();
-            attrs.append("addr_of", op.getGlobalNameAttr());
-            rewriter.replaceOpWithNewOp< pt::AddressOp >(op, op.getRes().getType(), mlir::ValueRange{}, attrs);
+            rewriter.replaceOpWithNewOp< pt::AddressOp >(
+                    op,
+                    this->getTypeConverter()->convertType(op.getRes().getType()),
+                    mlir::Value(),
+                    op.getGlobalNameAttr()
+            );
             return mlir::success();
         }
     };
