@@ -248,6 +248,23 @@ namespace potato::conv::llvmtopt
         constant_op< mlir::LLVM::FCmpOp >
     >;
 
+    struct global_op : mlir::OpConversionPattern< mlir::LLVM::GlobalOp > {
+        using base = mlir::OpConversionPattern< mlir::LLVM::GlobalOp >;
+        using base::base;
+        using adaptor_t = mlir::LLVM::GlobalOp::Adaptor;
+
+        logical_result matchAndRewrite(
+            mlir::LLVM::GlobalOp op,
+            adaptor_t adaptor,
+            mlir::ConversionPatternRewriter &rewriter
+        ) const override {
+            auto global = rewriter.replaceOpWithNewOp< pt::GlobalVarOp >(op, op.getName(), false);
+            global.getInit().takeBody(op.getInitializer());
+            return mlir::success();
+        }
+
+    };
+
     struct address_of_op : mlir::OpConversionPattern< mlir::LLVM::AddressOfOp > {
         using base = mlir::OpConversionPattern< mlir::LLVM::AddressOfOp >;
         using base::base;
@@ -267,7 +284,8 @@ namespace potato::conv::llvmtopt
         }
     };
 
-    using address_patterns = util::type_list<
+    using global_handling_patterns = util::type_list<
+        global_op,
         address_of_op
     >;
 
@@ -283,7 +301,7 @@ namespace potato::conv::llvmtopt
         copy_patterns,
         store_patterns,
         load_patterns,
-        address_patterns
+        global_handling_patterns
     >;
 
     struct LLVMIRToPoTAToPass : LLVMIRToPoTAToBase< LLVMIRToPoTAToPass >
@@ -312,8 +330,7 @@ namespace potato::conv::llvmtopt
                                           mlir::CallOpInterface,
                                           mlir::FunctionOpInterface,
                                           mlir::RegionBranchOpInterface,
-                                          mlir::LLVM::ReturnOp,
-                                          mlir::LLVM::GlobalOp
+                                          mlir::LLVM::ReturnOp
                                         > (op);
             });
 
