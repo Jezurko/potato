@@ -73,6 +73,22 @@ namespace potato::analysis::trad {
         return new_var(var, set);
     }
 
+    change_result llaa_lattice::join_var(mlir_value val, set_t &&set) {
+        auto val_pt  = pt_relation.find({val, ""});
+        if (val_pt == pt_relation.end()) {
+            return set_var(val, set);
+        }
+        return val_pt->second.join(set);
+    }
+
+    change_result llaa_lattice::join_var(mlir_value val, const set_t &set) {
+        auto val_pt  = pt_relation.find({val, ""});
+        if (val_pt == pt_relation.end()) {
+            return set_var(val, set);
+        }
+        return val_pt->second.join(set);
+    }
+
     change_result llaa_lattice::set_var(mlir_value val, const set_t &pt_set) {
         auto [var, inserted] = new_var(val, pt_set);
         if (inserted) {
@@ -197,6 +213,24 @@ namespace potato::analysis::trad {
         auto arg_pt_it = before.pt_relation.find({op.getArg(), ""});
         std::ignore = set.join(arg_pt_it->second);
         changed |= after->set_var(op.getResult(), set);
+        propagateIfChanged(after, changed);
+    }
+
+    void llvm_andersen::visit_op(mlir::BranchOpInterface &op, const llaa_lattice &before, llaa_lattice *after) {
+        auto changed = after->join(before);
+
+        for (const auto &[i, successor] : llvm::enumerate(op->getSuccessors())) {
+            auto changed_succ = change_result::NoChange;
+            auto succ_state = this->template getOrCreate< llaa_lattice >(successor);
+            for (const auto &[pred_op, succ_arg] :
+                llvm::zip_equal(op.getSuccessorOperands(i).getForwardedOperands(), successor->getArguments())
+            ) {
+                auto operand_pt = after->pt_relation.find({pred_op, ""});
+                changed_succ |= after->join_var(succ_arg, operand_pt->second);
+            }
+            propagateIfChanged(succ_state, changed_succ);
+        }
+
         propagateIfChanged(after, changed);
     }
 
