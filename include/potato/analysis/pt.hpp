@@ -115,7 +115,7 @@ struct aa_lattice : mlir_dense_abstract_lattice
         }
         auto &var_pt_set = var->second;
         if (var_pt_set != set) {
-            var_pt_set = {set};
+            var_pt_set = set;
             return change_result::Change;
         }
         return change_result::NoChange;
@@ -123,17 +123,26 @@ struct aa_lattice : mlir_dense_abstract_lattice
 
     change_result set_var(mlir_value val, mlir_value pointee) {
         auto [var, inserted] = new_var(val, pointee);
-        if (inserted) {
+        if (inserted)
             return change_result::Change;
-        } else {
-            auto &var_pt_set = var->second;
-            auto [var, inserted] = new_var(pointee, new_pointee_set());
-            auto cmp_set = new_pointee_set();
-            cmp_set.insert(var->first);
-            if (var_pt_set != cmp_set) {
-                var_pt_set = {cmp_set};
-                return change_result::Change;
-            }
+        auto &var_pt_set = var->second;
+        auto [pointee_var, _] = new_var(pointee, new_pointee_set());
+        auto cmp_set = new_pointee_set();
+        cmp_set.insert(pointee_var->first);
+        if (var_pt_set != cmp_set) {
+            var_pt_set = cmp_set;
+            return change_result::Change;
+        }
+        return change_result::NoChange;
+    }
+
+    change_result set_var(pt_element elem, const pointee_set &set) {
+        auto [var, inserted] = pt_relation.insert({elem, set});
+        if (inserted)
+            return change_result::Change;
+        if (var->second != set) {
+            var->second = set;
+            return change_result::Change;
         }
         return change_result::NoChange;
     }
