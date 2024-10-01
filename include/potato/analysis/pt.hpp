@@ -258,6 +258,12 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
         propagateIfChanged(after, changed);
     };
 
+    void visit_pt_op(pt::GlobalVarOp &op, const pt_lattice &before, pt_lattice *after) {
+        auto changed = after->join(before);
+        changed |= after->set_var(pt_lattice::new_symbol(op.getName()), pt_lattice::new_top_set());
+        propagateIfChanged(after, changed);
+    }
+
     void visit_pt_op(pt::AssignOp &op, const pt_lattice &before, pt_lattice *after) {
         auto changed = after->join(before);
 
@@ -416,6 +422,7 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
                    pt::ConstantOp,
                    pt::CopyOp,
                    pt::DereferenceOp,
+                   pt::GlobalVarOp,
                    pt::ValuedConstantOp,
                    pt::UnknownPtrOp >
             ([&](auto &pt_op) { visit_pt_op(pt_op, before, after); })
