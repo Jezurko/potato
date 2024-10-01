@@ -262,12 +262,14 @@ namespace potato::analysis::trad {
     void llvm_andersen::visitOperation(mlir::Operation *op, const llaa_lattice &before, llaa_lattice *after) {
         return llvm::TypeSwitch< mlir::Operation *, void >(op)
             .Case< mllvm::AllocaOp,
+                   mlir::BranchOpInterface,
                    mllvm::StoreOp,
                    mllvm::LoadOp,
                    mllvm::ConstantOp,
                    mllvm::GEPOp,
                    mllvm::SExtOp,
-                   mllvm::AddressOfOp >
+                   mllvm::AddressOfOp,
+                   mllvm::GlobalOp >
             ([&](auto &op) { visit_op(op, before, after); })
             .Case< mllvm::ICmpOp, mllvm::FCmpOp >([&](auto &op) { visit_cmp(op, before, after); })
             .Case< mllvm::FAddOp,
@@ -282,10 +284,7 @@ namespace potato::analysis::trad {
                    mllvm::MulOp,
                    mllvm::SubOp >
             ([&](auto &op) { visit_arith(op, before, after); })
-            .Case< mllvm::GlobalOp,
-                   mllvm::LLVMFuncOp,
-                   mllvm::BrOp,
-                   mllvm::CondBrOp,
+            .Case< mllvm::LLVMFuncOp,
                    mllvm::ReturnOp >
             ([&](auto &) { propagateIfChanged(after, after->join(before)); })
             .Default([&](auto &op) { op->dump(); assert(false); });
