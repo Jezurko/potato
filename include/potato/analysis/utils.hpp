@@ -39,8 +39,6 @@ namespace potato::analysis {
         void print(llvm::raw_ostream &os) const { os << name << ": " << val; };
     };
 
-    auto get_args(ppoint &point) -> mlir_block::BlockArgListType;
-
     bool sets_intersect(const auto &lhs, const auto &rhs) {
         for (const auto &lhs_elem : lhs) {
             if (rhs.contains(lhs_elem))
