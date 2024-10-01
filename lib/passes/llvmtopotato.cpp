@@ -196,6 +196,7 @@ namespace potato::conv::llvmtopt
         copy_op< mlir::LLVM::BitcastOp >,
         copy_op< mlir::LLVM::ZExtOp >,
         copy_op< mlir::LLVM::SExtOp >,
+        copy_op< mlir::LLVM::FAbsOp >,
         gep_insensitive,
         memcpy_insensitive,
         select_insensitive
