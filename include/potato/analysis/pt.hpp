@@ -438,9 +438,9 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
         mlir::CallOpInterface call, call_cf_action action,
         const pt_lattice &before, pt_lattice *after
     ) override {
-        auto changed       = after->join(before);
-        auto callee = call.resolveCallable();
-        auto func   = mlir::dyn_cast< mlir::FunctionOpInterface >(callee);
+        auto changed = after->join(before);
+        auto callee  = call.resolveCallable();
+        auto func    = mlir::dyn_cast< mlir::FunctionOpInterface >(callee);
 
         if (action == call_cf_action::EnterCallee) {
 
@@ -479,15 +479,14 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
             std::vector< mlir::Operation * >  returns       = get_function_returns(func);
             std::vector< const pt_lattice * > return_states = get_or_create_for(call, returns);
 
-            // TODO: Check if the function assigns to a location pointed-to by one of the args?
-            // If yes/unknown, mark all as unknown?
             for (const auto &arg : callee->getRegion(0).front().getArguments()) {
                 // TODO: Explore call-site sensitivity by having a specific representation for the arguments?
                 // If arg at the start points to TOP, then we know nothing
                 auto start_state = this->template getOrCreate< pt_lattice >(&*func.getFunctionBody().begin());
                 auto arg_pt = start_state->lookup(arg);
                 if (!arg_pt || arg_pt->is_top()) {
-                    return propagateIfChanged(after, changed | after->set_all_unknown());
+                    changed |= after->set_all_unknown();
+                    break;
                 }
 
                 // go through returns and analyze arg pts, join into call operand pt
