@@ -238,11 +238,11 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
         if (val) {
             changed |= after->set_var(op.getPtr(), op.getVal());
         } else {
-            auto symbol_ref = op->getAttrOfType< mlir::FlatSymbolRefAttr >("addr_of");
+            auto symbol_ref = op.getSymbol();
             assert(symbol_ref && "Address of op without value or proper attribute.");
 
             auto pt_set = pt_lattice::new_pointee_set();
-            pt_set.insert(pt_lattice::new_symbol(symbol_ref.getValue()));
+            pt_set.insert(pt_lattice::new_symbol(symbol_ref.value()));
 
             changed |= after->set_var(op.getPtr(), pt_set);
         }
