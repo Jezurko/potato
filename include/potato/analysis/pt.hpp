@@ -466,7 +466,17 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
                 }
                 return propagateIfChanged(after, changed);
             }
-            std::vector< mlir::Operation * > returns = get_function_returns(func);
+
+            // Join current state to the start of callee to propagate global variables
+            // TODO: explore if we can do this more efficient (maybe not join the whole state?)
+            if (auto &fn_body = func.getFunctionBody(); !fn_body.empty()) {
+                pt_lattice * callee_state = this->template getOrCreate< pt_lattice >(&*fn_body.begin());
+                this->addDependency(callee_state, before.getPoint());
+                propagateIfChanged(callee_state, callee_state->join(before));
+            }
+
+            // Collect states in return statements
+            std::vector< mlir::Operation * >  returns       = get_function_returns(func);
             std::vector< const pt_lattice * > return_states = get_or_create_for(call, returns);
 
             // TODO: Check if the function assigns to a location pointed-to by one of the args?
