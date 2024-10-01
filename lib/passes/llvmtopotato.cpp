@@ -156,6 +156,25 @@ namespace potato::conv::llvmtopt
         }
     };
 
+    struct select_insensitive : mlir::OpConversionPattern< mlir::LLVM::SelectOp > {
+        using source = mlir::LLVM::SelectOp;
+        using base = mlir::OpConversionPattern< source >;
+        using base::base;
+        using adaptor_t = typename source::Adaptor;
+        logical_result matchAndRewrite(source op,
+                                       adaptor_t adaptor,
+                                       mlir::ConversionPatternRewriter &rewriter
+        ) const override {
+            // TODO: Check if we know the value of cond to select an operand
+            rewriter.replaceOpWithNewOp< pt::CopyOp >(
+                    op,
+                    this->getTypeConverter()->convertType(op.getType()),
+                    mlir::ValueRange{adaptor.getTrueValue(), adaptor.getFalseValue()}
+            );
+            return mlir::success();
+        }
+    };
+
 
     using copy_patterns = util::type_list<
         copy_op< mlir::LLVM::AddOp >,
@@ -178,7 +197,8 @@ namespace potato::conv::llvmtopt
         copy_op< mlir::LLVM::ZExtOp >,
         copy_op< mlir::LLVM::SExtOp >,
         gep_insensitive,
-        memcpy_insensitive
+        memcpy_insensitive,
+        select_insensitive
     >;
 
     template< typename source >
