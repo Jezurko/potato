@@ -278,11 +278,24 @@ namespace potato::analysis::trad {
     void llvm_andersen::setToEntryState(llaa_lattice *lattice) {
         ppoint point = lattice->getPoint();
         auto init_state = llaa_lattice(point);
-        if (auto block = mlir::dyn_cast< mlir_block * >(point)) {
-            for (auto &arg : block->getArguments()) {
-                lattice->new_var(arg);
+
+        if (auto block = mlir::dyn_cast< mlir_block * >(point); block && block->isEntryBlock()) {
+            if (auto fn = mlir::dyn_cast< mlir::FunctionOpInterface >(block->getParentOp())) {
+                // setup function args
+                // we set to top - this method is called at function entries only when not all callers are known
+                for (auto &arg : fn.getArguments()) {
+                    std::ignore = init_state.set_var(arg, llaa_lattice::set_t::make_top());
+                }
+
+                //join in globals
+                auto global_scope = fn->getParentRegion();
+                for (auto op : global_scope->getOps< mlir::LLVM::GlobalOp >()) {
+                    const auto * var_state = this->template getOrCreateFor< llaa_lattice >(point, op.getOperation());
+                    std::ignore = init_state.join(*var_state);
+                }
             }
         }
+
         this->propagateIfChanged(lattice, lattice->join(init_state));
     }
 
