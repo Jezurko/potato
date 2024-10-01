@@ -44,25 +44,25 @@ struct aa_lattice : mlir_dense_abstract_lattice
     // TODO: Probably replace most of the following functions with some custom API that doesn't introduce
     //       so many random return values with iterators and stuff
 
-    const pointee_set * lookup(const pt_element &val) const {
+    const pointee_set *lookup(const pt_element &val) const {
         auto it = pt_relation.find(val);
         if (it == pt_relation.end())
             return nullptr;
         return &it->second;
     }
 
-    const pointee_set * lookup(const mlir_value &val) const {
+    const pointee_set *lookup(const mlir_value &val) const {
         return lookup({ val, "" });
     }
 
-    lattice_set< pt_element > * lookup(const pt_element &val) {
+    pointee_set *lookup(const pt_element &val) {
         auto it = pt_relation.find(val);
         if (it == pt_relation.end())
             return nullptr;
         return &it->second;
     }
 
-    lattice_set< pt_element > * lookup(const mlir_value &val) {
+    pointee_set *lookup(const mlir_value &val) {
         return lookup({ val, "" });
     }
 
@@ -453,7 +453,6 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
         auto func    = mlir::dyn_cast< mlir::FunctionOpInterface >(callee);
 
         if (action == call_cf_action::EnterCallee) {
-
             auto &callee_entry = callee->getRegion(0).front();
             auto callee_args   = callee_entry.getArguments();
 
@@ -467,11 +466,9 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
         }
 
         if (action == call_cf_action::ExitCallee) {
-            auto call_op = call.getOperation();
-
             if (!func) {
                 changed |= after->set_all_unknown();
-                for (auto result : call.getOperation()->getResults()) {
+                for (auto result : call->getResults()) {
                     changed |= after->set_var(result, pt_lattice::new_top_set());
                 }
                 return propagateIfChanged(after, changed);
@@ -502,11 +499,11 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
                 // go through returns and analyze arg pts, join into call operand pt
                 for (auto state : return_states) {
                     auto arg_at_ret = state->lookup(arg);
-                    changed |= after->join_var(call_op->getOperand(arg.getArgNumber()), *arg_at_ret);
+                    changed |= after->join_var(call->getOperand(arg.getArgNumber()), *arg_at_ret);
                 }
             }
 
-            for (size_t i = 0; i < call_op->getNumResults(); ++i) {
+            for (size_t i = 0; i < call->getNumResults(); ++i) {
                 auto returns_pt = pt_lattice::new_pointee_set();
                 for (const auto &[state, ret] : llvm::zip_equal(return_states, returns)) {
                     auto res_pt = state->lookup(ret->getOperand(i));
@@ -514,7 +511,7 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
                     if (res_pt)
                         std::ignore = returns_pt.join(*res_pt);
                 }
-                changed |= after->join_var(call_op->getResult(i), std::move(returns_pt));
+                changed |= after->join_var(call->getResult(i), std::move(returns_pt));
             }
             return propagateIfChanged(after, changed);
         }
@@ -524,9 +521,10 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
             // Try to check for "known" functions
             // Try to resolve function pointer calls? (does it happen here?)
             // Make the set of known functions a customization point?
-            return propagateIfChanged(after, changed | after->set_all_unknown());
+            for (auto result : call->getResults())
+                changed |= after->set_var(result, pt_lattice::new_top_set());
+            propagateIfChanged(after, changed | after->set_all_unknown());
         }
-
     };
 
     // Default implementation via join should be fine for us (at least for now)
@@ -550,7 +548,7 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
 
                 //join in globals
                 auto global_scope = fn->getParentRegion();
-                for (auto op : global_scope->getOps< pt::GlobalVarOp>()) {
+                for (auto op : global_scope->getOps< pt::GlobalVarOp >()) {
                     const auto * var_state = this->template getOrCreateFor< pt_lattice >(point, op.getOperation());
                     std::ignore = init_state.join(*var_state);
                 }
