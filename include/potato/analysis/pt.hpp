@@ -163,15 +163,6 @@ struct aa_lattice : mlir_dense_abstract_lattice
         return val_pt->join(set);
     }
 
-    change_result init_at_point(ppoint point) {
-        auto args = get_args(point);
-        change_result changed;
-        for (auto &arg : args) {
-            changed|= set_var(arg, new_top_set());
-        }
-        return changed;
-    }
-
     change_result set_all_unknown() {
         auto changed = change_result::NoChange;
         for (auto &[_, pt_set] : pt_relation) {
