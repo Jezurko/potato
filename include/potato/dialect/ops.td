@@ -7,10 +7,10 @@ include "mlir/Interfaces/SideEffectInterfaces.td"
 
 def Potato_AddressOp
   : Potato_Op< "address" >
-  , Arguments<( ins Optional< AnyType >:$val )>
+  , Arguments<( ins Optional< AnyType >:$val, OptionalAttr< FlatSymbolRefAttr>:$symbol )>
   , Results<( outs AnyType:$ptr )>
 {
-  let assemblyFormat = [{ attr-dict $val `:` functional-type(operands, results) }];
+  let assemblyFormat = [{ attr-dict ($val^)? ($symbol^)? `:` functional-type(operands, results) }];
 }
 
 def Potato_CopyOp
