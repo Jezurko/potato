@@ -330,7 +330,8 @@ namespace potato::conv::llvmtopt
                                           mlir::CallOpInterface,
                                           mlir::FunctionOpInterface,
                                           mlir::RegionBranchOpInterface,
-                                          mlir::LLVM::ReturnOp
+                                          mlir::LLVM::ReturnOp,
+                                          mlir::LLVM::NoAliasScopeDeclOp
                                         > (op);
             });
 
