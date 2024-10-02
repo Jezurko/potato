@@ -187,6 +187,10 @@ namespace potato::conv::llvmtopt
         copy_op< mlir::LLVM::FMulOp >,
         copy_op< mlir::LLVM::MulOp >,
         copy_op< mlir::LLVM::FMulOp >,
+        copy_op< mlir::LLVM::FPToSIOp >,
+        copy_op< mlir::LLVM::FPToUIOp >,
+        copy_op< mlir::LLVM::UIToFPOp >,
+        copy_op< mlir::LLVM::SIToFPOp >,
         copy_op< mlir::LLVM::SDivOp >,
         copy_op< mlir::LLVM::UDivOp >,
         copy_op< mlir::LLVM::FDivOp >,
@@ -331,7 +335,8 @@ namespace potato::conv::llvmtopt
                                           mlir::FunctionOpInterface,
                                           mlir::RegionBranchOpInterface,
                                           mlir::LLVM::ReturnOp,
-                                          mlir::LLVM::NoAliasScopeDeclOp
+                                          mlir::LLVM::NoAliasScopeDeclOp,
+                                          mlir::LLVM::AssumeOp
                                         > (op);
             });
 
