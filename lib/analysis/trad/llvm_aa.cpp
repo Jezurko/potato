@@ -375,6 +375,10 @@ namespace potato::analysis::trad {
                    mllvm::FMulAddOp,
                    mllvm::FNegOp,
                    mllvm::FAbsOp,
+                   mllvm::FPToSIOp,
+                   mllvm::FPToUIOp,
+                   mllvm::UIToFPOp,
+                   mllvm::SIToFPOp,
                    mllvm::AddOp,
                    mllvm::UDivOp,
                    mllvm::SDivOp,
@@ -384,6 +388,7 @@ namespace potato::analysis::trad {
             ([&](auto &op) { visit_arith(op, before, after); })
             .Case< mllvm::LLVMFuncOp,
                    mllvm::NoAliasScopeDeclOp,
+                   mllvm::AssumeOp,
                    mllvm::ReturnOp >
             ([&](auto &) { propagateIfChanged(after, after->join(before)); })
             .Default([&](auto &op) { op->dump(); assert(false); });
