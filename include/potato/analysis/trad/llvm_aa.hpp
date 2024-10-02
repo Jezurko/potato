@@ -69,7 +69,11 @@ struct llvm_andersen : mlir::dataflow::DenseForwardDataFlowAnalysis< llaa_lattic
     void visit_op(mllvm::AddressOfOp &op, const llaa_lattice &before, llaa_lattice *after);
     void visit_op(mllvm::SExtOp &op, const llaa_lattice &before, llaa_lattice *after);
     void visit_op(mllvm::GlobalOp &op, const llaa_lattice &before, llaa_lattice *after);
+    void visit_op(mllvm::MemcpyOp &op, const llaa_lattice &before, llaa_lattice *after);
+    void visit_op(mllvm::SelectOp &op, const llaa_lattice &before, llaa_lattice *after);
+
     void visit_op(mlir::BranchOpInterface &op, const llaa_lattice &before, llaa_lattice *after);
+
     void visit_cmp(mlir::Operation *op, const llaa_lattice &before, llaa_lattice *after);
     void visit_arith(mlir::Operation *op, const llaa_lattice &before, llaa_lattice *after);
     std::vector< mlir::Operation * > get_function_returns(mlir::FunctionOpInterface func);

@@ -266,7 +266,35 @@ namespace potato::analysis::trad {
                 return propagateIfChanged(after, changed);
             }
         }
-        changed |= after->set_var(pt_element(mlir_value(), op.getSymName().str()), llaa_lattice::set_t::make_top());
+        changed |= after->set_var(
+                              pt_element(mlir_value(), op.getSymName().str()),
+                              llaa_lattice::set_t::make_top()
+                          );
+        propagateIfChanged(after, changed);
+    }
+
+    void llvm_andersen::visit_op(mllvm::MemcpyOp &op, const llaa_lattice &before, llaa_lattice *after) {
+        auto changed = after->join(before);
+        auto dst_pt = after->lookup(op.getDst());
+        auto src_pt = after->lookup(op.getSrc());
+        if (!dst_pt || !src_pt) {
+            changed |= after->join_var(op.getDst(), llaa_lattice::set_t::make_top());
+        } else {
+            changed |= after->join_var(op.getDst(), *src_pt);
+        }
+        propagateIfChanged(after, changed);
+    }
+
+    void llvm_andersen::visit_op(mllvm::SelectOp &op, const llaa_lattice &before, llaa_lattice *after) {
+        auto changed  = after->join(before);
+        auto true_pt  = after->lookup(op.getTrueValue());
+        auto false_pt = after->lookup(op.getFalseValue());
+        if (!true_pt || !false_pt) {
+            changed |= after->set_var(op.getRes(), *true_pt);
+        } else {
+            changed |= after->set_var(op.getRes(), *true_pt);
+            changed |= after->join_var(op.getRes(), *false_pt);
+        }
         propagateIfChanged(after, changed);
     }
 
@@ -335,7 +363,9 @@ namespace potato::analysis::trad {
                    mllvm::GEPOp,
                    mllvm::SExtOp,
                    mllvm::AddressOfOp,
-                   mllvm::GlobalOp >
+                   mllvm::GlobalOp,
+                   mllvm::MemcpyOp,
+                   mllvm::SelectOp >
             ([&](auto &op) { visit_op(op, before, after); })
             .Case< mllvm::ICmpOp, mllvm::FCmpOp >([&](auto &op) { visit_cmp(op, before, after); })
             .Case< mllvm::FAddOp,
@@ -344,13 +374,16 @@ namespace potato::analysis::trad {
                    mllvm::FSubOp,
                    mllvm::FMulAddOp,
                    mllvm::FNegOp,
+                   mllvm::FAbsOp,
                    mllvm::AddOp,
                    mllvm::UDivOp,
                    mllvm::SDivOp,
                    mllvm::MulOp,
-                   mllvm::SubOp >
+                   mllvm::SubOp,
+                   mllvm::ZExtOp >
             ([&](auto &op) { visit_arith(op, before, after); })
             .Case< mllvm::LLVMFuncOp,
+                   mllvm::NoAliasScopeDeclOp,
                    mllvm::ReturnOp >
             ([&](auto &) { propagateIfChanged(after, after->join(before)); })
             .Default([&](auto &op) { op->dump(); assert(false); });
