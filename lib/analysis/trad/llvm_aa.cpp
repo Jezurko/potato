@@ -258,6 +258,14 @@ namespace potato::analysis::trad {
 
     void llvm_andersen::visit_op(mllvm::GlobalOp &op, const llaa_lattice &before, llaa_lattice *after) {
         auto changed = after->join(before);
+        if (auto &init = op.getInitializerRegion(); !init.empty()) {
+            auto last_op = mlir::cast< mllvm::ReturnOp >(init.back().back());
+            auto back_state = getOrCreate< llaa_lattice >(last_op.getOperation());
+            if (const auto ret_pt = back_state->lookup(last_op.getArg())) {
+                changed |= after->set_var(pt_element(mlir_value(), op.getSymName().str()), *ret_pt);
+                return propagateIfChanged(after, changed);
+            }
+        }
         changed |= after->set_var(pt_element(mlir_value(), op.getSymName().str()), llaa_lattice::set_t::make_top());
         propagateIfChanged(after, changed);
     }
