@@ -35,6 +35,10 @@ struct llaa_lattice : mlir::dataflow::AbstractDenseLattice {
 
     change_result join(const mlir::dataflow::AbstractDenseLattice &rhs) override;
     change_result meet(const mlir::dataflow::AbstractDenseLattice &rhs) override;
+    const set_t * lookup(const pt_element &val) const;
+    const set_t * lookup(const mlir_value &val) const;
+    set_t * lookup(const pt_element &val);
+    set_t * lookup(const mlir_value &val);
     std::pair< relation_t::iterator, bool > new_var(mlir_value var);
     std::pair< relation_t::iterator, bool > new_var(mlir_value, const set_t &pt_set);
     std::pair< relation_t::iterator, bool > new_var(mlir_value var, mlir_value pointee);
@@ -42,6 +46,8 @@ struct llaa_lattice : mlir::dataflow::AbstractDenseLattice {
     change_result join_var(mlir_value val, const set_t &set);
     change_result set_var(mlir_value val, const set_t &pt_set);
     change_result set_var(mlir_value val, mlir_value pointee);
+    change_result set_var(pt_element elem, const set_t &set);
+    change_result set_all_unknown();
     void print(llvm::raw_ostream &os) const override;
 };
 
@@ -66,6 +72,8 @@ struct llvm_andersen : mlir::dataflow::DenseForwardDataFlowAnalysis< llaa_lattic
     void visit_op(mlir::BranchOpInterface &op, const llaa_lattice &before, llaa_lattice *after);
     void visit_cmp(mlir::Operation *op, const llaa_lattice &before, llaa_lattice *after);
     void visit_arith(mlir::Operation *op, const llaa_lattice &before, llaa_lattice *after);
+    std::vector< mlir::Operation * > get_function_returns(mlir::FunctionOpInterface func);
+    std::vector< const llaa_lattice * > get_or_create_for(mlir::Operation * dep, const std::vector< mlir::Operation * > &ops);
 
     void visitOperation(mlir::Operation *op, const llaa_lattice &before, llaa_lattice *after) override;
     void visitCallControlFlowTransfer(mlir::CallOpInterface call,
