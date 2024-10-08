@@ -41,4 +41,9 @@ void print_analysis_stats(mlir::DataFlowSolver &solver, mlir_operation *op, llvm
 {
     potato::util::print_analysis_stats< aa_lattice >(solver, op, os);
 }
+
+void print_analysis_func_stats(mlir::DataFlowSolver &solver, mlir_operation *op, llvm::raw_ostream &os)
+{
+    potato::util::print_analysis_func_stats< aa_lattice >(solver, op, os);
+}
 } // namespace potato::analysis
