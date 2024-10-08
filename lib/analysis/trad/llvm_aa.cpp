@@ -193,8 +193,10 @@ namespace potato::analysis::trad {
         }
 
         for (const auto &addr_val : addr_pt.set) {
-            auto &insert_point = after->pt_relation[addr_val];
-            changed |= insert_point.join(val_pt);
+            auto insert_point = after->lookup(addr_val);
+            if (!insert_point)
+                continue;
+            changed |= insert_point->join(val_pt);
         };
 
         propagateIfChanged(after, changed);
@@ -456,7 +458,10 @@ namespace potato::analysis::trad {
                 // go through returns and analyze arg pts, join into call operand pt
                 for (auto state : return_states) {
                     auto arg_at_ret = state->lookup(arg);
-                    changed |= after->join_var(call->getOperand(arg.getArgNumber()), *arg_at_ret);
+                    if (arg_at_ret)
+                        changed |= after->join_var(call->getOperand(arg.getArgNumber()), *arg_at_ret);
+                    else
+                        changed |= after->join_var(call->getOperand(arg.getArgNumber()), llaa_lattice::set_t::make_top());
                 }
             }
 
