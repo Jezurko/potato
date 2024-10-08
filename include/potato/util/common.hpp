@@ -7,6 +7,7 @@ POTATO_RELAX_WARNINGS
 #include <mlir/Analysis/AliasAnalysis.h>
 #include <mlir/IR/BuiltinOps.h>
 #include <mlir/IR/Value.h>
+#include <mlir/Interfaces/FunctionInterfaces.h>
 #include <llvm/ADT/SetVector.h>
 POTATO_UNRELAX_WARNINGS
 
@@ -119,5 +120,41 @@ namespace potato::util {
            << " Single element: " << single_elem_glob
            << " Multiple element: " << multiple_elem_glob;
         os << "\n";
+    }
+
+    template< typename analysis_lattice >
+    void print_analysis_func_stats(mlir::DataFlowSolver &solver, mlir_operation *op, llvm::raw_ostream &os)
+    {
+        op->walk([&](mlir::Operation *generic_op) {
+            auto op = mlir::dyn_cast< mlir::FunctionOpInterface >(generic_op);
+            if (!op || op.getFunctionBody().empty())
+                return;
+            int top = 0, bottom = 0, single_elem = 0, multiple_elem = 0;
+            //llvm::errs() << "Func:" << op.getName() << "\n";
+            //op.getFunctionBody().back().back().dump();
+            if (auto state = solver.lookupState< analysis_lattice >(&op.getFunctionBody().back().back())) {
+                //llvm::errs() << "Found state\n";
+                for (const auto &[key, vals] : state->pt_relation) {
+                    if (vals.is_top())
+                        top++;
+
+                    if (vals.is_bottom())
+                        bottom++;
+
+                    if (vals.is_concrete()) {
+                        if (vals.is_single_target())
+                            single_elem++;
+                        else
+                            multiple_elem++;
+                    }
+                }
+            os << "State in: " << op.getName() << "\n";
+            os << "Tops: " << top
+               << " Bottoms: " << bottom
+               << " Single element: " << single_elem
+               << " Multiple element: " << multiple_elem;
+            os << "\n";
+            }
+        });
     }
 } // namespace potato::util
