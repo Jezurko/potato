@@ -229,6 +229,12 @@ namespace potato::analysis::trad {
         propagateIfChanged(after, changed);
     }
 
+    void llvm_andersen::visit_op(mllvm::ZeroOp &op, const llaa_lattice &before, llaa_lattice *after) {
+        auto changed = after->join(before);
+        changed |= after->set_var(op.getResult(), llaa_lattice::set_t());
+        propagateIfChanged(after, changed);
+    }
+
     void llvm_andersen::visit_op(mllvm::GEPOp &op, const llaa_lattice &before, llaa_lattice *after) {
         auto changed = after->join(before);
         if (op->hasAttr(op.getInboundsAttrName())) {
@@ -360,6 +366,7 @@ namespace potato::analysis::trad {
                    mllvm::StoreOp,
                    mllvm::LoadOp,
                    mllvm::ConstantOp,
+                   mllvm::ZeroOp,
                    mllvm::GEPOp,
                    mllvm::SExtOp,
                    mllvm::AddressOfOp,
