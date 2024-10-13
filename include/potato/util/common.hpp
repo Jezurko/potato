@@ -5,6 +5,7 @@
 POTATO_RELAX_WARNINGS
 #include <mlir/Analysis/DataFlow/DenseAnalysis.h>
 #include <mlir/Analysis/AliasAnalysis.h>
+#include <mlir/Analysis/CallGraph.h>
 #include <mlir/IR/BuiltinOps.h>
 #include <mlir/IR/Value.h>
 #include <mlir/Interfaces/FunctionInterfaces.h>
@@ -36,6 +37,10 @@ using optional_loc = std::optional< mlir_loc >;
 template < typename lattice >
 using mlir_dense_dfa = mlir::dataflow::DenseForwardDataFlowAnalysis< lattice >;
 using mlir_dense_abstract_lattice = mlir::dataflow::AbstractDenseLattice;
+
+using call_graph = mlir::CallGraph;
+using cg_node    = mlir::CallGraphNode;
+using cg_edge    = mlir::CallGraphNode::Edge;
 
 namespace potato::util {
     // Copy-pasted from llvm SetOperations.h with the addition of return value
