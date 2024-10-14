@@ -77,7 +77,7 @@ namespace potato::analysis {
         const_iterator end() const { return ctx_lattice.end(); }
 
         // Method for adding a new context with the necessary checks
-        std::pair< lattice, change_result > &add_new_context(const context_t &ctx_prefix, const cg_edge &last, const lattice &state) {
+        lattice_change_pair &add_new_context(const context_t &ctx_prefix, const cg_edge &last, const lattice &state) {
             const auto it = ctx_lattice.find(ctx_prefix);
             if (it != ctx_lattice.end()) {
                 for (const auto &edge : it->first) {
@@ -102,7 +102,7 @@ namespace potato::analysis {
             return lattice_it == ctx_lattice.end() ? nullptr : &lattice_it->second;
         };
 
-        const std::pair< lattice, change_result > *get_for_context(const context_t &context) const {
+        const lattice_change_pair *get_for_context(const context_t &context) const {
             auto lattice_it = ctx_lattice.find(context);
             return lattice_it == ctx_lattice.end() ? nullptr : &lattice_it->second;
         }
