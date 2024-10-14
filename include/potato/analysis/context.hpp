@@ -76,7 +76,8 @@ namespace potato::analysis {
         const_iterator begin() const { return ctx_lattice.begin(); }
         const_iterator end() const { return ctx_lattice.end(); }
 
-        std::pair< lattice, change_result > &add_context(const context_t &ctx_prefix, const cg_edge &last, const lattice &state) {
+        // Method for adding a new context with the necessary checks
+        std::pair< lattice, change_result > &add_new_context(const context_t &ctx_prefix, const cg_edge &last, const lattice &state) {
             const auto it = ctx_lattice.find(ctx_prefix);
             if (it != ctx_lattice.end()) {
                 for (const auto &edge : it->first) {
@@ -86,9 +87,15 @@ namespace potato::analysis {
             }
             auto ctx = ctx_prefix;
             ctx.push_back(last);
-            auto [value_it, inserted] = ctx_lattice.insert({ ctx, {state, change_result::Change } });
-            return value_it->second;
-        };
+            return propagate_context(ctx, state);
+        }
+
+        // This method serves to propagate context from a previous (before) lattice
+        // It does not do all the necessary checks for inicialization of an unknown context
+        lattice_change_pair &propagate_context(const context_t &ctx, const lattice &state) {
+            auto [value_it, inserted] = ctx_lattice.insert({ ctx, { state, change_result::Change } });
+            return value_it;
+        }
 
         lattice_change_pair *get_for_context(const context_t &context) {
             auto lattice_it = ctx_lattice.find(context);
