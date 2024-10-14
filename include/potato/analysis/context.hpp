@@ -1,4 +1,3 @@
-
 #pragma once
 
 #include "potato/util/warnings.hpp"
@@ -30,7 +29,42 @@ struct std::hash< std::vector< cg_edge > > {
 
 namespace potato::analysis {
     template< typename lattice >
-    struct call_context_wrapper {
+    struct call_context_wrapper : mlir_dense_abstract_lattice {
+        using mlir_dense_abstract_lattice::AbstractDenseLattice;
+
+        change_result join(const mlir_dense_abstract_lattice &rhs) override {
+            auto &wrapped = *static_cast< const call_context_wrapper * >(&rhs);
+            auto changed = change_result::NoChange;
+            for (const auto &[ctx, lattice_with_cr] : wrapped) {
+                if (auto lhs_lattice = get_for_context(ctx)) {
+                    changed |= lhs_lattice->join(rhs);
+                } else {
+                    auto &[new_lhs_lattice, changed_lhs] = propagate_context(ctx, lattice_with_cr->first);
+                    changed |= changed_lhs;
+                    changed |= new_lhs_lattice.join(rhs);
+                }
+
+            }
+            return changed;
+        };
+
+        change_result meet(const mlir_dense_abstract_lattice &rhs) override {
+            auto &wrapped = *static_cast< const call_context_wrapper * >(&rhs);
+            auto changed = change_result::NoChange;
+            for (const auto &[ctx, lattice_with_cr] : wrapped) {
+                if (auto lhs_lattice = get_for_context(ctx)) {
+                    changed |= lhs_lattice->meet(rhs);
+                } else {
+                    // Should really meet *add* stuff?
+                    auto &[new_lhs_lattice, changed_lhs] = propagate_context(ctx, lattice_with_cr->first);
+                    changed |= changed_lhs;
+                    changed |= new_lhs_lattice.meet(rhs);
+                }
+
+            }
+            return changed;
+        };
+
         using context_t = std::vector< cg_edge >;
         using ctx_map = std::unordered_map< context_t, std::pair< lattice, change_result > >;
         using lattice_change_pair = std::pair< lattice, change_result >;
