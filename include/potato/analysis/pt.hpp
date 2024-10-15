@@ -24,9 +24,8 @@ POTATO_UNRELAX_WARNINGS
 
 namespace potato::analysis {
 
-struct aa_lattice : mlir_dense_abstract_lattice
+struct aa_lattice
 {
-    using mlir_dense_abstract_lattice::AbstractDenseLattice;
     using pointee_set = lattice_set< pt_element >;
 
     pt_map< pt_element, lattice_set > pt_relation;
@@ -171,7 +170,7 @@ struct aa_lattice : mlir_dense_abstract_lattice
         return changed;
     }
 
-    change_result merge(const aa_lattice &rhs) {
+    change_result join(const aa_lattice &rhs) {
         change_result res = change_result::NoChange;
         for (const auto &[key, rhs_value] : rhs.pt_relation) {
             auto &lhs_value = pt_relation[key];
@@ -180,7 +179,7 @@ struct aa_lattice : mlir_dense_abstract_lattice
         return res;
     }
 
-    change_result intersect(const aa_lattice &rhs) {
+    change_result meet(const aa_lattice &rhs) {
         change_result res = change_result::NoChange;
         for (const auto &[key, rhs_value] : rhs.pt_relation) {
             // non-existent entry would be considered top, so creating a new entry
@@ -191,15 +190,7 @@ struct aa_lattice : mlir_dense_abstract_lattice
         return res;
     }
 
-    change_result join(const mlir_dense_abstract_lattice &rhs) override {
-        return this->merge(*static_cast< const aa_lattice *>(&rhs));
-    };
-
-    change_result meet(const mlir_dense_abstract_lattice &rhs) override {
-        return this->intersect(*static_cast< const aa_lattice *>(&rhs));
-    };
-
-    void print(llvm::raw_ostream &os) const override;
+    void print(llvm::raw_ostream &os) const;
 
     alias_res alias(auto lhs, auto rhs) const {
         const auto lhs_it = find(lhs);
