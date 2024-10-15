@@ -32,6 +32,11 @@ namespace potato::analysis {
     struct call_context_wrapper : mlir_dense_abstract_lattice {
         using mlir_dense_abstract_lattice::AbstractDenseLattice;
 
+        call_context_wrapper(ppoint point) : AbstractDenseLattice(point) {
+            // Always init with no context
+            ctx_lattice.insert({ context_t(), { lattice(), change_result::Change } });
+        }
+
         change_result join(const mlir_dense_abstract_lattice &rhs) override {
             auto &wrapped = *static_cast< const call_context_wrapper * >(&rhs);
             auto changed = change_result::NoChange;
@@ -97,6 +102,13 @@ namespace potato::analysis {
             return value_it;
         }
 
+        // This method expects already "checked" context
+        lattice_change_pair &get_or_propagate_for_context(const context_t &ctx) {
+            if (auto *lattice_with_cr = get_for_context(ctx))
+                return *lattice_with_cr;
+            return propagate_new_context(ctx, lattice{});
+        }
+
         lattice_change_pair *get_for_context(const context_t &context) {
             auto lattice_it = ctx_lattice.find(context);
             return lattice_it == ctx_lattice.end() ? nullptr : &lattice_it->second;
@@ -107,8 +119,8 @@ namespace potato::analysis {
             return lattice_it == ctx_lattice.end() ? nullptr : &lattice_it->second;
         }
 
-        lattice_change_pair *get_for_default_context() { return get_for_context({}); }
-        const lattice_change_pair *get_for_default_context() const { return get_for_context({}); }
+        lattice_change_pair &get_for_default_context() { return *get_for_context({}); }
+        const lattice_change_pair &get_for_default_context() const { return *get_for_context({}); }
 
         private:
             ctx_map ctx_lattice;
