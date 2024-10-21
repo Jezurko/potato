@@ -15,12 +15,12 @@ POTATO_UNRELAX_WARNINGS
 #include <vector>
 
 template <>
-struct std::hash< std::vector< cg_edge > > {
-    std::size_t operator() (const std::vector< cg_edge > &value) const {
-        auto hashing = [](const cg_edge &edge) {
-            auto kind = edge.isAbstract() ? 0 : edge.isCall() ? 1 : 2;
-            auto trg_and_kind = llvm::PointerIntPair< cg_node *, 2>(edge.getTarget(), kind);
-            return llvm::DenseMapInfo< decltype(trg_and_kind) >::getHashValue(trg_and_kind);
+struct std::hash< std::vector< std::pair< cg_node *, cg_edge > > > {
+    std::size_t operator() (const std::vector< std::pair< cg_node *, cg_edge > > &value) const {
+        auto hashing = [](const std::pair< cg_node *, cg_edge > val) {
+            auto kind = val.second.isAbstract() ? 0 : val.second.isCall() ? 1 : 2;
+            auto trg_and_kind = llvm::PointerIntPair< cg_node *, 2>(val.second.getTarget(), kind);
+            return llvm::hash_combine(llvm::hash_value(val.first), llvm::DenseMapInfo< decltype(trg_and_kind) >::getHashValue(trg_and_kind));
         };
         const auto hash_range = value | std::views::transform(hashing);
         return llvm::hash_combine_range(hash_range.begin(), hash_range.end());
@@ -65,7 +65,7 @@ namespace potato::analysis {
             return changed;
         };
 
-        using context_t = std::vector< cg_edge >;
+        using context_t = std::vector< std::pair< cg_node *, cg_edge > >;
         using ctx_map = std::unordered_map< context_t, std::pair< lattice, change_result > >;
         using lattice_change_pair = std::pair< lattice, change_result >;
 
@@ -77,7 +77,7 @@ namespace potato::analysis {
         const_iterator end() const { return ctx_lattice.end(); }
 
         // Method for adding a new context with the necessary checks
-        lattice_change_pair &add_new_context(const context_t &ctx_prefix, const cg_edge &last, const lattice &state) {
+        lattice_change_pair &add_new_context(const context_t &ctx_prefix, const std::pair< cg_node *, cg_edge > &last, const lattice &state) {
             const auto it = ctx_lattice.find(ctx_prefix);
             if (it != ctx_lattice.end()) {
                 for (const auto &edge : it->first) {
