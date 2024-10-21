@@ -3,6 +3,7 @@
 #include "potato/util/warnings.hpp"
 
 POTATO_RELAX_WARNINGS
+#include <mlir/Analysis/CallGraph.h>
 #include <mlir/Analysis/DataFlow/DenseAnalysis.h>
 #include <mlir/Interfaces/CallInterfaces.h>
 #include <mlir/Interfaces/FunctionInterfaces.h>
@@ -10,16 +11,17 @@ POTATO_RELAX_WARNINGS
 
 #include <llvm/ADT/DenseMap.h>
 #include <llvm/ADT/DenseSet.h>
+#include <llvm/ADT/Hashing.h>
 #include <llvm/ADT/SetOperations.h>
 #include <llvm/ADT/TypeSwitch.h>
 POTATO_UNRELAX_WARNINGS
 
-#include "potato/dialect/ops.hpp"
+#include "potato/analysis/context.hpp"
 #include "potato/analysis/lattice.hpp"
 #include "potato/analysis/utils.hpp"
+#include "potato/dialect/ops.hpp"
 #include "potato/util/common.hpp"
 
-#include <cassert>
 #include <string>
 
 namespace potato::analysis {
@@ -214,15 +216,20 @@ struct aa_lattice
     }
 };
 
-template< typename pt_lattice >
-struct pt_analysis : mlir_dense_dfa< pt_lattice >
+
+template< typename pt_lattice, template < typename > typename ctx_wrapper = call_context_wrapper >
+struct pt_analysis : mlir_dense_dfa< ctx_wrapper< pt_lattice > >
 {
-    using base = mlir_dense_dfa< pt_lattice >;
+    using ctxed_lattice = ctx_wrapper< pt_lattice >;
+
+    using base = mlir_dense_dfa< ctxed_lattice >;
     using base::base;
 
     using base::propagateIfChanged;
 
-    void visit_pt_op(pt::AddressOp &op, const pt_lattice &before, pt_lattice *after) {
+    pt_analysis(mlir::DataFlowSolver &solver, call_graph *cg) : base(solver), cg(cg) {};
+
+    static change_result visit_pt_op(pt::AddressOp &op, const pt_lattice &before, pt_lattice *after) {
         auto changed = after->join(before);
         auto val = op.getVal();
 
@@ -237,16 +244,16 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
 
             changed |= after->set_var(op.getPtr(), pt_set);
         }
-        propagateIfChanged(after, changed);
+        return changed;
     };
 
-    void visit_pt_op(pt::GlobalVarOp &op, const pt_lattice &before, pt_lattice *after) {
+    static change_result visit_pt_op(pt::GlobalVarOp &op, const pt_lattice &before, pt_lattice *after) {
         auto changed = after->join(before);
         changed |= after->set_var(pt_lattice::new_symbol(op.getName()), pt_lattice::new_top_set());
-        propagateIfChanged(after, changed);
+        return changed;
     }
 
-    void visit_pt_op(pt::AssignOp &op, const pt_lattice &before, pt_lattice *after) {
+    static change_result visit_pt_op(pt::AssignOp &op, const pt_lattice &before, pt_lattice *after) {
         auto changed = after->join(before);
 
         auto &lhs_pt = [&] () -> pt_lattice::pointee_set & {
@@ -263,7 +270,7 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
         const auto &rhs_pt = rhs ? *rhs : pt_lattice::new_top_set();
 
         if (rhs_pt.is_bottom()) {
-            return propagateIfChanged(after, changed);
+            return changed;
         }
 
         if (lhs_pt.is_top()) {
@@ -271,7 +278,7 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
             for (auto &[_, pt_set] : after->pt_relation) {
                 changed |= pt_set.join(rhs_pt);
             }
-            return propagateIfChanged(after, changed);
+            return changed;
         }
 
         for (auto &lhs_val : lhs_pt.get_set_ref()) {
@@ -281,10 +288,10 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
                 continue;
             changed |= pt_lattice::pointee_union(*insert_point, rhs_pt);
         }
-        propagateIfChanged(after, changed);
+        return changed;
     };
 
-    void visit_pt_op(pt::CopyOp &op, const pt_lattice &before, pt_lattice *after) {
+    static change_result visit_pt_op(pt::CopyOp &op, const pt_lattice &before, pt_lattice *after) {
         auto changed = after->join(before);
 
         auto pt_set = pt_lattice::new_pointee_set();
@@ -297,18 +304,17 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
         }
 
         changed |= after->set_var(op.getResult(), pt_set);
-        propagateIfChanged(after, changed);
+        return changed;
     };
 
-    void visit_pt_op(pt::DereferenceOp &op, const pt_lattice &before, pt_lattice *after) {
+    static change_result visit_pt_op(pt::DereferenceOp &op, const pt_lattice &before, pt_lattice *after) {
         auto changed = after->join(before);
 
         const auto rhs_pt = before.lookup(op.getPtr());
         if (!rhs_pt || rhs_pt->is_top()) {
 
             changed |= after->set_var(op.getResult(), pt_lattice::new_top_set());
-            propagateIfChanged(after, changed);
-            return;
+            return changed;
         }
 
         auto pointees = pt_lattice::new_pointee_set();
@@ -326,37 +332,37 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
         }
         changed |= after->set_var(op.getResult(), pointees);
 
-        propagateIfChanged(after, changed);
+        return changed;
     };
 
-    void visit_pt_op(pt::AllocOp &op, const pt_lattice &before, pt_lattice *after) {
+    static change_result visit_pt_op(pt::AllocOp &op, const pt_lattice &before, pt_lattice *after) {
         auto changed = after->join(before);
         if (after->new_var(op.getResult()).second)
             changed |= change_result::Change;
-        propagateIfChanged(after, changed);
+        return changed;
     }
 
-    void visit_pt_op(pt::ConstantOp &op, const pt_lattice &before, pt_lattice *after) {
+    static change_result visit_pt_op(pt::ConstantOp &op, const pt_lattice &before, pt_lattice *after) {
         auto changed = after->join(before);
         changed |= after->set_var(op.getResult(), pt_lattice::new_pointee_set());
-        propagateIfChanged(after, changed);
+        return changed;
 
     }
 
-    void visit_pt_op(pt::ValuedConstantOp &op, const pt_lattice &before, pt_lattice *after) {
+    static change_result visit_pt_op(pt::ValuedConstantOp &op, const pt_lattice &before, pt_lattice *after) {
         auto changed = after->join(before);
         // TODO: should this really form a self-loop?
         changed |= after->set_var(op.getResult(), op.getResult());
-        propagateIfChanged(after, changed);
+        return changed;
     }
 
-    void visit_pt_op(pt::UnknownPtrOp &op, const pt_lattice &before, pt_lattice *after) {
+    static change_result visit_pt_op(pt::UnknownPtrOp &op, const pt_lattice &before, pt_lattice *after) {
         auto changed = after->join(before);
         changed |= after->set_var(op.getResult(), pt_lattice::new_top_set());
-        propagateIfChanged(after, changed);
+        return changed;
     }
 
-    void visit_unrealized_cast(mlir::UnrealizedConversionCastOp &op,
+    static change_result visit_unrealized_cast(mlir::UnrealizedConversionCastOp &op,
                                const pt_lattice &before, pt_lattice *after)
     {
         auto changed = after->join(before);
@@ -378,45 +384,61 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
         for (auto res : op.getResults()) {
             changed |= after->set_var(res, pt_set);
         }
-        propagateIfChanged(after, changed);
+        return changed;
     }
 
-    void visit_branch_interface(mlir::BranchOpInterface &op, const pt_lattice &before, pt_lattice *after) {
+    void visit_branch_interface(mlir::BranchOpInterface &op, const ctxed_lattice &before, ctxed_lattice *after) {
         auto changed = after->join(before);
 
         for (const auto &[i, successor] : llvm::enumerate(op->getSuccessors())) {
             auto changed_succ = change_result::NoChange;
-            auto succ_state = this->template getOrCreate< pt_lattice >(successor);
-            for (const auto &[pred_op, succ_arg] :
-                llvm::zip_equal(op.getSuccessorOperands(i).getForwardedOperands(), successor->getArguments())
-            ) {
-                auto operand_pt = after->lookup(pred_op);
-                changed_succ |= after->join_var(succ_arg, *operand_pt);
+            auto succ_state = this->template getOrCreate< ctxed_lattice >(successor);
+            for (const auto &[ctx, before_with_cr] : before) {
+                const auto &[before, changed_before] = before_with_cr;
+                auto &[after, changed_after] = succ_state->get_or_propagate_for_context(ctx);
+                for (const auto &[pred_op, succ_arg] :
+                    llvm::zip_equal(op.getSuccessorOperands(i).getForwardedOperands(), successor->getArguments())
+                ) {
+                    auto operand_pt = before.lookup(pred_op);
+                    changed_after |= after.join_var(succ_arg, *operand_pt);
+                }
+                changed_succ |= changed_after;
             }
             propagateIfChanged(succ_state, changed_succ);
         }
-
         propagateIfChanged(after, changed);
-    };
-
-    std::vector< mlir::Operation * > get_function_returns(mlir::FunctionOpInterface func) {
-        std::vector< mlir::Operation * > returns;
-        for (auto &op : func.getFunctionBody().getOps()) {
-            if (op.hasTrait< mlir::OpTrait::ReturnLike >())
-                returns.push_back(&op);
-        }
-        return returns;
     }
 
-    std::vector< const pt_lattice * > get_or_create_for(mlir::Operation * dep, const std::vector< mlir::Operation * > &ops) {
+    std::vector< const ctxed_lattice * > get_or_create_for(mlir::Operation * dep, const std::vector< mlir::Operation * > &ops) {
         std::vector< const pt_lattice * > states;
         for (const auto &op : ops) {
-            states.push_back(this->template getOrCreateFor< pt_lattice >(dep, op));
+            states.push_back(this->template getOrCreateFor< ctxed_lattice >(dep, op));
         }
         return states;
     }
 
-    void visitOperation(mlir::Operation *op, const pt_lattice &before, pt_lattice *after) override {
+    template< typename visitor_t >
+    void default_visitor_wrapper(auto op, const ctxed_lattice &before, ctxed_lattice *after, visitor_t visitor) {
+        auto changed = change_result::NoChange;
+        for (const auto &[ctx, lattice_with_cr] : before) {
+            const auto &[before_lattice, before_changed] = lattice_with_cr;
+            // new context is automatically considered as changed
+            if (before_changed == change_result::NoChange)
+                continue;
+            if (auto *after_lattice_with_cr = after->get_for_context(ctx)) {
+                auto &[after_lattice, after_changed] = *after_lattice_with_cr;
+                after_changed |= visitor(op, before_lattice, &after_lattice);
+                changed |= after_changed;
+            } else {
+                auto &[after_lattice, after_changed] = after->propagate_context(ctx, before_lattice);
+                after_changed |= visitor(op, before_lattice, &after_lattice);
+                changed |= after_changed;
+            }
+        }
+        propagateIfChanged(after, changed);
+    }
+
+    void visitOperation(mlir::Operation *op, const ctxed_lattice &before, ctxed_lattice *after) override {
         return llvm::TypeSwitch< mlir::Operation *, void >(op)
             .Case< pt::AddressOp,
                    pt::AllocOp,
@@ -427,9 +449,9 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
                    pt::GlobalVarOp,
                    pt::ValuedConstantOp,
                    pt::UnknownPtrOp >
-            ([&](auto &pt_op) { visit_pt_op(pt_op, before, after); })
+            ([&](auto &pt_op) { default_visitor_wrapper< change_result(decltype(pt_op), const pt_lattice &, pt_lattice *) >(pt_op, before, after, visit_pt_op); })
             .template Case< mlir::UnrealizedConversionCastOp >(
-                    [&](auto &cast_op) { visit_unrealized_cast(cast_op, before, after); }
+                    [&](auto &cast_op) { default_visitor_wrapper(cast_op, before, after, visit_unrealized_cast); }
             )
             .template Case< mlir::BranchOpInterface >([&](auto &branch_op) { visit_branch_interface(branch_op, before, after); })
             .Default([&](auto &pt_op) { propagateIfChanged(after, after->join(before)); });
@@ -548,6 +570,9 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
 
         this->propagateIfChanged(lattice, lattice->join(init_state));
     }
+
+    private:
+        call_graph *cg;
 };
 
 void print_analysis_result(mlir::DataFlowSolver &solver, mlir_operation *op, llvm::raw_ostream &os);
