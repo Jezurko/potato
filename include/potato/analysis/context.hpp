@@ -99,7 +99,14 @@ namespace potato::analysis {
         // It does not do all the necessary checks for inicialization of an unknown context
         lattice_change_pair &propagate_context(const context_t &ctx, const lattice &state) {
             auto [value_it, inserted] = ctx_lattice.insert({ ctx, { state, change_result::Change } });
-            return value_it;
+            return value_it->second;
+        }
+
+        // This method expects already "checked" context
+        lattice_change_pair &get_or_propagate_for_context(const context_t &ctx) {
+            if (auto *lattice_with_cr = get_for_context(ctx))
+                return *lattice_with_cr;
+            return propagate_context(ctx, lattice());
         }
 
         lattice_change_pair *get_for_context(const context_t &context) {
@@ -112,8 +119,8 @@ namespace potato::analysis {
             return lattice_it == ctx_lattice.end() ? nullptr : &lattice_it->second;
         }
 
-        lattice_change_pair *get_for_default_context() { return get_for_context({}); }
-        const lattice_change_pair *get_for_default_context() const { return get_for_context({}); }
+        lattice_change_pair &get_for_default_context() { return *get_for_context({}); }
+        const lattice_change_pair &get_for_default_context() const { return *get_for_context({}); }
 
         private:
             ctx_map ctx_lattice;
