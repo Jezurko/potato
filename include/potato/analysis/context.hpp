@@ -122,6 +122,10 @@ namespace potato::analysis {
         lattice_change_pair &get_for_default_context() { return *get_for_context({}); }
         const lattice_change_pair &get_for_default_context() const { return *get_for_context({}); }
 
+        void print(llvm::raw_ostream &/*os*/) const override {
+            return;
+        }
+
         private:
             ctx_map ctx_lattice;
     };
