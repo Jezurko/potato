@@ -459,74 +459,122 @@ struct pt_analysis : mlir_dense_dfa< ctx_wrapper< pt_lattice > >
 
     void visitCallControlFlowTransfer(
         mlir::CallOpInterface call, call_cf_action action,
-        const pt_lattice &before, pt_lattice *after
+        const ctxed_lattice &before, ctxed_lattice *after
     ) override {
-        auto changed = after->join(before);
-        auto callee  = call.resolveCallable();
-        auto func    = mlir::dyn_cast< mlir::FunctionOpInterface >(callee);
+        auto changed     = after->join(before);
+        auto callee      = call.resolveCallable();
+        auto func        = mlir::dyn_cast< mlir::FunctionOpInterface >(callee);
+        auto caller_node = cg->lookupNode(call->getParentRegion());
+        auto edge        = [&]() {
+            for (auto &edge : *caller_node) {
+                if (&func.getFunctionBody() == edge.getTarget()->getCallableRegion())
+                    return edge;
+            }
+            assert(false);
+        }();
 
+        // - `action == CallControlFlowAction::Enter` indicates that:
+        //   - `before` is the state before the call operation;
+        //   - `after` is the state at the beginning of the callee entry block;
         if (action == call_cf_action::EnterCallee) {
             auto &callee_entry = callee->getRegion(0).front();
             auto callee_args   = callee_entry.getArguments();
 
-            for (const auto &[callee_arg, caller_arg] :
-                 llvm::zip_equal(callee_args, call.getArgOperands()))
-            {
-                const auto &caller_pt_set = *before.lookup(caller_arg);
-                changed |= after->join_var(callee_arg, caller_pt_set);
+            for (const auto &[ctx, lat_with_cr] : before) {
+                const auto &before_pt = lat_with_cr.first;
+                auto &[after_pt, pt_changed] = after->add_new_context(ctx, {caller_node, edge}, before_pt);
+                for (const auto &[callee_arg, caller_arg] :
+                     llvm::zip_equal(callee_args, call.getArgOperands()))
+                {
+                    const auto &caller_pt_set = *before_pt.lookup(caller_arg);
+                    pt_changed |= after_pt.join_var(callee_arg, caller_pt_set);
+                }
+                changed |= pt_changed;
             }
+
             return propagateIfChanged(after, changed);
         }
 
+        // - `action == CallControlFlowAction::Exit` indicates that:
+        //   - `before` is the state at the end of a callee exit block;
+        //   - `after` is the state after the call operation.
         if (action == call_cf_action::ExitCallee) {
-            if (!func) {
-                changed |= after->set_all_unknown();
-                for (auto result : call->getResults()) {
-                    changed |= after->set_var(result, pt_lattice::new_top_set());
+            // Insert with new context into the start of the callee.
+            // We can't rely on this being done udner`EnterCallee`, as that version is called only
+            // if the analysis framework knows all callsites which is quite rare
+            // as most functions can be called outside of the current module
+            // We can afford to do this, as we explicitely manage call contexts
+            auto state_pre_call = [&](){
+                if (mlir_operation *pre_call = call->getPrevNode())
+                    return this->template getOrCreate< ctxed_lattice >(pre_call);
+                else
+                    return this->template getOrCreate< ctxed_lattice >(call->getBlock());
+            }();
+            // Add dependecy and fetch the state at the start of the callee
+            auto callee_entry = this->template getOrCreate< ctxed_lattice >(&*func.begin());
+            callee_entry->addDependency(state_pre_call->getPoint(), this);
+            auto entry_changed = change_result::NoChange;
+            // Add call contexts
+            for (const auto &[ctx, lat_with_cr] : *state_pre_call) {
+                const auto &[pre_call_pt, pre_call_cr] = lat_with_cr;
+                auto &[entry_pt, entry_pt_cr] = callee_entry->add_new_context(
+                                                                ctx,
+                                                                {caller_node, edge},
+                                                                pre_call_pt
+                                                              );
+
+                // If both have NoChange it means that the context was already present
+                // and that the predecessor in the relevant context didn't change
+                // We can safely skip to the next iteration
+                if ((entry_pt_cr | pre_call_cr) == change_result::NoChange)
+                    continue;
+
+                // Join in to proapgate the state of globals
+                entry_pt_cr |= entry_pt.join(pre_call_pt);
+                // Add args pt
+                auto zipped_args = llvm::zip_equal(func.getArguments(), call.getArgOperands());
+                for (const auto &[callee_arg, caller_arg] : zipped_args) {
+                    if (auto arg_pt = pre_call_pt.lookup(caller_arg))
+                        entry_pt_cr |= entry_pt.set_var(callee_arg, *arg_pt);
+                    else
+                        entry_pt_cr |= entry_pt.set_var(callee_arg, pt_lattice::new_top_set());
                 }
-                return propagateIfChanged(after, changed);
+                entry_changed |= entry_pt_cr;
             }
+            propagateIfChanged(callee_entry, entry_changed);
 
-            // Join current state to the start of callee to propagate global variables
-            // TODO: explore if we can do this more efficient (maybe not join the whole state?)
-            if (auto &fn_body = func.getFunctionBody(); !fn_body.empty()) {
-                pt_lattice * callee_state = this->template getOrCreate< pt_lattice >(&*fn_body.begin());
-                this->addDependency(callee_state, before.getPoint());
-                propagateIfChanged(callee_state, callee_state->join(before));
-            }
+            // Manage the callee exit
 
-            // Collect states in return statements
-            std::vector< mlir::Operation * >  returns       = get_function_returns(func);
-            std::vector< const pt_lattice * > return_states = get_or_create_for(call, returns);
-
-            for (const auto &arg : callee->getRegion(0).front().getArguments()) {
-                // TODO: Explore call-site sensitivity by having a specific representation for the arguments?
-                // If arg at the start points to TOP, then we know nothing
-                auto start_state = this->template getOrCreate< pt_lattice >(&*func.getFunctionBody().begin());
-                auto arg_pt = start_state->lookup(arg);
-                if (!arg_pt || arg_pt->is_top()) {
-                    changed |= after->set_all_unknown();
-                    break;
+            for (auto &[after_ctx, after_with_cr] : *after) {
+                auto &[after_pt, after_pt_changed] = after_with_cr;
+                auto context = after_ctx;
+                context.push_back({caller_node, edge});
+                // We won't find the recently added context here
+                // But the start of the function was changed, meaning we will propagate
+                // to this point again
+                if (const auto *pt_ret_state = before.get_for_context(context)) {
+                    for (const auto &arg : func.getArguments()) {
+                        if (auto arg_pt_at_ret = pt_ret_state->first.lookup(arg))
+                            // TODO: can we use set_var here?
+                            after_pt_changed |= after_pt.join_var(arg, *arg_pt_at_ret);
+                    }
+                    // hookup results of return
+                    if (auto before_exit = mlir::dyn_cast< mlir::Operation * >(before.getPoint());
+                             before_exit && before_exit->template hasTrait< mlir::OpTrait::ReturnLike>()
+                    ) {
+                        for (size_t i = 0; i < call->getNumResults(); i++) {
+                            auto res_arg = before_exit->getOperand(i);
+                            if (auto res_pt = pt_ret_state->first.lookup(res_arg)) {
+                                after_pt_changed |= after_pt.join_var(call->getResult(i), *res_pt);
+                            } else {
+                                after_pt_changed |= after_pt.join_var(call->getResult(i), pt_lattice::new_top_set());
+                            }
+                        }
+                    }
                 }
-
-                // go through returns and analyze arg pts, join into call operand pt
-                for (auto state : return_states) {
-                    auto arg_at_ret = state->lookup(arg);
-                    changed |= after->join_var(call->getOperand(arg.getArgNumber()), *arg_at_ret);
-                }
+                changed |= after_pt_changed;
             }
-
-            for (size_t i = 0; i < call->getNumResults(); ++i) {
-                auto returns_pt = pt_lattice::new_pointee_set();
-                for (const auto &[state, ret] : llvm::zip_equal(return_states, returns)) {
-                    auto res_pt = state->lookup(ret->getOperand(i));
-                    // TODO: Check this: if the result wasn't found, it means that it is unreachable
-                    if (res_pt)
-                        std::ignore = returns_pt.join(*res_pt);
-                }
-                changed |= after->join_var(call->getResult(i), std::move(returns_pt));
-            }
-            return propagateIfChanged(after, changed);
+            propagateIfChanged(after, changed);
         }
 
         if (action == call_cf_action::ExternalCallee) {
@@ -534,9 +582,16 @@ struct pt_analysis : mlir_dense_dfa< ctx_wrapper< pt_lattice > >
             // Try to check for "known" functions
             // Try to resolve function pointer calls? (does it happen here?)
             // Make the set of known functions a customization point?
-            for (auto result : call->getResults())
-                changed |= after->set_var(result, pt_lattice::new_top_set());
-            propagateIfChanged(after, changed | after->set_all_unknown());
+            assert(false);
+            for (auto &[ctx, after_with_cr] : *after) {
+                auto &[after_pt, pt_cr] = after_with_cr;
+                for (auto result : call->getResults()) {
+                    pt_cr |= after_pt.set_var(result, pt_lattice::new_top_set());
+                }
+                pt_cr |= after_pt.set_all_unknown();
+                changed |= pt_cr;
+            }
+            propagateIfChanged(after, changed );
         }
     };
 
