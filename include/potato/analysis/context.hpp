@@ -41,14 +41,14 @@ namespace potato::analysis {
             auto &wrapped = *static_cast< const call_context_wrapper * >(&rhs);
             auto changed = change_result::NoChange;
             for (const auto &[ctx, lattice_with_cr] : wrapped) {
-                if (auto lhs_lattice = get_for_context(ctx)) {
-                    changed |= lhs_lattice->join(rhs);
-                } else {
-                    auto &[new_lhs_lattice, changed_lhs] = propagate_context(ctx, lattice_with_cr->first);
+                if (auto *lhs_with_cr = get_for_context(ctx)) {
+                    auto &[lhs_lattice, changed_lhs] = *lhs_with_cr;
+                    changed_lhs |= lhs_lattice.join(lattice_with_cr.first);
                     changed |= changed_lhs;
-                    changed |= new_lhs_lattice.join(rhs);
+                } else {
+                    auto &[new_lhs_lattice, changed_lhs] = propagate_context(ctx, lattice_with_cr.first);
+                    changed |= changed_lhs;
                 }
-
             }
             return changed;
         };
@@ -57,15 +57,15 @@ namespace potato::analysis {
             auto &wrapped = *static_cast< const call_context_wrapper * >(&rhs);
             auto changed = change_result::NoChange;
             for (const auto &[ctx, lattice_with_cr] : wrapped) {
-                if (auto lhs_lattice = get_for_context(ctx)) {
-                    changed |= lhs_lattice->meet(rhs);
+                if (auto *lhs_with_cr = get_for_context(ctx)) {
+                    auto &[lhs_lattice, changed_lhs] = *lhs_with_cr;
+                    changed_lhs |= lhs_lattice.meet(lattice_with_cr.first);
+                    changed |= changed_lhs;
                 } else {
                     // Should really meet *add* stuff?
-                    auto &[new_lhs_lattice, changed_lhs] = propagate_context(ctx, lattice_with_cr->first);
+                    auto &[new_lhs_lattice, changed_lhs] = propagate_context(ctx, lattice_with_cr.first);
                     changed |= changed_lhs;
-                    changed |= new_lhs_lattice.meet(rhs);
                 }
-
             }
             return changed;
         };
