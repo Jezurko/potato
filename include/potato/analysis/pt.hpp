@@ -599,31 +599,32 @@ struct pt_analysis : mlir_dense_dfa< ctx_wrapper< pt_lattice > >
     //void visitRegionBranchControlFlowTransfer(mlir::RegionBranchOpInterface branch,
     //                                          std::optional< unsigned > regionFrom,
     //                                          std::optional< unsigned > regionTo,
-    //                                          const pt_lattice &before,
-    //                                          pt_lattice *after) override;
+    //                                          const ctxed_lattice &before,
+    //                                          ctxed_lattice *after) override;
 
-    void setToEntryState(pt_lattice *lattice) override
-    {
+    void setToEntryState(ctxed_lattice *lattice) override {
         ppoint point = lattice->getPoint();
-        auto init_state = pt_lattice(point);
+        auto &[state, state_changed] = lattice->get_for_default_context();
         if (auto block = mlir::dyn_cast< mlir_block * >(point); block && block->isEntryBlock()) {
             if (auto fn = mlir::dyn_cast< mlir::FunctionOpInterface >(block->getParentOp())) {
                 // setup function args
                 // we set to top - this method is called at function entries only when not all callers are known
                 for (auto &arg : fn.getArguments()) {
-                    std::ignore = init_state.set_var(arg, pt_lattice::new_top_set());
+                    state_changed |= state.set_var(arg, pt_lattice::new_top_set());
                 }
 
-                //join in globals
+                // join in globals
+                // This assumes all functions are defined in the top-level scope
+                // It might not be true for all possible users?
                 auto global_scope = fn->getParentRegion();
                 for (auto op : global_scope->getOps< pt::GlobalVarOp >()) {
-                    const auto * var_state = this->template getOrCreateFor< pt_lattice >(point, op.getOperation());
-                    std::ignore = init_state.join(*var_state);
+                    const auto *var_state = this->template getOrCreateFor< ctxed_lattice >(point, op.getOperation());
+                    const auto &[glob_state, _] = var_state->get_for_default_context();
+                    state_changed |= state.join(glob_state);
                 }
             }
         }
-
-        this->propagateIfChanged(lattice, lattice->join(init_state));
+        this->propagateIfChanged(lattice, state_changed);
     }
 
     private:
