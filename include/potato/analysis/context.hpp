@@ -32,6 +32,11 @@ namespace potato::analysis {
     struct call_context_wrapper : mlir_dense_abstract_lattice {
         using mlir_dense_abstract_lattice::AbstractDenseLattice;
 
+        call_context_wrapper(ppoint point) : AbstractDenseLattice(point) {
+            // Always init with no context
+            ctx_lattice.insert({ context_t(), { lattice(), change_result::Change } });
+        }
+
         change_result join(const mlir_dense_abstract_lattice &rhs) override {
             auto &wrapped = *static_cast< const call_context_wrapper * >(&rhs);
             auto changed = change_result::NoChange;
