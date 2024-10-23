@@ -70,6 +70,7 @@ namespace potato::analysis {
             return changed;
         };
 
+        // TODO: fixme: caller node is not enough, we need callsite (mlir location?)
         using context_t = std::vector< std::pair< cg_node *, cg_edge > >;
         using ctx_map = std::unordered_map< context_t, std::pair< lattice, change_result > >;
         using lattice_change_pair = std::pair< lattice, change_result >;

@@ -9,10 +9,6 @@ POTATO_RELAX_WARNINGS
 #include <mlir/Interfaces/FunctionInterfaces.h>
 #include <mlir/IR/Value.h>
 
-#include <llvm/ADT/DenseMap.h>
-#include <llvm/ADT/DenseSet.h>
-#include <llvm/ADT/Hashing.h>
-#include <llvm/ADT/SetOperations.h>
 #include <llvm/ADT/TypeSwitch.h>
 POTATO_UNRELAX_WARNINGS
 
