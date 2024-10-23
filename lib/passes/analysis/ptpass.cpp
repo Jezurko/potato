@@ -1,5 +1,6 @@
 #include "potato/passes/analysis.hpp"
 #include "potato/util/warnings.hpp"
+#include "potato/analysis/fsanalysis.hpp"
 #include "potato/analysis/pt.hpp"
 #include "potato/analysis/context.hpp"
 
@@ -29,7 +30,7 @@ namespace potato::pt
 
             // Load our analysis
             mlir::CallGraph cg(root);
-            solver.load< analysis::pt_analysis< analysis::aa_lattice, analysis::call_context_wrapper > >(&cg);
+            solver.load< analysis::pt_analysis< analysis::fsa_lattice, analysis::call_context_wrapper > >(&cg);
 
             if (failed(solver.initializeAndRun(root)))
                 signalPassFailure();
