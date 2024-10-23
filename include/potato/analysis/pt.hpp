@@ -578,7 +578,6 @@ struct pt_analysis : mlir_dense_dfa< ctx_wrapper< pt_lattice > >
             // Try to check for "known" functions
             // Try to resolve function pointer calls? (does it happen here?)
             // Make the set of known functions a customization point?
-            assert(false);
             for (auto &[ctx, after_with_cr] : *after) {
                 auto &[after_pt, pt_cr] = after_with_cr;
                 for (auto result : call->getResults()) {
