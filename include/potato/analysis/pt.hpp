@@ -553,11 +553,7 @@ struct pt_analysis : mlir_dense_dfa< ctx_wrapper< pt_lattice > >
                 // But the start of the function was changed, meaning we will propagate
                 // to this point again
                 if (const auto *pt_ret_state = before.get_for_context(context)) {
-                    for (const auto &arg : func.getArguments()) {
-                        if (auto arg_pt_at_ret = pt_ret_state->first.lookup(arg))
-                            // TODO: can we use set_var here?
-                            after_pt_changed |= after_pt.join_var(arg, *arg_pt_at_ret);
-                    }
+                    after_pt_changed |= after_pt.join(pt_ret_state->first);
                     // hookup results of return
                     if (auto before_exit = mlir::dyn_cast< mlir::Operation * >(before.getPoint());
                              before_exit && before_exit->template hasTrait< mlir::OpTrait::ReturnLike>()
