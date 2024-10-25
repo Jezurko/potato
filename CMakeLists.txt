@@ -46,5 +46,8 @@ add_subdirectory(include)
 add_subdirectory(lib)
 add_subdirectory(tools)
 
+enable_testing()
+add_subdirectory(test)
+
 set_project_warnings(MLIRpotato)
 enable_sanitizers(MLIRpotato)
