@@ -9,10 +9,6 @@ POTATO_RELAX_WARNINGS
 #include <mlir/Interfaces/FunctionInterfaces.h>
 #include <mlir/IR/Value.h>
 
-#include <llvm/ADT/DenseMap.h>
-#include <llvm/ADT/DenseSet.h>
-#include <llvm/ADT/Hashing.h>
-#include <llvm/ADT/SetOperations.h>
 #include <llvm/ADT/TypeSwitch.h>
 POTATO_UNRELAX_WARNINGS
 
@@ -22,17 +18,15 @@ POTATO_UNRELAX_WARNINGS
 
 namespace potato::analysis {
 
-template< typename pt_lattice, template < typename > typename ctx_wrapper = call_context_wrapper >
-struct pt_analysis : mlir_dense_dfa< ctx_wrapper< pt_lattice > >
+template< typename pt_lattice, template < typename, unsigned > typename ctx_wrapper = call_context_wrapper, unsigned ctx_size = 0 >
+struct pt_analysis : mlir_dense_dfa< ctx_wrapper< pt_lattice, ctx_size > >
 {
-    using ctxed_lattice = ctx_wrapper< pt_lattice >;
+    using ctxed_lattice = ctx_wrapper< pt_lattice, ctx_size >;
 
     using base = mlir_dense_dfa< ctxed_lattice >;
     using base::base;
 
     using base::propagateIfChanged;
-
-    pt_analysis(mlir::DataFlowSolver &solver, call_graph *cg) : base(solver), cg(cg) {};
 
     static change_result visit_pt_op(pt::AddressOp &op, const pt_lattice &before, pt_lattice *after) {
         auto changed = after->join(before);
@@ -200,26 +194,26 @@ struct pt_analysis : mlir_dense_dfa< ctx_wrapper< pt_lattice > >
             auto succ_state = this->template getOrCreate< ctxed_lattice >(successor);
             for (const auto &[ctx, before_with_cr] : before) {
                 const auto &[before, changed_before] = before_with_cr;
-                auto &[after, changed_after] = succ_state->get_or_propagate_for_context(ctx);
+
+                auto [succ_with_cr, inserted] = succ_state->add_context(ctx, before);
+                auto &[succ, changed_succ_pt] = *succ_with_cr;
+                if (!inserted) {
+                    changed_succ_pt = succ.join(before);
+                }
+
                 for (const auto &[pred_op, succ_arg] :
                     llvm::zip_equal(op.getSuccessorOperands(i).getForwardedOperands(), successor->getArguments())
                 ) {
                     auto operand_pt = before.lookup(pred_op);
-                    changed_after |= after.join_var(succ_arg, *operand_pt);
+                    if (!operand_pt)
+                        continue;
+                    changed_succ_pt |= succ.join_var(succ_arg, *operand_pt);
                 }
-                changed_succ |= changed_after;
+                changed_succ |= changed_succ_pt;
             }
             propagateIfChanged(succ_state, changed_succ);
         }
         propagateIfChanged(after, changed);
-    }
-
-    std::vector< const ctxed_lattice * > get_or_create_for(mlir::Operation * dep, const std::vector< mlir::Operation * > &ops) {
-        std::vector< const pt_lattice * > states;
-        for (const auto &op : ops) {
-            states.push_back(this->template getOrCreateFor< ctxed_lattice >(dep, op));
-        }
-        return states;
     }
 
     template< typename visitor_t >
@@ -230,15 +224,13 @@ struct pt_analysis : mlir_dense_dfa< ctx_wrapper< pt_lattice > >
             // new context is automatically considered as changed
             if (before_changed == change_result::NoChange)
                 continue;
-            if (auto *after_lattice_with_cr = after->get_for_context(ctx)) {
-                auto &[after_lattice, after_changed] = *after_lattice_with_cr;
-                after_changed |= visitor(op, before_lattice, &after_lattice);
-                changed |= after_changed;
-            } else {
-                auto &[after_lattice, after_changed] = after->propagate_context(ctx, before_lattice);
-                after_changed |= visitor(op, before_lattice, &after_lattice);
-                changed |= after_changed;
-            }
+            auto [after_with_cr, inserted] = after->add_context(ctx, before_lattice);
+            auto &[after_lattice, after_changed] = *after_with_cr;
+            if (!inserted)
+                after_changed = change_result::NoChange;
+
+            after_changed |= visitor(op, before_lattice, &after_lattice);
+            changed |= after_changed;
         }
         propagateIfChanged(after, changed);
     }
@@ -269,14 +261,6 @@ struct pt_analysis : mlir_dense_dfa< ctx_wrapper< pt_lattice > >
         auto changed     = after->join(before);
         auto callee      = call.resolveCallable();
         auto func        = mlir::dyn_cast< mlir::FunctionOpInterface >(callee);
-        auto caller_node = cg->lookupNode(call->getParentRegion());
-        auto edge        = [&]() {
-            for (auto &edge : *caller_node) {
-                if (&func.getFunctionBody() == edge.getTarget()->getCallableRegion())
-                    return edge;
-            }
-            assert(false);
-        }();
 
         // - `action == CallControlFlowAction::Enter` indicates that:
         //   - `before` is the state before the call operation;
@@ -287,7 +271,14 @@ struct pt_analysis : mlir_dense_dfa< ctx_wrapper< pt_lattice > >
 
             for (const auto &[ctx, lat_with_cr] : before) {
                 const auto &before_pt = lat_with_cr.first;
-                auto &[after_pt, pt_changed] = after->add_new_context(ctx, {caller_node, edge}, before_pt);
+                auto new_ctx = ctx;
+                new_ctx.push_back(call.getOperation());
+
+                auto [after_with_cr, inserted] = after->add_context(std::move(new_ctx), before_pt);
+                auto &[after_pt, pt_changed] = *after_with_cr;
+                if (!inserted)
+                    pt_changed = change_result::NoChange;
+
                 for (const auto &[callee_arg, caller_arg] :
                      llvm::zip_equal(callee_args, call.getArgOperands()))
                 {
@@ -319,23 +310,22 @@ struct pt_analysis : mlir_dense_dfa< ctx_wrapper< pt_lattice > >
             auto callee_entry = this->template getOrCreate< ctxed_lattice >(&*func.begin());
             callee_entry->addDependency(state_pre_call->getPoint(), this);
             auto entry_changed = change_result::NoChange;
+
             // Add call contexts
             for (const auto &[ctx, lat_with_cr] : *state_pre_call) {
                 const auto &[pre_call_pt, pre_call_cr] = lat_with_cr;
-                auto &[entry_pt, entry_pt_cr] = callee_entry->add_new_context(
-                                                                ctx,
-                                                                {caller_node, edge},
+                auto new_ctx = ctx;
+                new_ctx.push_back(call.getOperation());
+                auto [entry_pt_with_cr, inserted] = callee_entry->add_context(
+                                                                std::move(ctx),
                                                                 pre_call_pt
                                                               );
+                auto &[entry_pt, entry_pt_cr] = *entry_pt_with_cr;
 
-                // If both have NoChange it means that the context was already present
-                // and that the predecessor in the relevant context didn't change
-                // We can safely skip to the next iteration
-                if ((entry_pt_cr | pre_call_cr) == change_result::NoChange)
-                    continue;
+                if (!inserted) {
+                    entry_pt_cr = entry_pt.join(pre_call_pt);
+                }
 
-                // Join in to proapgate the state of globals
-                entry_pt_cr |= entry_pt.join(pre_call_pt);
                 // Add args pt
                 auto zipped_args = llvm::zip_equal(func.getArguments(), call.getArgOperands());
                 for (const auto &[callee_arg, caller_arg] : zipped_args) {
@@ -353,12 +343,12 @@ struct pt_analysis : mlir_dense_dfa< ctx_wrapper< pt_lattice > >
             for (auto &[after_ctx, after_with_cr] : *after) {
                 auto &[after_pt, after_pt_changed] = after_with_cr;
                 auto context = after_ctx;
-                context.push_back({caller_node, edge});
+                context.push_back(call);
                 // We won't find the recently added context here
                 // But the start of the function was changed, meaning we will propagate
                 // to this point again
                 if (const auto *pt_ret_state = before.get_for_context(context)) {
-                    after_pt_changed |= after_pt.join(pt_ret_state->first);
+                    after_pt_changed = after_pt.join(pt_ret_state->first);
                     // hookup results of return
                     if (auto before_exit = mlir::dyn_cast< mlir::Operation * >(before.getPoint());
                              before_exit && before_exit->template hasTrait< mlir::OpTrait::ReturnLike>()
@@ -426,9 +416,6 @@ struct pt_analysis : mlir_dense_dfa< ctx_wrapper< pt_lattice > >
         }
         this->propagateIfChanged(lattice, state_changed);
     }
-
-    private:
-        call_graph *cg;
 };
 
 void print_analysis_result(mlir::DataFlowSolver &solver, mlir_operation *op, llvm::raw_ostream &os);
