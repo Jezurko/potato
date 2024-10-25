@@ -1,4 +1,4 @@
-#include "potato/analysis/fsanalysis.hpp"
+#include "potato/analysis/fsandersen.hpp"
 namespace potato::analysis {
 
 unsigned int fsa_lattice::variable_count = 0;
