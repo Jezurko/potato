@@ -66,21 +66,10 @@ namespace potato::util {
             if (mlir::isa< mlir::ModuleOp >(op))
                 return;
             os << "State in: " << op->getLoc() << "\n";
-            if (auto state = solver.lookupState< analysis_lattice >(op)) {
-                for (const auto &[key, vals] : state->pt_relation) {
-                    os << "  " << key << " -> {";
-                    if (vals.is_top()) {
-                        os << " TOP }\n";
-                        continue;
-                    }
-                    std::string sep;
-                    for (const auto &val : vals.get_set_ref()) {
-                            os << sep << val;
-                            sep = ", ";
-                    }
-                    os << "}\n";
-                }
-            }
+            if (auto state = solver.lookupState< analysis_lattice >(op))
+                state->print(os);
+            else
+                os << "state not found\n";
         });
     }
 
