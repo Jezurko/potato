@@ -197,4 +197,6 @@ struct fsa_lattice
         return alias_res(alias_kind::NoAlias);
     }
 };
+
+llvm::raw_ostream &operator<<(llvm::raw_ostream &os, const fsa_lattice &l);
 } // namespace potato::analysis

@@ -29,4 +29,7 @@ std::string fsa_lattice::get_alloc_name() {
         alloc_name = "mem_alloc" + std::to_string(alloc_count());
     return alloc_name.value();
 }
+
+llvm::raw_ostream &operator<<(llvm::raw_ostream &os, const potato::analysis::fsa_lattice &l) { l.print(os); return os; }
 } // namespace potato::analysis
+

@@ -96,8 +96,18 @@ namespace potato::analysis {
         lattice_change_pair &get_for_default_context() { return *get_for_context({}); }
         const lattice_change_pair &get_for_default_context() const { return *get_for_context({}); }
 
-        void print(llvm::raw_ostream &/*os*/) const override {
-            return;
+        void print(llvm::raw_ostream &os) const override {
+            for (const auto &[ctx, lattice_with_cr] : ctx_lattice) {
+                std::string sep = "";
+                os << "context: [";
+                for (auto op : ctx) {
+                    os << sep << op;
+                    sep = ",";
+                }
+                os << "]: ";
+                os << lattice_with_cr.first;
+                os << "\n";
+            }
         }
 
         private:
