@@ -12,23 +12,18 @@ POTATO_UNRELAX_WARNINGS
 
 #include <ranges>
 #include <unordered_map>
-#include <vector>
+#include <deque>
 
 template <>
-struct std::hash< std::vector< std::pair< cg_node *, cg_edge > > > {
-    std::size_t operator() (const std::vector< std::pair< cg_node *, cg_edge > > &value) const {
-        auto hashing = [](const std::pair< cg_node *, cg_edge > val) {
-            auto kind = val.second.isAbstract() ? 0 : val.second.isCall() ? 1 : 2;
-            auto trg_and_kind = llvm::PointerIntPair< cg_node *, 2>(val.second.getTarget(), kind);
-            return llvm::hash_combine(llvm::hash_value(val.first), llvm::DenseMapInfo< decltype(trg_and_kind) >::getHashValue(trg_and_kind));
-        };
-        const auto hash_range = value | std::views::transform(hashing);
+struct std::hash< std::deque< mlir_operation *  > > {
+    std::size_t operator() (const std::deque< mlir_operation * > &value) const {
+        const auto hash_range = value | std::views::transform([](mlir_operation * op) { return llvm::hash_value(op); });
         return llvm::hash_combine_range(hash_range.begin(), hash_range.end());
     }
 };
 
 namespace potato::analysis {
-    template< typename lattice >
+    template< typename lattice, unsigned context_size >
     struct call_context_wrapper : mlir_dense_abstract_lattice {
         using mlir_dense_abstract_lattice::AbstractDenseLattice;
 
@@ -38,15 +33,15 @@ namespace potato::analysis {
         }
 
         change_result join(const mlir_dense_abstract_lattice &rhs) override {
-            auto &wrapped = *static_cast< const call_context_wrapper * >(&rhs);
+            const auto &wrapped = *static_cast< const call_context_wrapper * >(&rhs);
             auto changed = change_result::NoChange;
             for (const auto &[ctx, lattice_with_cr] : wrapped) {
-                if (auto *lhs_with_cr = get_for_context(ctx)) {
-                    auto &[lhs_lattice, changed_lhs] = *lhs_with_cr;
-                    changed_lhs |= lhs_lattice.join(lattice_with_cr.first);
-                    changed |= changed_lhs;
+                auto [lhs_with_cr, inserted] = add_context(ctx, lattice_with_cr.first);
+                if (inserted) {
+                    changed |= change_result::Change;
                 } else {
-                    auto &[new_lhs_lattice, changed_lhs] = propagate_context(ctx, lattice_with_cr.first);
+                    auto &[lhs_lattice, changed_lhs] = *lhs_with_cr;
+                    changed_lhs = lhs_lattice.join(lattice_with_cr.first);
                     changed |= changed_lhs;
                 }
             }
@@ -57,20 +52,20 @@ namespace potato::analysis {
             auto &wrapped = *static_cast< const call_context_wrapper * >(&rhs);
             auto changed = change_result::NoChange;
             for (const auto &[ctx, lattice_with_cr] : wrapped) {
-                if (auto *lhs_with_cr = get_for_context(ctx)) {
-                    auto &[lhs_lattice, changed_lhs] = *lhs_with_cr;
-                    changed_lhs |= lhs_lattice.meet(lattice_with_cr.first);
-                    changed |= changed_lhs;
+                // Should really meet *add* stuff?
+                auto [lhs_with_cr, inserted] = add_context(ctx, lattice_with_cr.first);
+                if (inserted) {
+                    changed |= change_result::Change;
                 } else {
-                    // Should really meet *add* stuff?
-                    auto &[new_lhs_lattice, changed_lhs] = propagate_context(ctx, lattice_with_cr.first);
+                    auto &[lhs_lattice, changed_lhs] = *lhs_with_cr;
+                    changed_lhs = lhs_lattice.meet(lattice_with_cr.first);
                     changed |= changed_lhs;
                 }
             }
             return changed;
         };
 
-        using context_t = std::vector< std::pair< cg_node *, cg_edge > >;
+        using context_t = std::deque< mlir_operation * >;
         using ctx_map = std::unordered_map< context_t, std::pair< lattice, change_result > >;
         using lattice_change_pair = std::pair< lattice, change_result >;
 
@@ -81,32 +76,11 @@ namespace potato::analysis {
         const_iterator begin() const { return ctx_lattice.begin(); }
         const_iterator end() const { return ctx_lattice.end(); }
 
-        // Method for adding a new context with the necessary checks
-        lattice_change_pair &add_new_context(const context_t &ctx_prefix, const std::pair< cg_node *, cg_edge > &last, const lattice &state) {
-            const auto it = ctx_lattice.find(ctx_prefix);
-            if (it != ctx_lattice.end()) {
-                for (const auto &edge : it->first) {
-                    if (edge == last)
-                        return it->second;
-                }
-            }
-            auto ctx = ctx_prefix;
-            ctx.push_back(last);
-            return propagate_context(ctx, state);
-        }
-
-        // This method serves to propagate context from a previous (before) lattice
-        // It does not do all the necessary checks for inicialization of an unknown context
-        lattice_change_pair &propagate_context(const context_t &ctx, const lattice &state) {
-            auto [value_it, inserted] = ctx_lattice.insert({ ctx, { state, change_result::Change } });
-            return value_it->second;
-        }
-
-        // This method expects already "checked" context
-        lattice_change_pair &get_or_propagate_for_context(const context_t &ctx) {
-            if (auto *lattice_with_cr = get_for_context(ctx))
-                return *lattice_with_cr;
-            return propagate_context(ctx, lattice());
+        std::pair< lattice_change_pair *, bool > add_context(context_t ctx, const lattice &state) {
+            if (ctx.size() > context_size)
+                ctx.pop_front();
+            auto [value_it, inserted] = ctx_lattice.insert({std::move(ctx), {state, change_result::Change}});
+            return {&value_it->second, inserted};
         }
 
         lattice_change_pair *get_for_context(const context_t &context) {
