@@ -4,6 +4,7 @@
 
 POTATO_RELAX_WARNINGS
 #include <mlir/Analysis/CallGraph.h>
+#include <mlir/Analysis/DataFlow/DeadCodeAnalysis.h>
 #include <mlir/Analysis/DataFlow/DenseAnalysis.h>
 #include <mlir/Interfaces/CallInterfaces.h>
 #include <mlir/Interfaces/FunctionInterfaces.h>
@@ -190,21 +191,21 @@ struct pt_analysis : mlir_dense_dfa< ctx_wrapper< pt_lattice, ctx_size > >
         auto changed = after->join(before);
 
         for (const auto &[i, successor] : llvm::enumerate(op->getSuccessors())) {
-            auto changed_succ = change_result::NoChange;
-            auto succ_state = this->template getOrCreate< ctxed_lattice >(successor);
+            auto succ_state = this->template getOrCreate< ctxed_lattice >(this->template getProgramPoint< mlir::dataflow::CFGEdge >(op->getBlock(), successor));
+            auto changed_succ = succ_state->join(before);
             for (const auto &[ctx, before_with_cr] : before) {
-                const auto &[before, changed_before] = before_with_cr;
+                const auto &[before_pt, changed_before] = before_with_cr;
 
-                auto [succ_with_cr, inserted] = succ_state->add_context(ctx, before);
+                auto [succ_with_cr, inserted] = succ_state->add_context(ctx, before_pt);
                 auto &[succ, changed_succ_pt] = *succ_with_cr;
                 if (!inserted) {
-                    changed_succ_pt = succ.join(before);
+                    changed_succ_pt = succ.join(before_pt);
                 }
 
                 for (const auto &[pred_op, succ_arg] :
                     llvm::zip_equal(op.getSuccessorOperands(i).getForwardedOperands(), successor->getArguments())
                 ) {
-                    auto operand_pt = before.lookup(pred_op);
+                    auto operand_pt = before_pt.lookup(pred_op);
                     if (!operand_pt)
                         continue;
                     changed_succ_pt |= succ.join_var(succ_arg, *operand_pt);
