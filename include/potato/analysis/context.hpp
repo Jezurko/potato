@@ -23,7 +23,7 @@ struct std::hash< std::deque< mlir_operation *  > > {
 };
 
 namespace potato::analysis {
-    template< typename lattice, unsigned context_size >
+    template< typename lattice, unsigned context_size = 1 >
     struct call_context_wrapper : mlir_dense_abstract_lattice {
         using mlir_dense_abstract_lattice::AbstractDenseLattice;
 

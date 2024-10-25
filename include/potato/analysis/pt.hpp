@@ -19,7 +19,7 @@ POTATO_UNRELAX_WARNINGS
 
 namespace potato::analysis {
 
-template< typename pt_lattice, template < typename, unsigned > typename ctx_wrapper = call_context_wrapper, unsigned ctx_size = 0 >
+template< typename pt_lattice, template < typename, unsigned > typename ctx_wrapper = call_context_wrapper, unsigned ctx_size = 1 >
 struct pt_analysis : mlir_dense_dfa< ctx_wrapper< pt_lattice, ctx_size > >
 {
     using ctxed_lattice = ctx_wrapper< pt_lattice, ctx_size >;
