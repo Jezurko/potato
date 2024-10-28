@@ -104,7 +104,7 @@ namespace potato::analysis {
                     os << sep << op;
                     sep = ",";
                 }
-                os << "]: ";
+                os << "]: \n";
                 os << lattice_with_cr.first;
                 os << "\n";
             }

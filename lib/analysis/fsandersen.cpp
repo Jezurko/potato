@@ -13,8 +13,10 @@ unsigned int fsa_lattice::alloc_count() {
 }
 
 void fsa_lattice::print(llvm::raw_ostream &os) const {
+    auto sep = "";
     for (const auto &[key, vals] : pt_relation) {
-        os << key << " -> " << vals;
+        os << sep << key << " -> " << vals;
+        sep = "\n";
     }
 }
 
