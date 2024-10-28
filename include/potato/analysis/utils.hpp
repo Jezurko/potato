@@ -36,7 +36,12 @@ namespace potato::analysis {
             return name == rhs.name;
         }
 
-        void print(llvm::raw_ostream &os) const { os << name << ": " << val; };
+        void print(llvm::raw_ostream &os) const {
+            os << name;
+            if (val) {
+                os << ": " << val;
+            }
+        };
     };
 
     bool sets_intersect(const auto &lhs, const auto &rhs) {
