@@ -146,6 +146,14 @@ struct fsa_lattice
         return val_pt->join(set);
     }
 
+    change_result join_var(pt_element elem, const pointee_set &set) {
+        auto val_pt  = lookup(elem);
+        if (!val_pt) {
+            return set_var(elem, set);
+        }
+        return val_pt->join(set);
+    }
+
     change_result set_all_unknown() {
         auto changed = change_result::NoChange;
         for (auto &[_, pt_set] : pt_relation) {
