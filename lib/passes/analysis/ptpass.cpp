@@ -36,10 +36,10 @@ namespace potato::pt
 
             if (print_lattice)
                 analysis::print_analysis_result(solver, root, llvm::outs());
-            if (print_stats)
-                analysis::print_analysis_stats(solver, root, llvm::outs());
-            if (print_func_stats)
-                analysis::print_analysis_func_stats(solver, root, llvm::outs());
+            //if (print_stats)
+            //    analysis::print_analysis_stats(solver, root, llvm::outs());
+            //if (print_func_stats)
+            //    analysis::print_analysis_func_stats(solver, root, llvm::outs());
         }
     };
 
