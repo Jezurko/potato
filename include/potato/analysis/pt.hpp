@@ -56,15 +56,11 @@ struct pt_analysis : mlir_dense_dfa< ctx_wrapper< pt_lattice, ctx_size > >
     static change_result visit_pt_op(pt::AssignOp &op, const pt_lattice &before, pt_lattice *after) {
         auto changed = after->join(before);
 
-        auto &lhs_pt = [&] () -> pt_lattice::pointee_set & {
-            auto lhs_pt = after->lookup(op.getLhs());
-            if (lhs_pt) {
-                return *lhs_pt;
-            }
-            auto [it, _] = after->new_var(op.getLhs());
-            changed |= change_result::Change;
-            return it->second;
-        }();
+        auto lhs = before.lookup(op.getLhs());
+        if (!lhs) {
+            return changed;
+        }
+        const auto &lhs_pt = *lhs;
 
         const auto rhs = before.lookup(op.getRhs());
         const auto &rhs_pt = rhs ? *rhs : pt_lattice::new_top_set();
@@ -82,11 +78,7 @@ struct pt_analysis : mlir_dense_dfa< ctx_wrapper< pt_lattice, ctx_size > >
         }
 
         for (auto &lhs_val : lhs_pt.get_set_ref()) {
-            auto insert_point = after->lookup(lhs_val);
-            // unknown insert point ~ top
-            if (!insert_point)
-                continue;
-            changed |= pt_lattice::pointee_union(*insert_point, rhs_pt);
+            changed |= after->join_var(lhs_val, rhs_pt);
         }
         return changed;
     };
