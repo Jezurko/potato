@@ -136,7 +136,7 @@ struct pt_analysis : mlir_dense_dfa< ctx_wrapper< pt_lattice, ctx_size > >
 
     static change_result visit_pt_op(pt::ConstantOp &op, const pt_lattice &before, pt_lattice *after) {
         auto changed = after->join(before);
-        changed |= after->set_var(op.getResult(), pt_lattice::new_pointee_set());
+        changed |= after->set_var(op.getResult(), pt_lattice::new_top_set());
         return changed;
 
     }
