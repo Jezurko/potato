@@ -197,7 +197,11 @@ struct fsa_lattice
 
         if (sets_intersect(*lhs_it, *rhs_it)) {
             if (lhs_pt.size() == 1 && rhs_pt.size() == 1) {
-                return alias_res(alias_kind::MustAlias);
+                for (auto &member : lhs_pt) {
+                    // for dynamically allocated values we can not return MustAlias.
+                    if (member.val)
+                        return alias_res(alias_kind::MustAlias);
+                }
             }
             return alias_res(alias_kind::MayAlias);
         }
