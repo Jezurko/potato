@@ -251,6 +251,7 @@ struct pt_analysis : mlir_dense_dfa< ctx_wrapper< pt_lattice, ctx_size > >
         mlir::CallOpInterface call, call_cf_action action,
         const ctxed_lattice &before, ctxed_lattice *after
     ) override {
+
         auto changed     = after->join(before);
         auto callee      = call.resolveCallable();
         auto func        = mlir::dyn_cast< mlir::FunctionOpInterface >(callee);
@@ -310,13 +311,15 @@ struct pt_analysis : mlir_dense_dfa< ctx_wrapper< pt_lattice, ctx_size > >
                 auto new_ctx = ctx;
                 new_ctx.push_back(call.getOperation());
                 auto [entry_pt_with_cr, inserted] = callee_entry->add_context(
-                                                                std::move(ctx),
+                                                                std::move(new_ctx),
                                                                 pre_call_pt
                                                               );
                 auto &[entry_pt, entry_pt_cr] = *entry_pt_with_cr;
 
                 if (!inserted) {
                     entry_pt_cr = entry_pt.join(pre_call_pt);
+                    // if the ctx already exists, we need to move forward
+                    changed |= after->join(*state_pre_call);
                 }
 
                 // Add args pt
@@ -329,7 +332,8 @@ struct pt_analysis : mlir_dense_dfa< ctx_wrapper< pt_lattice, ctx_size > >
                 }
                 entry_changed |= entry_pt_cr;
             }
-            propagateIfChanged(callee_entry, entry_changed);
+            if (entry_changed == change_result::Change)
+                propagateIfChanged(callee_entry, entry_changed);
 
             // Manage the callee exit
 
@@ -340,7 +344,9 @@ struct pt_analysis : mlir_dense_dfa< ctx_wrapper< pt_lattice, ctx_size > >
                 // We won't find the recently added context here
                 // But the start of the function was changed, meaning we will propagate
                 // to this point again
+                llvm::errs() << "getting for ctx\n";
                 if (const auto *pt_ret_state = before.get_for_context(context)) {
+                    llvm::errs() << "got for ctx\n";
                     after_pt_changed = after_pt.join(pt_ret_state->first);
                     // hookup results of return
                     if (auto before_exit = mlir::dyn_cast< mlir::Operation * >(before.getPoint());
