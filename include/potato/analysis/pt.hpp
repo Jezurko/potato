@@ -47,6 +47,22 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
 
     change_result visit_pt_op(pt::GlobalVarOp &op, const pt_lattice &before, pt_lattice *after) {
         auto changed = after->join(before);
+        auto &init = op.getInit();
+        if (!init.empty()) {
+            auto *ret_op = &init.back().back();
+            if (ret_op->hasTrait< mlir::OpTrait::ReturnLike >()) {
+                auto ret_state = this->template getOrCreate< pt_lattice >(ret_op);
+                ret_state->addDependency(after->getPoint(), this);
+                propagateIfChanged(ret_state, ret_state->join(before));
+                for (auto ret_arg : ret_op->getOperands()) {
+                    auto *arg_pt = ret_state->lookup(ret_arg);
+                    if (arg_pt) {
+                        changed |= after->join_var(pt_lattice::new_symbol(op.getName()), *arg_pt);
+                    }
+                }
+                return changed;
+            }
+        }
         changed |= after->join_var(pt_lattice::new_symbol(op.getName()), pt_lattice::new_top_set());
         return changed;
     }
