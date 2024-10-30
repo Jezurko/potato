@@ -31,6 +31,8 @@ struct aa_lattice : mlir_dense_abstract_lattice {
     //       so many random return values with iterators and stuff
 
     const pointee_set *lookup(const pt_element &val) const {
+        if (!pt_relation)
+            return nullptr;
         auto it = pt_relation->find(val);
         if (it == pt_relation->end())
             return nullptr;
@@ -42,6 +44,8 @@ struct aa_lattice : mlir_dense_abstract_lattice {
     }
 
     pointee_set *lookup(const pt_element &val) {
+        if (!pt_relation)
+            return nullptr;
         auto it = pt_relation->find(val);
         if (it == pt_relation->end())
             return nullptr;
