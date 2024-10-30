@@ -1,8 +1,7 @@
 #include "potato/passes/analysis.hpp"
 #include "potato/util/warnings.hpp"
-#include "potato/analysis/fsandersen.hpp"
+#include "potato/analysis/andersen.hpp"
 #include "potato/analysis/pt.hpp"
-#include "potato/analysis/context.hpp"
 
 POTATO_RELAX_WARNINGS
 #include <mlir/Analysis/CallGraph.h>
@@ -29,7 +28,7 @@ namespace potato::pt
             solver.load< mlir::dataflow::DeadCodeAnalysis >();
 
             // Load our analysis
-            solver.load< analysis::pt_analysis< analysis::fsa_lattice, analysis::call_context_wrapper > >();
+            solver.load< analysis::pt_analysis< analysis::aa_lattice > >();
 
             if (failed(solver.initializeAndRun(root)))
                 signalPassFailure();
