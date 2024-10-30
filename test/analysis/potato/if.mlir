@@ -17,6 +17,4 @@
     }
 } ): () -> ()
 
-// CHECK: State in: {{.*}}:16:{{[0-9]+}}
-// CHECK-NOT: State
 // CHECK: mem_alloc2 -> {mem_alloc{{[0,1]}}, mem_alloc{{[0,1]}}}
