@@ -205,14 +205,36 @@ namespace potato::conv::llvmtopt
         copy_op< mlir::LLVM::FDivOp >,
         copy_op< mlir::LLVM::TruncOp >,
         copy_op< mlir::LLVM::PtrToIntOp >,
-        copy_op< mlir::LLVM::IntToPtrOp >,
         copy_op< mlir::LLVM::BitcastOp >,
         copy_op< mlir::LLVM::ZExtOp >,
         copy_op< mlir::LLVM::SExtOp >,
         copy_op< mlir::LLVM::FAbsOp >,
+        copy_op< mlir::LLVM::URemOp >,
+        copy_op< mlir::LLVM::SRemOp >,
+        copy_op< mlir::LLVM::FRemOp >,
         gep_insensitive,
         memcpy_insensitive,
+        memset_insensitive,
         select_insensitive
+    >;
+
+    template< typename source >
+    struct unknown_op : mlir::OpConversionPattern< source > {
+        using base = mlir::OpConversionPattern< source >;
+        using base::base;
+        using adaptor_t = typename source::Adaptor;
+        logical_result matchAndRewrite(source op,
+                                       adaptor_t adaptor,
+                                       mlir::ConversionPatternRewriter &rewriter
+        ) const override {
+            auto tc = this->getTypeConverter();
+            rewriter.replaceOpWithNewOp< pt::UnknownPtrOp >(op, tc->convertType(op.getType()), mlir::ValueRange());
+            return mlir::success();
+        }
+    };
+
+    using unknown_patterns = util::type_list<
+        unknown_op< mlir::LLVM::IntToPtrOp >
     >;
 
     template< typename source >
@@ -225,7 +247,11 @@ namespace potato::conv::llvmtopt
                                        mlir::ConversionPatternRewriter &rewriter
         ) const override {
             auto tc = this->getTypeConverter();
-            rewriter.replaceOpWithNewOp< pt::ConstantOp >(op, tc->convertType(op.getType()));
+            if (mlir::isa< mlir::LLVM::LLVMPointerType >(op.getType())) {
+                rewriter.replaceOpWithNewOp< pt::UnknownPtrOp >(op, tc->convertType(op.getType()), mlir::ValueRange());
+            } else {
+                rewriter.replaceOpWithNewOp< pt::ConstantOp >(op, tc->convertType(op.getType()));
+            }
             return mlir::success();
         }
     };
@@ -342,6 +368,7 @@ namespace potato::conv::llvmtopt
         copy_patterns,
         store_patterns,
         load_patterns,
+        unknown_patterns,
         global_handling_patterns
     >;
 
