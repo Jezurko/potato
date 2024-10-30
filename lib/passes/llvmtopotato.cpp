@@ -139,13 +139,14 @@ namespace potato::conv::llvmtopt
                                        adaptor_t adaptor,
                                        mlir::ConversionPatternRewriter &rewriter
         ) const override {
-            // We model the assign op in a way that it rewrites the pt set
-            // In this case we need to first merge the pt sets, because the memcpy
-            // may rewrite only part of the target location.
-            auto merged = rewriter.create< pt::CopyOp >(op.getLoc(),
-                                          pt::PointerType::get(rewriter.getContext()),
-                                          mlir::ValueRange{adaptor.getSrc(), adaptor.getDst()}
+            rewriter.replaceOpWithNewOp< pt::AssignOp >(
+                    op,
+                    adaptor.getDst(),
+                    adaptor.getSrc()
             );
+            return mlir::success();
+        }
+    };
 
             rewriter.replaceOpWithNewOp< pt::AssignOp >(
                     op,
