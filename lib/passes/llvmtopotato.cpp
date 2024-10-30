@@ -404,6 +404,7 @@ namespace potato::conv::llvmtopt
                                           mlir::RegionBranchOpInterface,
                                           mlir::LLVM::ReturnOp,
                                           mlir::LLVM::NoAliasScopeDeclOp,
+                                          mlir::LLVM::UnreachableOp,
                                           mlir::LLVM::AssumeOp
                                         > (op);
             });
