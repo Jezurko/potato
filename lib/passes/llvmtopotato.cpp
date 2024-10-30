@@ -148,10 +148,19 @@ namespace potato::conv::llvmtopt
         }
     };
 
+    struct memset_insensitive : mlir::OpConversionPattern< mlir::LLVM::MemsetOp > {
+        using source = mlir::LLVM::MemsetOp;
+        using base = mlir::OpConversionPattern< source >;
+        using base::base;
+        using adaptor_t = typename source::Adaptor;
+        logical_result matchAndRewrite(source op,
+                                       adaptor_t adaptor,
+                                       mlir::ConversionPatternRewriter &rewriter
+        ) const override {
             rewriter.replaceOpWithNewOp< pt::AssignOp >(
                     op,
                     adaptor.getDst(),
-                    merged
+                    adaptor.getVal()
             );
             return mlir::success();
         }
