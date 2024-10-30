@@ -5,14 +5,17 @@
 #include "potato/dialect/ops.hpp"
 #include "potato/util/common.hpp"
 
+#include <memory>
 #include <string>
 
 namespace potato::analysis {
-struct fsa_lattice
-{
-    using pointee_set = lattice_set< pt_element >;
+struct aa_lattice : mlir_dense_abstract_lattice {
+    using mlir_dense_abstract_lattice::AbstractDenseLattice;
+    using elem_t = pt_element;
+    using pointee_set = lattice_set< elem_t >;
+    using relation_t = pt_map< elem_t, lattice_set >;
 
-    pt_map< pt_element, lattice_set > pt_relation;
+    std::shared_ptr< pt_map< pt_element, lattice_set > > pt_relation;
 
     static unsigned int variable_count;
     static unsigned int mem_loc_count;
@@ -28,8 +31,8 @@ struct fsa_lattice
     //       so many random return values with iterators and stuff
 
     const pointee_set *lookup(const pt_element &val) const {
-        auto it = pt_relation.find(val);
-        if (it == pt_relation.end())
+        auto it = pt_relation->find(val);
+        if (it == pt_relation->end())
             return nullptr;
         return &it->second;
     }
@@ -39,8 +42,8 @@ struct fsa_lattice
     }
 
     pointee_set *lookup(const pt_element &val) {
-        auto it = pt_relation.find(val);
-        if (it == pt_relation.end())
+        auto it = pt_relation->find(val);
+        if (it == pt_relation->end())
             return nullptr;
         return &it->second;
     }
@@ -50,7 +53,7 @@ struct fsa_lattice
     }
 
     auto &operator[](const pt_element &val) {
-        return pt_relation[val];
+        return (*pt_relation)[val];
     }
 
     static auto new_symbol(const llvm::StringRef name) {
@@ -72,17 +75,18 @@ struct fsa_lattice
     auto new_var(mlir_value val) {
         auto set = pointee_set();
         set.insert({mlir_value(), get_alloc_name()});
-        return pt_relation.insert({{val, get_var_name()}, set});
+        return pt_relation->insert({{val, get_var_name()}, set});
     }
 
     auto new_var(mlir_value var, const pointee_set& pt_set) {
-        return pt_relation.insert({{var, get_var_name()}, pt_set});
+        assert(pt_relation);
+        return pt_relation->insert({{var, get_var_name()}, pt_set});
     }
 
     auto new_var(mlir_value var, mlir_value pointee) {
         pointee_set set{};
-        auto pointee_it = pt_relation.find({ pointee, "" });
-        if (pointee_it == pt_relation.end()) {
+        auto pointee_it = pt_relation->find({ pointee, "" });
+        if (pointee_it == pt_relation->end()) {
             assert((mlir::isa< pt::ConstantOp, pt::ValuedConstantOp >(var.getDefiningOp())));
             set.insert({pointee, get_alloc_name()});
         } else {
@@ -120,7 +124,7 @@ struct fsa_lattice
     }
 
     change_result set_var(pt_element elem, const pointee_set &set) {
-        auto [var, inserted] = pt_relation.insert({elem, set});
+        auto [var, inserted] = pt_relation->insert({elem, set});
         if (inserted)
             return change_result::Change;
         if (var->second != set) {
@@ -156,40 +160,64 @@ struct fsa_lattice
 
     change_result set_all_unknown() {
         auto changed = change_result::NoChange;
-        for (auto &[_, pt_set] : pt_relation) {
+        for (auto &[_, pt_set] : *pt_relation) {
             changed |= pt_set.set_top();
         }
         return changed;
     }
 
-    change_result join(const fsa_lattice &rhs) {
-        change_result res = change_result::NoChange;
-        for (const auto &[key, rhs_value] : rhs.pt_relation) {
-            auto &lhs_value = pt_relation[key];
-            res |= lhs_value.join(rhs_value);
+    change_result merge(const aa_lattice &rhs) {
+        if (pt_relation && !rhs.pt_relation)
+            return change_result::NoChange;
+        if (pt_relation && rhs.pt_relation == pt_relation) {
+            return change_result::NoChange;
         }
-        return res;
+        if (pt_relation && rhs.pt_relation) {
+            llvm::errs() << "Merging two different relations.\n";
+            change_result res = change_result::NoChange;
+            for (const auto &[key, rhs_value] : *rhs.pt_relation) {
+                auto &lhs_value = (*pt_relation)[key];
+                res |= lhs_value.join(rhs_value);
+            }
+            return res;
+        }
+        if (rhs.pt_relation) {
+            pt_relation = rhs.pt_relation;
+            return change_result::Change;
+        }
+        return change_result::Change;
     }
 
-    change_result meet(const fsa_lattice &rhs) {
+    change_result intersect(const aa_lattice &rhs) {
+        if (rhs.pt_relation == pt_relation) {
+            return change_result::NoChange;
+        }
         change_result res = change_result::NoChange;
-        for (const auto &[key, rhs_value] : rhs.pt_relation) {
+        for (const auto &[key, rhs_value] : *rhs.pt_relation) {
             // non-existent entry would be considered top, so creating a new entry
             // and intersecting it will create the correct value
-            auto &lhs_value = pt_relation[key];
+            auto &lhs_value = (*pt_relation)[key];
             res |= lhs_value.meet(rhs_value);
         }
         return res;
     }
 
-    void print(llvm::raw_ostream &os) const;
+    change_result join(const mlir_dense_abstract_lattice &rhs) override {
+        return this->merge(*static_cast< const aa_lattice *>(&rhs));
+    };
+
+    change_result meet(const mlir_dense_abstract_lattice &rhs) override {
+        return this->intersect(*static_cast< const aa_lattice *>(&rhs));
+    };
+
+    void print(llvm::raw_ostream &os) const override;
 
     alias_res alias(auto lhs, auto rhs) const {
         const auto lhs_it = find(lhs);
         const auto rhs_it = find(rhs);
         // If we do not know at least one of the arguments we can not deduce any aliasing information
         // TODO: can this happen with correct usage? Should we emit a warning?
-        if (lhs_it == pt_relation.end() || rhs_it() == pt_relation.end())
+        if (lhs_it == pt_relation->end() || rhs_it() == pt_relation->end())
             return alias_res(alias_kind::MayAlias);
 
         const auto &lhs_pt = *lhs_it;
@@ -210,5 +238,5 @@ struct fsa_lattice
     }
 };
 
-llvm::raw_ostream &operator<<(llvm::raw_ostream &os, const fsa_lattice &l);
+llvm::raw_ostream &operator<<(llvm::raw_ostream &os, const aa_lattice &l);
 } // namespace potato::analysis
