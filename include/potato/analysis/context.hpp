@@ -11,6 +11,7 @@ POTATO_UNRELAX_WARNINGS
 #include "potato/util/common.hpp"
 
 #include <ranges>
+#include <memory>
 #include <unordered_map>
 #include <deque>
 
@@ -28,13 +29,19 @@ namespace potato::analysis {
         using mlir_dense_abstract_lattice::AbstractDenseLattice;
 
         call_context_wrapper(ppoint point) : AbstractDenseLattice(point) {
+            if (!ctx_lattice) {
+                ctx_lattice = std::make_shared< ctx_map >();
+            }
             // Always init with no context
-            ctx_lattice.insert({ context_t(), { lattice(), change_result::Change } });
+            ctx_lattice->insert({ context_t(), { lattice(), change_result::Change } });
         }
 
         change_result join(const mlir_dense_abstract_lattice &rhs) override {
             const auto &wrapped = *static_cast< const call_context_wrapper * >(&rhs);
             auto changed = change_result::NoChange;
+            if (ctx_lattice == wrapped.ctx_lattice)
+                return changed;
+
             for (const auto &[ctx, lattice_with_cr] : wrapped) {
                 auto [lhs_with_cr, inserted] = add_context(ctx, lattice_with_cr.first);
                 if (inserted) {
@@ -71,33 +78,33 @@ namespace potato::analysis {
 
         using iterator       = typename ctx_map::iterator;
         using const_iterator = typename ctx_map::const_iterator;
-        iterator begin() { return ctx_lattice.begin(); }
-        iterator end() { return ctx_lattice.end(); }
-        const_iterator begin() const { return ctx_lattice.begin(); }
-        const_iterator end() const { return ctx_lattice.end(); }
+        iterator begin() { return ctx_lattice->begin(); }
+        iterator end() { return ctx_lattice->end(); }
+        const_iterator begin() const { return ctx_lattice->begin(); }
+        const_iterator end() const { return ctx_lattice->end(); }
 
         std::pair< lattice_change_pair *, bool > add_context(context_t ctx, const lattice &state) {
             if (ctx.size() > context_size)
                 ctx.pop_front();
-            auto [value_it, inserted] = ctx_lattice.insert({std::move(ctx), {state, change_result::Change}});
+            auto [value_it, inserted] = ctx_lattice->insert({std::move(ctx), {state, change_result::Change}});
             return {&value_it->second, inserted};
         }
 
         lattice_change_pair *get_for_context(const context_t &context) {
-            auto lattice_it = ctx_lattice.find(context);
-            return lattice_it == ctx_lattice.end() ? nullptr : &lattice_it->second;
+            auto lattice_it = ctx_lattice->find(context);
+            return lattice_it == ctx_lattice->end() ? nullptr : &lattice_it->second;
         };
 
         const lattice_change_pair *get_for_context(const context_t &context) const {
-            auto lattice_it = ctx_lattice.find(context);
-            return lattice_it == ctx_lattice.end() ? nullptr : &lattice_it->second;
+            auto lattice_it = ctx_lattice->find(context);
+            return lattice_it == ctx_lattice->end() ? nullptr : &lattice_it->second;
         }
 
         lattice_change_pair &get_for_default_context() { return *get_for_context({}); }
         const lattice_change_pair &get_for_default_context() const { return *get_for_context({}); }
 
         void print(llvm::raw_ostream &os) const override {
-            for (const auto &[ctx, lattice_with_cr] : ctx_lattice) {
+            for (const auto &[ctx, lattice_with_cr] : *this) {
                 std::string sep = "";
                 os << "context: [";
                 for (auto op : ctx) {
@@ -111,7 +118,7 @@ namespace potato::analysis {
         }
 
         private:
-            ctx_map ctx_lattice;
+        std::shared_ptr< ctx_map > ctx_lattice;
     };
 
 } // namespace potato::analysis
