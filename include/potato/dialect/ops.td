@@ -56,7 +56,7 @@ def Potato_ConstantOp
 }
 
 def Potato_GlobalVarOp
-  : Potato_Op< "global" >
+  : Potato_Op< "global", [IsolatedFromAbove] >
   , Arguments<( ins SymbolNameAttr:$name, BoolAttr:$local )>
 {
   let regions = (region AnyRegion:$init);
