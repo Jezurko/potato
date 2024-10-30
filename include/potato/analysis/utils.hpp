@@ -40,6 +40,9 @@ namespace potato::analysis {
             os << name;
             if (val) {
                 os << ": " << val;
+                if (auto def = val.getDefiningOp()) {
+                    os << " " << def->getLoc();
+                }
             }
         };
     };
