@@ -23,15 +23,11 @@ struct llaa_lattice : mlir::dataflow::AbstractDenseLattice {
     using set_t = lattice_set< pt_element >;
     relation_t pt_relation;
 
-    static unsigned int variable_count;
     static unsigned int mem_loc_count;
-    unsigned int var_count();
     unsigned int alloc_count();
 
-    std::optional< std::string > var_name = {};
     std::optional< std::string > alloc_name = {};
-    std::string get_var_name();
-    std::string get_alloc_name();
+    llvm::StringRef get_alloc_name();
 
     change_result join(const mlir::dataflow::AbstractDenseLattice &rhs) override;
     change_result meet(const mlir::dataflow::AbstractDenseLattice &rhs) override;

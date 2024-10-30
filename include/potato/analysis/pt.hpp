@@ -32,7 +32,7 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
         auto val = op.getVal();
 
         if (val) {
-            changed |= after->set_var(op.getPtr(), op.getVal());
+            changed |= after->join_var(op.getPtr(), op.getVal());
         } else {
             auto symbol_ref = op.getSymbol();
             assert(symbol_ref && "Address of op without value or proper attribute.");
@@ -165,7 +165,7 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
     change_result visit_pt_op(pt::ValuedConstantOp &op, const pt_lattice &before, pt_lattice *after) {
         auto changed = after->join(before);
         // TODO: should this really form a self-loop?
-        changed |= after->set_var(op.getResult(), op.getResult());
+        changed |= after->join_var(op.getResult(), op.getResult());
         return changed;
     }
 

@@ -6,11 +6,13 @@ POTATO_RELAX_WARNINGS
 #include <llvm/ADT/DenseMap.h>
 #include <llvm/ADT/DenseSet.h>
 #include <llvm/ADT/Hashing.h>
+#include "llvm/ADT/DenseMapInfoVariant.h"
 POTATO_UNRELAX_WARNINGS
 
 #include "potato/util/common.hpp"
 
 #include <string>
+#include <variant>
 
 namespace potato::util {
     template< typename T >
@@ -27,23 +29,12 @@ namespace potato::analysis {
 
     struct pt_element
     {
-        mlir_value val;
-        std::string name;
+        std::variant< mlir_value, llvm::StringRef > id;
 
-        bool operator==(const pt_element &rhs) const {
-            if (val || rhs.val)
-                return val == rhs.val;
-            return name == rhs.name;
-        }
+        bool operator==(const pt_element &rhs) const = default;
 
         void print(llvm::raw_ostream &os) const {
-            os << name;
-            if (val) {
-                os << ": " << val;
-                if (auto def = val.getDefiningOp()) {
-                    os << " " << def->getLoc();
-                }
-            }
+            std::visit([&](auto &&arg) { os << arg; }, id);
         };
     };
 
@@ -67,17 +58,17 @@ namespace llvm {
 
     template<>
     struct DenseMapInfo< pt_element > {
-        using value_info = DenseMapInfo< mlir_value >;
+        using value_info = DenseMapInfo< std::variant< mlir_value, llvm::StringRef > >;
         static inline pt_element getEmptyKey() {
-            return {value_info::getEmptyKey(), ""};
+            return pt_element(value_info::getEmptyKey());
         }
 
         static inline pt_element getTombstoneKey() {
-            return {value_info::getTombstoneKey(), ""};
+            return pt_element(value_info::getTombstoneKey());
         }
 
         static unsigned getHashValue(const pt_element &val) {
-            return val.val ? value_info::getHashValue(val.val) : (unsigned) llvm::hash_value(val.name);
+            return value_info::getHashValue(val.id);
         }
 
         static bool isEqual(const pt_element &lhs, const pt_element &rhs) {

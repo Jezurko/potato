@@ -10,20 +10,11 @@ POTATO_UNRELAX_WARNINGS
 
 namespace potato::analysis::trad {
 
-    unsigned int llaa_lattice::variable_count = 0;
     unsigned int llaa_lattice::mem_loc_count = 0;
-
-    unsigned int llaa_lattice::var_count() { return variable_count++; }
 
     unsigned int llaa_lattice::alloc_count() { return mem_loc_count++; }
 
-    std::string llaa_lattice::get_var_name() {
-        if (!var_name)
-            var_name = "var" + std::to_string(var_count());
-        return var_name.value();
-    }
-
-    std::string llaa_lattice::get_alloc_name() {
+    llvm::StringRef llaa_lattice::get_alloc_name() {
         if (!alloc_name)
             alloc_name = "mem_alloc" + std::to_string(alloc_count());
         return alloc_name.value();
@@ -57,7 +48,7 @@ namespace potato::analysis::trad {
     }
 
     const llaa_lattice::set_t * llaa_lattice::lookup(const mlir_value &val) const {
-        return lookup({ val, "" });
+        return lookup(pt_element(val));
     }
 
     llaa_lattice::set_t * llaa_lattice::lookup(const pt_element &val) {
@@ -68,27 +59,27 @@ namespace potato::analysis::trad {
     }
 
     llaa_lattice::set_t * llaa_lattice::lookup(const mlir_value &val) {
-        return lookup({ val, "" });
+        return lookup(pt_element(val));
     }
 
     std::pair< llaa_lattice::relation_t::iterator, bool > llaa_lattice::new_var(mlir_value val) {
         auto set = set_t();
-        set.insert({mlir_value(), get_alloc_name()});
-        return pt_relation.insert({{val, get_var_name()}, set});
+        set.insert({get_alloc_name()});
+        return pt_relation.insert({{val}, set});
     }
 
     std::pair< llaa_lattice::relation_t::iterator, bool > llaa_lattice::new_var(
             mlir_value val,
             const set_t &pt_set
     ) {
-        return pt_relation.insert({{val, get_var_name()}, pt_set});
+        return pt_relation.insert({{val}, pt_set});
     }
 
     std::pair< llaa_lattice::relation_t::iterator, bool > llaa_lattice::new_var(mlir_value var, mlir_value pointee) {
         llaa_lattice::set_t set{};
-        auto pointee_it = pt_relation.find({pointee, ""});
+        auto pointee_it = pt_relation.find({pointee});
         if (pointee_it == pt_relation.end()) {
-            set.insert({pointee, get_alloc_name()});
+            set.insert({get_alloc_name()});
         } else {
             set.insert(pointee_it->first);
         }
@@ -96,7 +87,7 @@ namespace potato::analysis::trad {
     }
 
     change_result llaa_lattice::join_var(mlir_value val, set_t &&set) {
-        auto val_pt  = pt_relation.find({val, ""});
+        auto val_pt  = pt_relation.find({val});
         if (val_pt == pt_relation.end()) {
             return set_var(val, set);
         }
@@ -104,7 +95,7 @@ namespace potato::analysis::trad {
     }
 
     change_result llaa_lattice::join_var(mlir_value val, const set_t &set) {
-        auto val_pt  = pt_relation.find({val, ""});
+        auto val_pt  = pt_relation.find({val});
         if (val_pt == pt_relation.end()) {
             return set_var(val, set);
         }
@@ -176,8 +167,8 @@ namespace potato::analysis::trad {
     void llvm_andersen::visit_op(mllvm::StoreOp &op, const llaa_lattice &before, llaa_lattice *after) {
         auto changed = after->join(before);
 
-        auto &addr_pt = after->pt_relation[{op.getAddr(), ""}];
-        const auto &val = before.pt_relation.find({op.getValue(), ""});
+        auto &addr_pt = after->pt_relation[{op.getAddr()}];
+        const auto &val = before.pt_relation.find({op.getValue()});
         const auto &val_pt = val != before.pt_relation.end() ? val->getSecond()
                                                              : llaa_lattice::set_t::make_top();
 
@@ -205,7 +196,7 @@ namespace potato::analysis::trad {
     void llvm_andersen::visit_op(mllvm::LoadOp &op, const llaa_lattice &before, llaa_lattice *after) {
         auto changed = after->join(before);
 
-        const auto rhs_pt_it = before.pt_relation.find({op.getAddr(), ""});
+        const auto rhs_pt_it = before.pt_relation.find({op.getAddr()});
         if (rhs_pt_it == before.pt_relation.end() || rhs_pt_it->second.is_top()) {
             changed |= after->set_var(op.getResult(), llaa_lattice::set_t::make_top());
             return propagateIfChanged(after, changed);
@@ -250,7 +241,7 @@ namespace potato::analysis::trad {
     void llvm_andersen::visit_op(mllvm::AddressOfOp &op, const llaa_lattice &before, llaa_lattice *after) {
         auto changed = after->join(before);
         auto set = llaa_lattice::set_t();
-        set.insert(pt_element(mlir::Value(), op.getGlobalName().str()));
+        set.insert(pt_element(op.getGlobalName().str()));
         changed |= after->set_var(op.getResult(), set);
         propagateIfChanged(after, changed);
     }
@@ -258,7 +249,7 @@ namespace potato::analysis::trad {
     void llvm_andersen::visit_op(mllvm::SExtOp &op, const llaa_lattice &before, llaa_lattice *after) {
         auto changed = after->join(before);
         auto set = llaa_lattice::set_t();
-        auto arg_pt_it = before.pt_relation.find({op.getArg(), ""});
+        auto arg_pt_it = before.pt_relation.find({op.getArg()});
         std::ignore = set.join(arg_pt_it->second);
         changed |= after->set_var(op.getResult(), set);
         propagateIfChanged(after, changed);
@@ -270,12 +261,12 @@ namespace potato::analysis::trad {
             auto last_op = mlir::cast< mllvm::ReturnOp >(init.back().back());
             auto back_state = getOrCreate< llaa_lattice >(last_op.getOperation());
             if (const auto ret_pt = back_state->lookup(last_op.getArg())) {
-                changed |= after->set_var(pt_element(mlir_value(), op.getSymName().str()), *ret_pt);
+                changed |= after->set_var(pt_element(op.getSymName().str()), *ret_pt);
                 return propagateIfChanged(after, changed);
             }
         }
         changed |= after->set_var(
-                              pt_element(mlir_value(), op.getSymName().str()),
+                              pt_element(op.getSymName().str()),
                               llaa_lattice::set_t::make_top()
                           );
         propagateIfChanged(after, changed);
@@ -315,7 +306,7 @@ namespace potato::analysis::trad {
             for (const auto &[pred_op, succ_arg] :
                 llvm::zip_equal(op.getSuccessorOperands(i).getForwardedOperands(), successor->getArguments())
             ) {
-                auto operand_pt = after->pt_relation.find({pred_op, ""});
+                auto operand_pt = after->pt_relation.find({pred_op});
                 changed_succ |= after->join_var(succ_arg, operand_pt->second);
             }
             propagateIfChanged(succ_state, changed_succ);
@@ -333,7 +324,7 @@ namespace potato::analysis::trad {
     void llvm_andersen::visit_arith(mlir::Operation *op, const llaa_lattice &before, llaa_lattice *after) {
         auto changed = after->join(before);
         for (auto operand : op->getOperands()) {
-            auto operand_it = before.pt_relation.find({operand, ""});
+            auto operand_it = before.pt_relation.find({operand});
             if (operand_it != before.pt_relation.end()) {
                 if (!operand_it->second.is_bottom()) {
                     changed |= after->set_var(op->getResult(0), llaa_lattice::set_t::make_top());

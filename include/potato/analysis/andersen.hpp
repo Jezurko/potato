@@ -17,15 +17,11 @@ struct aa_lattice : mlir_dense_abstract_lattice {
 
     std::shared_ptr< pt_map< pt_element, lattice_set > > pt_relation;
 
-    static unsigned int variable_count;
     static unsigned int mem_loc_count;
-    unsigned int var_count();
     unsigned int alloc_count();
 
-    std::optional< std::string > var_name = {};
     std::optional< std::string > alloc_name = {};
-    std::string get_var_name();
-    std::string get_alloc_name();
+    llvm::StringRef get_alloc_name();
 
     // TODO: Probably replace most of the following functions with some custom API that doesn't introduce
     //       so many random return values with iterators and stuff
@@ -40,7 +36,7 @@ struct aa_lattice : mlir_dense_abstract_lattice {
     }
 
     const pointee_set *lookup(const mlir_value &val) const {
-        return lookup({ val, "" });
+        return lookup(pt_element(val));
     }
 
     pointee_set *lookup(const pt_element &val) {
@@ -53,15 +49,11 @@ struct aa_lattice : mlir_dense_abstract_lattice {
     }
 
     pointee_set *lookup(const mlir_value &val) {
-        return lookup({ val, "" });
-    }
-
-    auto &operator[](const pt_element &val) {
-        return (*pt_relation)[val];
+        return lookup(pt_element(val));
     }
 
     static auto new_symbol(const llvm::StringRef name) {
-        return pt_element(mlir_value(), name.str());
+        return pt_element(name.str());
     }
 
     static auto new_pointee_set() {
@@ -78,21 +70,20 @@ struct aa_lattice : mlir_dense_abstract_lattice {
 
     auto new_var(mlir_value val) {
         auto set = pointee_set();
-        set.insert({mlir_value(), get_alloc_name()});
-        return pt_relation->insert({{val, get_var_name()}, set});
+        set.insert({get_alloc_name()});
+        return pt_relation->insert({{val}, set});
     }
 
     auto new_var(mlir_value var, const pointee_set& pt_set) {
         assert(pt_relation);
-        return pt_relation->insert({{var, get_var_name()}, pt_set});
+        return pt_relation->insert({{var}, pt_set});
     }
 
     auto new_var(mlir_value var, mlir_value pointee) {
         pointee_set set{};
-        auto pointee_it = pt_relation->find({ pointee, "" });
+        auto pointee_it = pt_relation->find({pointee});
         if (pointee_it == pt_relation->end()) {
-            assert((mlir::isa< pt::ConstantOp, pt::ValuedConstantOp >(var.getDefiningOp())));
-            set.insert({pointee, get_alloc_name()});
+            set.insert({get_alloc_name()});
         } else {
             set.insert(pointee_it->first);
         }
@@ -136,6 +127,10 @@ struct aa_lattice : mlir_dense_abstract_lattice {
             return change_result::Change;
         }
         return change_result::NoChange;
+    }
+
+    change_result join_var(mlir_value val, mlir_value trg) {
+        return join_var(val, pointee_set({trg}));
     }
 
     change_result join_var(mlir_value val, pointee_set &&set) {
