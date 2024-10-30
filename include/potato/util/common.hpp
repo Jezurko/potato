@@ -62,14 +62,15 @@ namespace potato::util {
     template< typename analysis_lattice >
     void print_analysis_result(mlir::DataFlowSolver &solver, mlir_operation *op, llvm::raw_ostream &os)
     {
+        bool printed = false;
         op->walk([&](mlir_operation *op) {
-            if (mlir::isa< mlir::ModuleOp >(op))
+            if(auto state = solver.lookupState< analysis_lattice >(op)) {
+                if (!printed) {
+                    state->print(os);
+                    printed = true;
+                }
                 return;
-            os << "State in: " << op->getLoc() << "\n";
-            if (auto state = solver.lookupState< analysis_lattice >(op))
-                state->print(os);
-            else
-                os << "state not found\n";
+            }
         });
     }
 
