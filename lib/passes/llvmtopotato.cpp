@@ -298,7 +298,24 @@ namespace potato::conv::llvmtopt
             mlir::ConversionPatternRewriter &rewriter
         ) const override {
             auto global = rewriter.replaceOpWithNewOp< pt::GlobalVarOp >(op, op.getName(), false);
-            global.getInit().takeBody(op.getInitializer());
+            auto &glob_init = global.getInit();
+            glob_init.takeBody(op.getInitializer());
+            if (glob_init.empty()) {
+                if (auto val_attr = op.getValue()) {
+                   auto guard = mlir::OpBuilder::InsertionGuard(rewriter);
+                   rewriter.setInsertionPointToStart(&glob_init.emplaceBlock());
+                   auto constant = rewriter.create< pt::ConstantOp >(
+                        op.getLoc(),
+                        this->getTypeConverter()->convertType(op.getGlobalType())
+                   );
+                   auto cast = rewriter.create< mlir::UnrealizedConversionCastOp >(
+                       op.getLoc(),
+                       op.getGlobalType(),
+                       constant.getResult()
+                    );
+                   rewriter.create< mlir::LLVM::ReturnOp >(op.getLoc(), cast.getOutputs());
+                }
+            }
             return mlir::success();
         }
 
@@ -408,6 +425,7 @@ namespace potato::conv::llvmtopt
                                           mlir::LLVM::AssumeOp
                                         > (op);
             });
+            trg.addLegalOp< mlir::UnrealizedConversionCastOp >();
 
             if (failed(applyPartialConversion(getOperation(),
                                        trg,
