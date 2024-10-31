@@ -53,7 +53,7 @@ struct aa_lattice : mlir_dense_abstract_lattice {
     }
 
     static auto new_symbol(const llvm::StringRef name) {
-        return pt_element(name.str());
+        return pt_element(name);
     }
 
     static auto new_pointee_set() {
