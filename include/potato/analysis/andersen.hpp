@@ -211,6 +211,18 @@ struct aa_lattice : mlir_dense_abstract_lattice {
 
     void print(llvm::raw_ostream &os) const override;
 
+    static void add_dependencies(mlir::Operation *op, mlir_dense_dfa< aa_lattice > *analysis, ppoint point, auto get_or_create) {
+        for (auto arg : op->getOperands()) {
+            aa_lattice *arg_state;
+            if (auto def_op = arg.getDefiningOp()) {
+                arg_state = get_or_create(arg.getDefiningOp());
+            } else {
+                arg_state = get_or_create(arg.getParentBlock());
+            }
+            arg_state->addDependency(point, analysis);
+        }
+    }
+
     alias_res alias(auto lhs, auto rhs) const {
         const auto lhs_it = find(lhs);
         const auto rhs_it = find(rhs);

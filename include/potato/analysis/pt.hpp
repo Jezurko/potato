@@ -212,15 +212,12 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
     }
 
     void visitOperation(mlir::Operation *op, const pt_lattice &before, pt_lattice *after) override {
-        for (auto arg : op->getOperands()) {
-            pt_lattice *arg_state;
-            if (auto def_op = arg.getDefiningOp()) {
-                arg_state = this->template getOrCreate< pt_lattice >(arg.getDefiningOp());
-            } else {
-                arg_state = this->template getOrCreate< pt_lattice >(arg.getParentBlock());
-            }
-            arg_state->addDependency(after->getPoint(), this);
-        }
+        auto get_or_create = [this](auto arg) -> pt_lattice * {
+            return this->template getOrCreate< pt_lattice >(arg);
+        };
+
+        pt_lattice::add_dependencies(op, this, after->getPoint(), get_or_create);
+
         return llvm::TypeSwitch< mlir::Operation *, void >(op)
             .Case< pt::AddressOp,
                    pt::AllocOp,
