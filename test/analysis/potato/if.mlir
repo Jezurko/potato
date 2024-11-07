@@ -1,4 +1,5 @@
 // RUN: %potato-opt %s --points-to-pass="print_lattice=true print_stats=false print_func_stats=false" -o /dev/null | %file-check %s
+
 "builtin.module"() ( {
     func.func @foo() {
         %0 = pt.alloc : !pt.ptr
