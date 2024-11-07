@@ -2,7 +2,6 @@
 
 #include "potato/analysis/lattice.hpp"
 #include "potato/analysis/utils.hpp"
-#include "potato/dialect/ops.hpp"
 #include "potato/util/common.hpp"
 
 #include <memory>
@@ -66,6 +65,19 @@ struct aa_lattice : mlir_dense_abstract_lattice {
 
     static auto pointee_union(pointee_set &trg, const pointee_set &src) {
         return trg.join(src);
+    }
+
+    auto join_empty(mlir_value val) {
+        auto set = pointee_set();
+        auto inserted = pt_relation->insert({{val}, set});
+        if (inserted.second) {
+            return change_result::Change;
+        }
+        return change_result::NoChange;
+    }
+
+    auto add_constant(mlir_value val) {
+        return join_empty(val);
     }
 
     auto new_var(mlir_value val) {
