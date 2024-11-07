@@ -165,13 +165,6 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
 
     }
 
-    change_result visit_pt_op(pt::ValuedConstantOp &op, const pt_lattice &before, pt_lattice *after) {
-        auto changed = after->join(before);
-        // TODO: should this really form a self-loop?
-        changed |= after->join_var(op.getResult(), op.getResult());
-        return changed;
-    }
-
     change_result visit_pt_op(pt::UnknownPtrOp &op, const pt_lattice &before, pt_lattice *after) {
         auto changed = after->join(before);
         changed |= after->join_var(op.getResult(), pt_lattice::new_top_set());
@@ -225,7 +218,6 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
                    pt::CopyOp,
                    pt::DereferenceOp,
                    pt::GlobalVarOp,
-                   pt::ValuedConstantOp,
                    pt::UnknownPtrOp >
             ([&](auto &pt_op) { auto changed = visit_pt_op(pt_op, before, after); propagateIfChanged(after, changed); })
             .template Case< mlir::UnrealizedConversionCastOp >(
