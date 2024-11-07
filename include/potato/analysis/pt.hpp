@@ -97,7 +97,10 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
             changed |= after->join_var(*key, rhs_pt);
         }
 
-        auto lhs_state = this->template getOrCreate< pt_lattice >(op.getLhs());
+        // if we have written to a value, accessors of this value should know about the change
+        // this is necessary for e.g. dereference
+        // TODO: consider moving this into a special method
+        auto lhs_state = this->template getOrCreate< pt_lattice >(op.getLhs().getDefiningOp());
         propagateIfChanged(lhs_state, changed);
 
         return changed;
