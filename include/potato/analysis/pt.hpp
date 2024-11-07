@@ -37,10 +37,7 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
             auto symbol_ref = op.getSymbol();
             assert(symbol_ref && "Address of op without value or proper attribute.");
 
-            auto pt_set = pt_lattice::new_pointee_set();
-            pt_set.insert(pt_lattice::new_symbol(symbol_ref.value()));
-
-            changed |= after->join_var(op.getPtr(), pt_set);
+            changed |= after->join_var(op.getPtr(), pt_lattice::new_symbol(symbol_ref.value()));
         }
         return changed;
     };
@@ -77,11 +74,11 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
         const auto &lhs_pt = *lhs;
 
         const auto rhs = before.lookup(op.getRhs());
-        const auto &rhs_pt = rhs ? *rhs : pt_lattice::new_top_set();
-
-        if (rhs_pt.is_bottom()) {
+        if (!rhs || rhs->is_bottom()) {
             return changed;
         }
+
+        const auto &rhs_pt = *rhs;
 
         if (lhs_pt.is_top()) {
             // TODO: do not access the relation by name
@@ -109,16 +106,13 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
     change_result visit_pt_op(pt::CopyOp &op, const pt_lattice &before, pt_lattice *after) {
         auto changed = after->join(before);
 
-        auto pt_set = pt_lattice::new_pointee_set();
-
         for (auto operand : op.getOperands()) {
             auto operand_pt = before.lookup(operand);
             if (operand_pt) {
-                std::ignore = pt_lattice::pointee_union(pt_set, *operand_pt);
+                changed |= after->join_var(op.getResult(), *operand_pt);
             }
         }
 
-        changed |= after->join_var(op.getResult(), pt_set);
         return changed;
     };
 
@@ -126,24 +120,30 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
         auto changed = after->join(before);
 
         const auto rhs_pt = before.lookup(op.getPtr());
+        if (!rhs_pt || rhs_pt->is_bottom()) {
+            // we don't know yet - bail out
+            return changed;
+        }
         if (rhs_pt->is_top()) {
             changed |= after->join_var(op.getResult(), *rhs_pt);
             return changed;
         }
 
-        if (rhs_pt->is_bottom()) {
-            llvm::errs() << "Dereferencing bottom?\n";
-        }
-
-        auto pointees = pt_lattice::new_pointee_set();
+        std::vector< decltype(before.lookup(typename pt_lattice::elem_t())) > to_join;
         for (const auto &val : rhs_pt->get_set_ref()) {
             auto val_pt = before.lookup(val);
-            // We can ignore the change results as they will be resolved by join_var
             if (val_pt) {
-                std::ignore = pt_lattice::pointee_union(pointees, *val_pt);
+                to_join.push_back(val_pt);
             }
         }
-        changed |= after->join_var(op.getResult(), pointees);
+
+        if (to_join.empty()) {
+            changed |= after->join_empty(op.getResult());
+        }
+
+        for (auto *join : to_join) {
+            changed |= after->join_var(op.getResult(), *join);
+        }
 
         return changed;
     };
@@ -157,7 +157,7 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
 
     change_result visit_pt_op(pt::ConstantOp &op, const pt_lattice &before, pt_lattice *after) {
         auto changed = after->join(before);
-        changed |= after->join_var(op.getResult(), pt_lattice::new_pointee_set());
+        changed |= after->add_constant(op.getResult());
         return changed;
 
     }
@@ -180,17 +180,13 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
     {
         auto changed = after->join(before);
 
-        auto pt_set = pt_lattice::new_pointee_set();
-
         for (auto operand : op.getOperands()) {
             auto operand_pt = before.lookup(operand);
-            // We can ignore the change results as they will be resolved by join_var
             if (operand_pt) {
-                std::ignore = pt_lattice::pointee_union(pt_set, *operand_pt);
+                for (auto res : op.getResults()) {
+                    changed |= after->join_var(res, *operand_pt);
+                }
             }
-        }
-        for (auto res : op.getResults()) {
-            changed |= after->join_var(res, pt_set);
         }
         return changed;
     }
