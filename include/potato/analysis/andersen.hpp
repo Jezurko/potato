@@ -63,10 +63,6 @@ struct aa_lattice : mlir_dense_abstract_lattice {
         return pointee_set::make_top();
     }
 
-    static auto pointee_union(pointee_set &trg, const pointee_set &src) {
-        return trg.join(src);
-    }
-
     auto join_empty(mlir_value val) {
         auto set = pointee_set();
         auto inserted = pt_relation->insert({{val}, set});
