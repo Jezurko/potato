@@ -354,6 +354,17 @@ namespace potato::analysis::trad {
     }
 
     void llvm_andersen::visitOperation(mlir::Operation *op, const aa_lattice &before, aa_lattice *after) {
+        // Add dependencies to propagate changes
+        for (auto arg : op->getOperands()) {
+            aa_lattice *arg_state;
+            if (auto def_op = arg.getDefiningOp()) {
+                arg_state = getOrCreate< aa_lattice >(arg.getDefiningOp());
+            } else {
+                arg_state = getOrCreate< aa_lattice >(arg.getParentBlock());
+            }
+            arg_state->addDependency(after->getPoint(), this);
+        }
+
         return llvm::TypeSwitch< mlir::Operation *, void >(op)
             .Case< mllvm::AllocaOp,
                    mlir::BranchOpInterface,
