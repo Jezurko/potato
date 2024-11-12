@@ -10,153 +10,6 @@ POTATO_UNRELAX_WARNINGS
 
 namespace potato::analysis::trad {
 
-    unsigned int llaa_lattice::mem_loc_count = 0;
-
-    unsigned int llaa_lattice::alloc_count() { return mem_loc_count++; }
-
-    llvm::StringRef llaa_lattice::get_alloc_name() {
-        if (!alloc_name)
-            alloc_name = "mem_alloc" + std::to_string(alloc_count());
-        return alloc_name.value();
-    }
-
-    change_result llaa_lattice::join(const mlir::dataflow::AbstractDenseLattice &rhs) {
-        change_result res = change_result::NoChange;
-        for (const auto &[key, rhs_value] : static_cast< const llaa_lattice *>(&rhs)->pt_relation) {
-            auto &lhs_value = pt_relation[key];
-            res |= lhs_value.join(rhs_value);
-        }
-        return res;
-    }
-
-    change_result llaa_lattice::meet(const mlir::dataflow::AbstractDenseLattice &rhs) {
-        change_result res = change_result::NoChange;
-        for (const auto &[key, rhs_value] : static_cast< const llaa_lattice *>(&rhs)->pt_relation) {
-            // non-existent entry would be considered top, so creating a new entry
-            // and intersecting it will create the correct value
-            auto &lhs_value = pt_relation[key];
-            res |= lhs_value.meet(rhs_value);
-        }
-        return res;
-    }
-
-    const llaa_lattice::set_t * llaa_lattice::lookup(const pt_element &val) const {
-        auto it = pt_relation.find(val);
-        if (it == pt_relation.end())
-            return nullptr;
-        return &it->second;
-    }
-
-    const llaa_lattice::set_t * llaa_lattice::lookup(const mlir_value &val) const {
-        return lookup(pt_element(val));
-    }
-
-    llaa_lattice::set_t * llaa_lattice::lookup(const pt_element &val) {
-        auto it = pt_relation.find(val);
-        if (it == pt_relation.end())
-            return nullptr;
-        return &it->second;
-    }
-
-    llaa_lattice::set_t * llaa_lattice::lookup(const mlir_value &val) {
-        return lookup(pt_element(val));
-    }
-
-    std::pair< llaa_lattice::relation_t::iterator, bool > llaa_lattice::new_var(mlir_value val) {
-        auto set = set_t();
-        set.insert({get_alloc_name()});
-        return pt_relation.insert({{val}, set});
-    }
-
-    std::pair< llaa_lattice::relation_t::iterator, bool > llaa_lattice::new_var(
-            mlir_value val,
-            const set_t &pt_set
-    ) {
-        return pt_relation.insert({{val}, pt_set});
-    }
-
-    std::pair< llaa_lattice::relation_t::iterator, bool > llaa_lattice::new_var(mlir_value var, mlir_value pointee) {
-        llaa_lattice::set_t set{};
-        auto pointee_it = pt_relation.find({pointee});
-        if (pointee_it == pt_relation.end()) {
-            set.insert({get_alloc_name()});
-        } else {
-            set.insert(pointee_it->first);
-        }
-        return new_var(var, set);
-    }
-
-    change_result llaa_lattice::join_var(mlir_value val, set_t &&set) {
-        auto val_pt  = pt_relation.find({val});
-        if (val_pt == pt_relation.end()) {
-            return set_var(val, set);
-        }
-        return val_pt->second.join(set);
-    }
-
-    change_result llaa_lattice::join_var(mlir_value val, const set_t &set) {
-        auto val_pt  = pt_relation.find({val});
-        if (val_pt == pt_relation.end()) {
-            return set_var(val, set);
-        }
-        return val_pt->second.join(set);
-    }
-
-    change_result llaa_lattice::set_var(mlir_value val, const set_t &pt_set) {
-        auto [var, inserted] = new_var(val, pt_set);
-        if (inserted) {
-            return change_result::Change;
-        }
-        auto &var_pt_set = var->second;
-        if (var_pt_set != pt_set) {
-            var_pt_set = {pt_set};
-            return change_result::Change;
-        }
-        return change_result::NoChange;
-    }
-
-    change_result llaa_lattice::set_var(mlir_value val, mlir_value pointee) {
-        auto [var, inserted] = new_var(val, pointee);
-        if (inserted) {
-            return change_result::Change;
-        } else {
-            auto &var_pt_set = var->second;
-            auto [var, inserted] = new_var(pointee, llaa_lattice::set_t());
-            auto cmp_set = llaa_lattice::set_t();
-            cmp_set.insert(var->first);
-            if (var_pt_set != cmp_set) {
-                var_pt_set = {cmp_set};
-                return change_result::Change;
-            }
-        }
-        return change_result::NoChange;
-    }
-
-    change_result llaa_lattice::set_var(pt_element elem, const set_t &set) {
-        auto [var, inserted] = pt_relation.insert({elem, set});
-        if (inserted)
-            return change_result::Change;
-        if (var->second != set) {
-            var->second = set;
-            return change_result::Change;
-        }
-        return change_result::NoChange;
-    }
-
-    change_result llaa_lattice::set_all_unknown() {
-        auto changed = change_result::NoChange;
-        for (auto &[_, pt_set] : pt_relation) {
-            changed |= pt_set.set_top();
-        }
-        return changed;
-    }
-
-    void llaa_lattice::print(llvm::raw_ostream &os) const {
-        for (const auto &[key, vals] : pt_relation) {
-            os << key << " -> " << vals;
-        }
-    }
-
     void llvm_andersen::visit_op(mllvm::AllocaOp &op, const aa_lattice &before, aa_lattice *after) {
         auto changed = after->join(before);
         if (after->new_var(op.getResult()).second)
@@ -211,7 +64,7 @@ namespace potato::analysis::trad {
             return propagateIfChanged(after, changed);
         }
         if (rhs_pt->is_top()) {
-            changed |= after->set_var(op.getResult(), llaa_lattice::set_t::make_top());
+            changed |= after->set_var(op.getResult(), aa_lattice::new_top_set());
             return propagateIfChanged(after, changed);
         }
         std::vector< decltype(before.lookup(typename aa_lattice::elem_t())) > to_join;
@@ -493,6 +346,6 @@ namespace potato::analysis::trad {
 
     void print_analysis_result(mlir::DataFlowSolver &solver, mlir_operation *op, llvm::raw_ostream &os)
     {
-        potato::util::print_analysis_result< llaa_lattice >(solver, op, os);
+        potato::util::print_analysis_result< aa_lattice >(solver, op, os);
     }
 } // namespace potato::trad::analysis
