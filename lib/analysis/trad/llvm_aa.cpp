@@ -157,181 +157,190 @@ namespace potato::analysis::trad {
         }
     }
 
-    void llvm_andersen::visit_op(mllvm::AllocaOp &op, const llaa_lattice &before, llaa_lattice *after) {
+    void llvm_andersen::visit_op(mllvm::AllocaOp &op, const aa_lattice &before, aa_lattice *after) {
         auto changed = after->join(before);
         if (after->new_var(op.getResult()).second)
             changed |= change_result::Change;
         propagateIfChanged(after, changed);
     }
 
-    void llvm_andersen::visit_op(mllvm::StoreOp &op, const llaa_lattice &before, llaa_lattice *after) {
+    void llvm_andersen::visit_op(mllvm::StoreOp &op, const aa_lattice &before, aa_lattice *after) {
         auto changed = after->join(before);
 
-        auto &addr_pt = after->pt_relation[{op.getAddr()}];
-        const auto &val = before.pt_relation.find({op.getValue()});
-        const auto &val_pt = val != before.pt_relation.end() ? val->getSecond()
-                                                             : llaa_lattice::set_t::make_top();
-
-        if (val_pt.is_bottom()) {
+        auto *addr = before.lookup(op.getAddr());
+        if (!addr) {
             return propagateIfChanged(after, changed);
         }
+        auto &addr_pt = *addr;
+
+        const auto value = before.lookup(op.getValue());
+        if (!value || value->is_bottom()) {
+            return propagateIfChanged(after, changed);;
+        }
+
+        const auto &value_pt = *value;
 
         if (addr_pt.is_top()) {
-            for (auto &[_, pt_set] : after->pt_relation) {
-                changed |= pt_set.join(val_pt);
+            for (auto &[_, pt_set] : *after->pt_relation) {
+                changed |= pt_set.join(value_pt);
             }
             return propagateIfChanged(after, changed);
         }
 
-        for (const auto &addr_val : addr_pt.set) {
-            auto insert_point = after->lookup(addr_val);
-            if (!insert_point)
-                continue;
-            changed |= insert_point->join(val_pt);
-        };
+        std::vector< const typename aa_lattice::elem_t * > to_update;
+        for (auto &addr_val : addr_pt.get_set_ref()) {
+            to_update.push_back(&addr_val);
+        }
 
-        propagateIfChanged(after, changed);
+        for (auto &key : to_update) {
+            changed |= after->join_var(*key, value_pt);
+        }
+
+        auto addr_state = this->getOrCreate< aa_lattice >(op.getAddr());
+        propagateIfChanged(addr_state, changed);
+
+        return propagateIfChanged(after, changed);
     }
 
-    void llvm_andersen::visit_op(mllvm::LoadOp &op, const llaa_lattice &before, llaa_lattice *after) {
+    void llvm_andersen::visit_op(mllvm::LoadOp &op, const aa_lattice &before, aa_lattice *after) {
         auto changed = after->join(before);
 
-        const auto rhs_pt_it = before.pt_relation.find({op.getAddr()});
-        if (rhs_pt_it == before.pt_relation.end() || rhs_pt_it->second.is_top()) {
+        const auto rhs_pt = before.lookup(op.getAddr());
+        if (!rhs_pt || rhs_pt->is_bottom()) {
+            // we don't know yet - bail out
+            return propagateIfChanged(after, changed);
+        }
+        if (rhs_pt->is_top()) {
             changed |= after->set_var(op.getResult(), llaa_lattice::set_t::make_top());
             return propagateIfChanged(after, changed);
         }
-        const auto rhs_pt = rhs_pt_it->second;
-        auto pointees = llaa_lattice::set_t();
-        for (const auto &rhs_val : rhs_pt_it->second.get_set_ref()) {
-            auto rhs_it = before.pt_relation.find(rhs_val);
-            if (rhs_it != before.pt_relation.end()) {
-                std::ignore = pointees.join(rhs_it->second);
+        std::vector< decltype(before.lookup(typename aa_lattice::elem_t())) > to_join;
+        for (const auto &rhs_val : rhs_pt->get_set_ref()) {
+            auto rhs_pt = before.lookup(rhs_val);
+            if (rhs_pt) {
+                to_join.push_back(rhs_pt);
             } else {
-                std::ignore = pointees.join(llaa_lattice::set_t::make_top());
-                break;
             }
         }
-        changed |= after->set_var(op.getResult(), pointees);
+
+        if (to_join.empty()) {
+            changed |= after->join_empty(op.getResult());
+        }
+
+        for (auto *join : to_join) {
+            changed |= after->join_var(op.getResult(), *join);
+        }
+
         propagateIfChanged(after, changed);
     }
 
-    void llvm_andersen::visit_op(mllvm::ConstantOp &op, const llaa_lattice &before, llaa_lattice *after) {
+    void llvm_andersen::visit_op(mllvm::ConstantOp &op, const aa_lattice &before, aa_lattice *after) {
         auto changed = after->join(before);
-        changed |= after->set_var(op.getResult(), llaa_lattice::set_t());
+        changed |= after->add_constant(op.getResult());
         propagateIfChanged(after, changed);
     }
 
-    void llvm_andersen::visit_op(mllvm::ZeroOp &op, const llaa_lattice &before, llaa_lattice *after) {
+    void llvm_andersen::visit_op(mllvm::ZeroOp &op, const aa_lattice &before, aa_lattice *after) {
         auto changed = after->join(before);
-        changed |= after->set_var(op.getResult(), llaa_lattice::set_t());
+        changed |= after->add_constant(op.getResult());
         propagateIfChanged(after, changed);
     }
 
-    void llvm_andersen::visit_op(mllvm::GEPOp &op, const llaa_lattice &before, llaa_lattice *after) {
+    void llvm_andersen::visit_op(mllvm::GEPOp &op, const aa_lattice &before, aa_lattice *after) {
         auto changed = after->join(before);
         if (op->hasAttr(op.getInboundsAttrName())) {
-            changed |= after->set_var(op.getResult(), op.getBase());
+            if (auto base_pt = before.lookup(op.getBase()))
+                changed |= after->join_var(op.getResult(), *base_pt);
         } else {
-            changed |= after->set_var(op.getResult(), llaa_lattice::set_t::make_top());
+            changed |= after->join_var(op.getResult(), aa_lattice::new_top_set());
         }
         propagateIfChanged(after, changed);
     }
 
-    void llvm_andersen::visit_op(mllvm::AddressOfOp &op, const llaa_lattice &before, llaa_lattice *after) {
+    void llvm_andersen::visit_op(mllvm::AddressOfOp &op, const aa_lattice &before, aa_lattice *after) {
         auto changed = after->join(before);
-        auto set = llaa_lattice::set_t();
-        set.insert(pt_element(op.getGlobalName().str()));
-        changed |= after->set_var(op.getResult(), set);
+        changed |= after->join_var(op.getResult(), aa_lattice::new_symbol(op.getGlobalName()));
         propagateIfChanged(after, changed);
     }
 
-    void llvm_andersen::visit_op(mllvm::SExtOp &op, const llaa_lattice &before, llaa_lattice *after) {
+    void llvm_andersen::visit_op(mllvm::SExtOp &op, const aa_lattice &before, aa_lattice *after) {
         auto changed = after->join(before);
-        auto set = llaa_lattice::set_t();
-        auto arg_pt_it = before.pt_relation.find({op.getArg()});
-        std::ignore = set.join(arg_pt_it->second);
-        changed |= after->set_var(op.getResult(), set);
+        if (auto arg_pt = before.lookup(op.getArg())) {
+            changed |= after->join_var(op.getResult(), *arg_pt);
+        }
         propagateIfChanged(after, changed);
     }
 
-    void llvm_andersen::visit_op(mllvm::GlobalOp &op, const llaa_lattice &before, llaa_lattice *after) {
+    void llvm_andersen::visit_op(mllvm::GlobalOp &op, const aa_lattice &before, aa_lattice *after) {
         auto changed = after->join(before);
-        if (auto &init = op.getInitializerRegion(); !init.empty()) {
-            auto last_op = mlir::cast< mllvm::ReturnOp >(init.back().back());
-            auto back_state = getOrCreate< llaa_lattice >(last_op.getOperation());
-            if (const auto ret_pt = back_state->lookup(last_op.getArg())) {
-                changed |= after->set_var(pt_element(op.getSymName().str()), *ret_pt);
+        auto &init = op.getInitializer();
+        if (!init.empty()) {
+            auto *ret_op = &init.back().back();
+            if (ret_op->hasTrait< mlir::OpTrait::ReturnLike >()) {
+                auto ret_state = this->template getOrCreate< aa_lattice >(ret_op);
+                ret_state->addDependency(after->getPoint(), this);
+                propagateIfChanged(ret_state, ret_state->join(before));
+                for (auto ret_arg : ret_op->getOperands()) {
+                    auto *arg_pt = ret_state->lookup(ret_arg);
+                    if (arg_pt) {
+                        changed |= after->join_var(aa_lattice::new_symbol(op.getName()), *arg_pt);
+                    }
+                }
                 return propagateIfChanged(after, changed);
             }
         }
-        changed |= after->set_var(
-                              pt_element(op.getSymName().str()),
-                              llaa_lattice::set_t::make_top()
-                          );
+        changed |= after->join_var(aa_lattice::new_symbol(op.getName()), aa_lattice::new_top_set());
         propagateIfChanged(after, changed);
     }
 
-    void llvm_andersen::visit_op(mllvm::MemcpyOp &op, const llaa_lattice &before, llaa_lattice *after) {
+    void llvm_andersen::visit_op(mllvm::MemcpyOp &op, const aa_lattice &before, aa_lattice *after) {
         auto changed = after->join(before);
-        auto dst_pt = after->lookup(op.getDst());
-        auto src_pt = after->lookup(op.getSrc());
-        if (!dst_pt || !src_pt) {
-            changed |= after->join_var(op.getDst(), llaa_lattice::set_t::make_top());
-        } else {
+        if (auto src_pt = after->lookup(op.getSrc())) {
             changed |= after->join_var(op.getDst(), *src_pt);
         }
         propagateIfChanged(after, changed);
     }
 
-    void llvm_andersen::visit_op(mllvm::SelectOp &op, const llaa_lattice &before, llaa_lattice *after) {
-        auto changed  = after->join(before);
-        auto true_pt  = after->lookup(op.getTrueValue());
-        auto false_pt = after->lookup(op.getFalseValue());
-        if (!true_pt || !false_pt) {
-            changed |= after->set_var(op.getRes(), *true_pt);
-        } else {
-            changed |= after->set_var(op.getRes(), *true_pt);
+    void llvm_andersen::visit_op(mllvm::SelectOp &op, const aa_lattice &before, aa_lattice *after) {
+        auto changed = after->join(before);
+        if (auto true_pt = before.lookup(op.getTrueValue())) {
+            changed |= after->join_var(op.getRes(), *true_pt);
+        }
+        if (auto false_pt = before.lookup(op.getTrueValue())) {
             changed |= after->join_var(op.getRes(), *false_pt);
         }
         propagateIfChanged(after, changed);
     }
 
-    void llvm_andersen::visit_op(mlir::BranchOpInterface &op, const llaa_lattice &before, llaa_lattice *after) {
+    void llvm_andersen::visit_op(mlir::BranchOpInterface &op, const aa_lattice &before, aa_lattice *after) {
         auto changed = after->join(before);
 
         for (const auto &[i, successor] : llvm::enumerate(op->getSuccessors())) {
-            auto changed_succ = change_result::NoChange;
-            auto succ_state = this->template getOrCreate< llaa_lattice >(successor);
             for (const auto &[pred_op, succ_arg] :
-                llvm::zip_equal(op.getSuccessorOperands(i).getForwardedOperands(), successor->getArguments())
-            ) {
-                auto operand_pt = after->pt_relation.find({pred_op});
-                changed_succ |= after->join_var(succ_arg, operand_pt->second);
+                llvm::zip_equal(op.getSuccessorOperands(i).getForwardedOperands(), successor->getArguments())) {
+                    auto operand_pt = after->lookup(pred_op);
+                    if (!operand_pt) {
+                        continue;
+                    }
+                    changed |= after->join_var(succ_arg, *operand_pt);
             }
-            propagateIfChanged(succ_state, changed_succ);
         }
-
         propagateIfChanged(after, changed);
     }
 
-    void llvm_andersen::visit_cmp(mlir::Operation *op, const llaa_lattice &before, llaa_lattice *after) {
+    void llvm_andersen::visit_cmp(mlir::Operation *op, const aa_lattice &before, aa_lattice *after) {
         auto changed = after->join(before);
-        changed |= after->set_var(op->getResult(0), llaa_lattice::set_t());
+        changed |= after->add_constant(op->getResult(0));
         propagateIfChanged(after, changed);
     }
 
-    void llvm_andersen::visit_arith(mlir::Operation *op, const llaa_lattice &before, llaa_lattice *after) {
+    void llvm_andersen::visit_arith(mlir::Operation *op, const aa_lattice &before, aa_lattice *after) {
         auto changed = after->join(before);
         for (auto operand : op->getOperands()) {
-            auto operand_it = before.pt_relation.find({operand});
-            if (operand_it != before.pt_relation.end()) {
-                if (!operand_it->second.is_bottom()) {
-                    changed |= after->set_var(op->getResult(0), llaa_lattice::set_t::make_top());
-                }
+            if (auto operand_it = before.lookup(operand)) {
+                changed |= after->join_var(op->getResult(0), *operand_it);
             }
         }
-        changed |= after->set_var(op->getResult(0), llaa_lattice::set_t());
         propagateIfChanged(after, changed);
     }
 
@@ -344,15 +353,7 @@ namespace potato::analysis::trad {
         return returns;
     }
 
-    std::vector< const llaa_lattice * > llvm_andersen::get_or_create_for(mlir::Operation * dep, const std::vector< mlir::Operation * > &ops) {
-        std::vector< const llaa_lattice * > states;
-        for (const auto &op : ops) {
-            states.push_back(this->template getOrCreateFor< llaa_lattice >(dep, op));
-        }
-        return states;
-    }
-
-    void llvm_andersen::visitOperation(mlir::Operation *op, const llaa_lattice &before, llaa_lattice *after) {
+    void llvm_andersen::visitOperation(mlir::Operation *op, const aa_lattice &before, aa_lattice *after) {
         return llvm::TypeSwitch< mlir::Operation *, void >(op)
             .Case< mllvm::AllocaOp,
                    mlir::BranchOpInterface,
@@ -396,12 +397,14 @@ namespace potato::analysis::trad {
 
     void llvm_andersen::visitCallControlFlowTransfer(mlir::CallOpInterface call,
                                       mlir::dataflow::CallControlFlowAction action,
-                                      const llaa_lattice &before,
-                                      llaa_lattice *after) {
-        auto changed = after->join(before);
-        auto callee  = call.resolveCallable();
-        auto func    = mlir::dyn_cast< mlir::FunctionOpInterface >(callee);
+                                      const aa_lattice &before,
+                                      aa_lattice *after) {
+        auto changed     = after->join(before);
+        auto callee      = call.resolveCallable();
 
+        // - `action == CallControlFlowAction::Enter` indicates that:
+        //   - `before` is the state before the call operation;
+        //   - `after` is the state at the beginning of the callee entry block;
         if (action == call_cf_action::EnterCallee) {
             auto &callee_entry = callee->getRegion(0).front();
             auto callee_args   = callee_entry.getArguments();
@@ -409,63 +412,40 @@ namespace potato::analysis::trad {
             for (const auto &[callee_arg, caller_arg] :
                  llvm::zip_equal(callee_args, call.getArgOperands()))
             {
-                const auto &caller_pt_set = *before.lookup(caller_arg);
-                changed |= after->join_var(callee_arg, caller_pt_set);
+                auto arg_pt = after->lookup(caller_arg);
+                changed |= after->join_var(callee_arg, *arg_pt);
             }
+
             return propagateIfChanged(after, changed);
         }
 
+        // - `action == CallControlFlowAction::Exit` indicates that:
+        //   - `before` is the state at the end of a callee exit block;
+        //   - `after` is the state after the call operation.
         if (action == call_cf_action::ExitCallee) {
-            if (!func) {
-                changed |= after->set_all_unknown();
-                for (auto result : call->getResults()) {
-                    changed |= after->set_var(result, llaa_lattice::set_t::make_top());
-                }
-                return propagateIfChanged(after, changed);
+            auto &callee_entry = callee->getRegion(0).front();
+            auto callee_args   = callee_entry.getArguments();
+
+            for (const auto &[callee_arg, caller_arg] :
+                 llvm::zip_equal(callee_args, call.getArgOperands()))
+            {
+                if (auto arg_pt = after->lookup(caller_arg))
+                    changed |= after->join_var(callee_arg, *arg_pt);
             }
+            propagateIfChanged(this->template getOrCreate< aa_lattice >(&callee_entry), changed);
 
-            // Join current state to the start of callee to propagate global variables
-            // TODO: explore if we can do this more efficient (maybe not join the whole state?)
-            if (auto &fn_body = func.getFunctionBody(); !fn_body.empty()) {
-                llaa_lattice *callee_state = this->template getOrCreate< llaa_lattice >(&*fn_body.begin());
-                this->addDependency(callee_state, before.getPoint());
-                propagateIfChanged(callee_state, callee_state->join(before));
-            }
-
-            // Collect states in return statements
-            std::vector< mlir::Operation * >  returns         = get_function_returns(func);
-            std::vector< const llaa_lattice * > return_states = get_or_create_for(call, returns);
-
-            for (const auto &arg : callee->getRegion(0).front().getArguments()) {
-                // TODO: Explore call-site sensitivity by having a specific representation for the arguments?
-                // If arg at the start points to TOP, then we know nothing
-                auto start_state = this->template getOrCreate< llaa_lattice >(&*func.getFunctionBody().begin());
-                auto arg_pt = start_state->lookup(arg);
-                if (!arg_pt || arg_pt->is_top()) {
-                    changed |= after->set_all_unknown();
-                    break;
-                }
-
-                // go through returns and analyze arg pts, join into call operand pt
-                for (auto state : return_states) {
-                    auto arg_at_ret = state->lookup(arg);
-                    if (arg_at_ret)
-                        changed |= after->join_var(call->getOperand(arg.getArgNumber()), *arg_at_ret);
-                    else
-                        changed |= after->join_var(call->getOperand(arg.getArgNumber()), llaa_lattice::set_t::make_top());
+            // Manage the callee exit
+            if (auto before_exit = mlir::dyn_cast< mlir::Operation * >(before.getPoint());
+                     before_exit && before_exit->template hasTrait< mlir::OpTrait::ReturnLike>()
+            ) {
+                for (size_t i = 0; i < call->getNumResults(); i++) {
+                    auto res_arg = before_exit->getOperand(i);
+                    if (auto res_pt = after->lookup(res_arg)) {
+                        changed |= after->join_var(call->getResult(i), *res_pt);
+                    }
                 }
             }
 
-            for (size_t i = 0; i < call->getNumResults(); ++i) {
-                auto returns_pt = llaa_lattice::set_t();
-                for (const auto &[state, ret] : llvm::zip_equal(return_states, returns)) {
-                    auto res_pt = state->lookup(ret->getOperand(i));
-                    // TODO: Check this: if the result wasn't found, it means that it is unreachable
-                    if (res_pt)
-                        std::ignore = returns_pt.join(*res_pt);
-                }
-                changed |= after->join_var(call->getResult(i), std::move(returns_pt));
-            }
             return propagateIfChanged(after, changed);
         }
 
@@ -474,34 +454,30 @@ namespace potato::analysis::trad {
             // Try to check for "known" functions
             // Try to resolve function pointer calls? (does it happen here?)
             // Make the set of known functions a customization point?
-            for (auto result : call->getResults())
-                changed |= after->set_var(result, llaa_lattice::set_t::make_top());
-            propagateIfChanged(after, changed | after->set_all_unknown());
+            for (auto operand : call.getArgOperands()) {
+                //TODO: propagate TOP
+            }
+            for (auto result : call->getResults()) {
+                changed |= after->join_var(result, aa_lattice::new_top_set());
+            }
+            propagateIfChanged(after, changed );
         }
     }
 
-    void llvm_andersen::setToEntryState(llaa_lattice *lattice) {
-        ppoint point = lattice->getPoint();
-        auto init_state = llaa_lattice(point);
-
-        if (auto block = mlir::dyn_cast< mlir_block * >(point); block && block->isEntryBlock()) {
-            if (auto fn = mlir::dyn_cast< mlir::FunctionOpInterface >(block->getParentOp())) {
-                // setup function args
-                // we set to top - this method is called at function entries only when not all callers are known
-                for (auto &arg : fn.getArguments()) {
-                    std::ignore = init_state.set_var(arg, llaa_lattice::set_t::make_top());
-                }
-
-                //join in globals
-                auto global_scope = fn->getParentRegion();
-                for (auto op : global_scope->getOps< mlir::LLVM::GlobalOp >()) {
-                    const auto * var_state = this->template getOrCreateFor< llaa_lattice >(point, op.getOperation());
-                    std::ignore = init_state.join(*var_state);
-                }
-            }
+    void llvm_andersen::setToEntryState(aa_lattice *lattice) {
+        if (lattice->pt_relation != relation) {
+            lattice->pt_relation = relation;
+            propagateIfChanged(lattice, change_result::Change);
         }
+    }
 
-        this->propagateIfChanged(lattice, lattice->join(init_state));
+    mlir::LogicalResult llvm_andersen::initialize(mlir_operation *op) {
+        if (!relation) {
+            relation = std::make_shared< typename aa_lattice::relation_t >();
+        }
+        auto state = this->template getOrCreate< aa_lattice >(op);
+        state->pt_relation = relation;
+        return base::initialize(op);
     }
 
     void print_analysis_result(mlir::DataFlowSolver &solver, mlir_operation *op, llvm::raw_ostream &os)
