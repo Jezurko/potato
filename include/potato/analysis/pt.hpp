@@ -54,7 +54,7 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
                 for (auto ret_arg : ret_op->getOperands()) {
                     auto *arg_pt = ret_state->lookup(ret_arg);
                     if (arg_pt) {
-                        changed |= after->join_var(pt_lattice::new_symbol(op.getName()), *arg_pt);
+                        changed |= after->join_var(pt_lattice::new_symbol(op.getName()), arg_pt);
                     }
                 }
                 return changed;
@@ -78,12 +78,10 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
             return changed;
         }
 
-        const auto &rhs_pt = *rhs;
-
         if (lhs_pt.is_top()) {
             // TODO: do not access the relation by name
             for (auto &[_, pt_set] : *after->pt_relation) {
-                changed |= pt_set.join(rhs_pt);
+                changed |= pt_set.join(*rhs);
             }
             return changed;
         }
@@ -94,7 +92,7 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
         }
         // This has to be done so that we don't change the set we are iterating over under our hands
         for (auto &key : to_update) {
-            changed |= after->join_var(*key, rhs_pt);
+            changed |= after->join_var(*key, rhs);
         }
 
         // if we have written to a value, accessors of this value should know about the change
@@ -128,7 +126,7 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
             return changed;
         }
         if (rhs_pt->is_top()) {
-            changed |= after->join_var(op.getResult(), *rhs_pt);
+            changed |= after->join_var(op.getResult(), rhs_pt);
             return changed;
         }
 
@@ -145,7 +143,7 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
         }
 
         for (auto *join : to_join) {
-            changed |= after->join_var(op.getResult(), *join);
+            changed |= after->join_var(op.getResult(), join);
         }
 
         return changed;
@@ -180,7 +178,7 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
             auto operand_pt = before.lookup(operand);
             if (operand_pt) {
                 for (auto res : op.getResults()) {
-                    changed |= after->join_var(res, *operand_pt);
+                    changed |= after->join_var(res, operand_pt);
                 }
             }
         }
@@ -197,7 +195,7 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
                     if (!operand_pt) {
                         continue;
                     }
-                    changed |= after->join_var(succ_arg, *operand_pt);
+                    changed |= after->join_var(succ_arg, operand_pt);
             }
         }
         propagateIfChanged(after, changed);
@@ -245,7 +243,7 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
                  llvm::zip_equal(callee_args, call.getArgOperands()))
             {
                 auto arg_pt = after->lookup(caller_arg);
-                changed |= after->join_var(callee_arg, *arg_pt);
+                changed |= after->join_var(callee_arg, arg_pt);
             }
 
             return propagateIfChanged(after, changed);
@@ -262,7 +260,7 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
                  llvm::zip_equal(callee_args, call.getArgOperands()))
             {
                 if (auto arg_pt = after->lookup(caller_arg))
-                    changed |= after->join_var(callee_arg, *arg_pt);
+                    changed |= after->join_var(callee_arg, arg_pt);
             }
             propagateIfChanged(this->template getOrCreate< pt_lattice >(&callee_entry), changed);
 
@@ -273,7 +271,7 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
                 for (size_t i = 0; i < call->getNumResults(); i++) {
                     auto res_arg = before_exit->getOperand(i);
                     if (auto res_pt = after->lookup(res_arg)) {
-                        changed |= after->join_var(call->getResult(i), *res_pt);
+                        changed |= after->join_var(call->getResult(i), res_pt);
                     }
                 }
             }
