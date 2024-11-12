@@ -142,7 +142,11 @@ struct aa_lattice : mlir_dense_abstract_lattice {
     }
 
     change_result join_var(mlir_value val, mlir_value trg) {
-        return join_var(val, pointee_set({trg}));
+        auto val_pt  = lookup(val);
+        if (!val_pt) {
+            return set_var(val, pointee_set({trg}));
+        }
+        return val_pt->join(pointee_set({trg}));
     }
 
     change_result join_var(mlir_value val, const pointee_set &set) {
@@ -159,6 +163,22 @@ struct aa_lattice : mlir_dense_abstract_lattice {
             return set_var(elem, set);
         }
         return val_pt->join(set);
+    }
+
+    change_result join_var(mlir_value val, const pointee_set *set) {
+        auto val_pt  = lookup(val);
+        if (!val_pt) {
+            return set_var(val, *set);
+        }
+        return val_pt->join(*set);
+    }
+
+    change_result join_var(pt_element elem, const pointee_set *set) {
+        auto val_pt  = lookup(elem);
+        if (!val_pt) {
+            return set_var(elem, *set);
+        }
+        return val_pt->join(*set);
     }
 
     change_result set_all_unknown() {
