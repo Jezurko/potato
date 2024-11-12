@@ -8,8 +8,6 @@ POTATO_RELAX_WARNINGS
 POTATO_UNRELAX_WARNINGS
 
 #include "potato/analysis/andersen.hpp"
-#include "potato/analysis/lattice.hpp"
-#include "potato/analysis/utils.hpp"
 
 #include <memory>
 
@@ -17,38 +15,6 @@ POTATO_UNRELAX_WARNINGS
 // It's main purpose is to be used for quick testing (or comparsion)
 
 namespace potato::analysis::trad {
-
-struct llaa_lattice : mlir::dataflow::AbstractDenseLattice {
-
-    using mlir::dataflow::AbstractDenseLattice::AbstractDenseLattice;
-
-    using relation_t = pt_map< pt_element, lattice_set >;
-    using set_t = lattice_set< pt_element >;
-    relation_t pt_relation;
-
-    static unsigned int mem_loc_count;
-    unsigned int alloc_count();
-
-    std::optional< std::string > alloc_name = {};
-    llvm::StringRef get_alloc_name();
-
-    change_result join(const mlir::dataflow::AbstractDenseLattice &rhs) override;
-    change_result meet(const mlir::dataflow::AbstractDenseLattice &rhs) override;
-    const set_t * lookup(const pt_element &val) const;
-    const set_t * lookup(const mlir_value &val) const;
-    set_t * lookup(const pt_element &val);
-    set_t * lookup(const mlir_value &val);
-    std::pair< relation_t::iterator, bool > new_var(mlir_value var);
-    std::pair< relation_t::iterator, bool > new_var(mlir_value, const set_t &pt_set);
-    std::pair< relation_t::iterator, bool > new_var(mlir_value var, mlir_value pointee);
-    change_result join_var(mlir_value val, set_t &&set);
-    change_result join_var(mlir_value val, const set_t &set);
-    change_result set_var(mlir_value val, const set_t &pt_set);
-    change_result set_var(mlir_value val, mlir_value pointee);
-    change_result set_var(pt_element elem, const set_t &set);
-    change_result set_all_unknown();
-    void print(llvm::raw_ostream &os) const override;
-};
 
 namespace {
     namespace mllvm = mlir::LLVM;
