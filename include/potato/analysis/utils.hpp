@@ -7,11 +7,13 @@ POTATO_RELAX_WARNINGS
 #include <llvm/ADT/DenseSet.h>
 #include <llvm/ADT/Hashing.h>
 #include "llvm/ADT/DenseMapInfoVariant.h"
+#include <llvm/ADT/StringRef.h>
+
+#include <mlir/IR/Value.h>
 POTATO_UNRELAX_WARNINGS
 
 #include "potato/util/common.hpp"
 
-#include <string>
 #include <variant>
 
 namespace potato::util {
@@ -47,6 +49,26 @@ namespace potato::analysis {
     }
 } // namespace potato::analysis
 
+template<>
+struct std::hash< mlir_value > {
+    std::size_t operator() (const mlir_value &value) const {
+        return mlir::hash_value(value);
+    }
+};
+
+template<>
+struct std::hash< llvm::StringRef > {
+    std::size_t operator() (const llvm::StringRef &value) const {
+        return llvm::hash_value(value);
+    }
+};
+
+template <>
+struct std::hash< potato::analysis::pt_element > {
+    std::size_t operator() (const potato::analysis::pt_element &value) const {
+        return std::hash< std::variant< mlir_value, llvm::StringRef > >{}(value.id);
+    }
+};
 
 namespace llvm {
     using potato::analysis::pt_element;
