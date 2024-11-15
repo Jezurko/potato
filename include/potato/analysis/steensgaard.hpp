@@ -121,6 +121,9 @@ namespace potato::analysis {
 
         public:
 
+        bool initialized() const { return (bool) info; }
+        void initialize_with(std::shared_ptr< relation_t > &relation) { info = relation; }
+
         static unsigned int mem_loc_count;
         unsigned int alloc_count();
 
