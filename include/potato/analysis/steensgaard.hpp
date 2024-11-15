@@ -7,7 +7,32 @@
 
 #include <memory>
 #include <unordered_map>
+#include <unordered_set>
 #include <string>
+
+namespace potato::analysis {
+    struct stg_elem {
+        std::optional< pt_element > elem;
+
+        stg_elem(const llvm::StringRef name) : elem(pt_element(name)) {}
+        stg_elem(mlir_value val)             : elem(pt_element(val)) {}
+        stg_elem() : elem(std::nullopt) {}
+
+        bool operator==(const stg_elem &rhs) const = default;
+
+        bool is_unknown() {
+            return !elem.has_value();
+        }
+    };
+
+} // namespace potato::analysis
+
+template <>
+struct std::hash< potato::analysis::stg_elem > {
+    std::size_t operator() (const potato::analysis::stg_elem &value) const {
+        return std::hash< std::optional< potato::analysis::pt_element > >{}(value.elem);
+    }
+};
 
 namespace potato::analysis {
     namespace detail {
@@ -16,7 +41,7 @@ namespace potato::analysis {
             std::unordered_map< T, T > parents;
             std::unordered_map< T, size_t > rank;
 
-            std::unordered_map< T, std::set< T > > children;
+            std::unordered_map< T, std::unordered_set< T > > children;
 
             bool insert(const T& elem) {
                 if (parents.find(elem) == parents.end()) {
@@ -71,20 +96,6 @@ namespace potato::analysis {
         };
     } // namespace detail
 
-    struct stg_elem {
-        std::optional< pt_element > elem;
-
-        stg_elem(const llvm::StringRef name) : elem(pt_element(name)) {}
-        stg_elem(mlir_value val)             : elem(pt_element(val)) {}
-        stg_elem() : elem(std::nullopt) {}
-
-        bool operator==(const stg_elem &rhs) const = default;
-
-        bool is_unknown() {
-            return !elem.has_value();
-        }
-    };
-
     template< typename elem_t >
     struct steensgaard_info {
         detail::union_find< elem_t > sets;
@@ -100,12 +111,15 @@ namespace potato::analysis {
     struct steensgaard : mlir_dense_abstract_lattice {
         using mlir_dense_abstract_lattice::AbstractDenseLattice;
         using elem_t = stg_elem;
-        std::shared_ptr< steensgaard_info< elem_t > > info;
+        using relation_t = steensgaard_info< elem_t >;
+        std::shared_ptr< relation_t > info;
 
         private:
         auto &mapping() const { return info->mapping; }
         auto &sets() const { return info->sets; }
         auto &all_unknown() const { return info->all_unknown; }
+
+        public:
 
         static unsigned int mem_loc_count;
         unsigned int alloc_count();
