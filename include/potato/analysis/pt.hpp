@@ -71,6 +71,7 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
         if (!lhs) {
             return changed;
         }
+
         const auto rhs = after->lookup(op.getRhs());
         if (!rhs) {
             return changed;
@@ -98,7 +99,7 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
         auto changed = after->join(before);
 
         for (auto operand : op.getOperands()) {
-            auto operand_pt = before.lookup(operand);
+            auto operand_pt = after->lookup(operand);
             if (operand_pt) {
                 changed |= after->join_var(op.getResult(), *operand_pt);
             }
@@ -148,7 +149,7 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
         auto changed = after->join(before);
 
         for (auto operand : op.getOperands()) {
-            auto operand_pt = before.lookup(operand);
+            auto operand_pt = after->lookup(operand);
             if (operand_pt) {
                 for (auto res : op.getResults()) {
                     changed |= after->join_var(res, operand_pt);
