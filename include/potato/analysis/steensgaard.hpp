@@ -249,14 +249,9 @@ namespace potato::analysis {
             }
             return change_result::NoChange;
         };
-        change_result intersect(const steensgaard &rhs);
 
         change_result join(const mlir_dense_abstract_lattice &rhs) override {
             return this->merge(*static_cast< const steensgaard *>(&rhs));
-        };
-
-        change_result meet(const mlir_dense_abstract_lattice &rhs) override {
-            return this->intersect(*static_cast< const steensgaard *>(&rhs));
         };
 
         void print(llvm::raw_ostream &os) const override;
