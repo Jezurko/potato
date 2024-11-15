@@ -219,7 +219,22 @@ namespace potato::analysis {
         // %x = alloc - %x.trg = alloc; insert(alloc)
         // assign %y to %x = union(find(x.trg), find(y))
 
-        change_result merge(const steensgaard &rhs);
+        change_result merge(const steensgaard &rhs) {
+            if (info && !rhs.info)
+                return change_result::NoChange;
+            if (info && rhs.info == info) {
+                return change_result::NoChange;
+            }
+            if (info && rhs.info) {
+                llvm::errs() << "Merging two different relations.\n";
+                //TODO
+            }
+            if (rhs.info) {
+                info = rhs.info;
+                return change_result::Change;
+            }
+            return change_result::NoChange;
+        };
         change_result intersect(const steensgaard &rhs);
 
         change_result join(const mlir_dense_abstract_lattice &rhs) override {
