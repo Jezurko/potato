@@ -24,6 +24,9 @@ struct aa_lattice : mlir_dense_abstract_lattice {
     std::optional< std::string > alloc_name = {};
     llvm::StringRef get_alloc_name();
 
+    bool initialized() const { return (bool) pt_relation; }
+    void initialize_with(std::shared_ptr< relation_t > &relation) { pt_relation = relation; }
+
     // TODO: Probably replace most of the following functions with some custom API that doesn't introduce
     //       so many random return values with iterators and stuff
 

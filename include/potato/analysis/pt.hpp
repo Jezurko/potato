@@ -277,8 +277,8 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
     //                                          ctxed_lattice *after) override;
 
     void setToEntryState(pt_lattice *lattice) override {
-        if (lattice->pt_relation != relation) {
-            lattice->pt_relation = relation;
+        if (!lattice->initialized()) {
+            lattice->initialize_with(relation);
             propagateIfChanged(lattice, change_result::Change);
         }
     }
@@ -288,7 +288,7 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
             relation = std::make_shared< typename pt_lattice::relation_t >();
         }
         auto state = this->template getOrCreate< pt_lattice >(op);
-        state->pt_relation = relation;
+        state->initialize_with(relation);
         return base::initialize(op);
     }
 
