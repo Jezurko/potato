@@ -20,6 +20,24 @@ def PointsToPass : Pass< "points-to-pass", "mlir::ModuleOp" > {
   let constructor = "potato::pt::createPointsToPass()";
 }
 
+def SteensgaardPointsToPass : Pass< "steensgaard-points-to-pass", "mlir::ModuleOp" > {
+  let summary = "Run the points to analysis.";
+  let description = [{TODO}];
+
+  let dependentDialects = [
+    "potato::pt::PotatoDialect"
+  ];
+
+  let options = [
+    Option<"print_lattice", "print_lattice", "bool", "true", "Toggle printing the whole lattice." >,
+    Option<"print_stats", "print_stats", "bool", "false", "Toggle printing of the stats for each location." >,
+    Option<"print_func_stats", "print_func_stats", "bool", "false", "Toggle printing of the stats for functions." >
+  ];
+
+  let constructor = "potato::pt::createSteensgaardPointsToPass()";
+}
+
+
 def LLVMPointsToPass : Pass< "llvm-points-to-pass", "mlir::ModuleOp" > {
   let summary = "Run the points to analysis.";
   let description = [{TODO}];
