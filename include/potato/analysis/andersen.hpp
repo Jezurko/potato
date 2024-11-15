@@ -204,7 +204,8 @@ struct aa_lattice : mlir_dense_abstract_lattice {
             pt_relation = rhs.pt_relation;
             return change_result::Change;
         }
-        return change_result::Change;
+        assert(false);
+        return change_result::NoChange;
     }
 
     change_result intersect(const aa_lattice &rhs) {
