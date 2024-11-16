@@ -1,8 +1,6 @@
 #pragma once
 
-#include "potato/analysis/lattice.hpp"
 #include "potato/analysis/utils.hpp"
-#include "potato/dialect/ops.hpp"
 #include "potato/util/common.hpp"
 
 #include <memory>
@@ -20,9 +18,11 @@ namespace potato::analysis {
 
         bool operator==(const stg_elem &rhs) const = default;
 
-        bool is_unknown() {
-            return !elem.has_value();
-        }
+        inline bool is_unknown() const { return !elem.has_value(); }
+
+        inline bool is_top() const { return is_unknown(); }
+
+        constexpr inline bool is_bottom() const { return false; }
     };
 
 } // namespace potato::analysis
