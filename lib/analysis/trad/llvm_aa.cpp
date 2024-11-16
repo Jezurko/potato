@@ -12,8 +12,7 @@ namespace potato::analysis::trad {
 
     void llvm_andersen::visit_op(mllvm::AllocaOp &op, const aa_lattice &before, aa_lattice *after) {
         auto changed = after->join(before);
-        if (after->new_var(op.getResult()).second)
-            changed |= change_result::Change;
+        changed |= after->new_alloca(op.getResult());
         propagateIfChanged(after, changed);
     }
 
