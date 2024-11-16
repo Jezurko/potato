@@ -76,10 +76,15 @@ struct aa_lattice : mlir_dense_abstract_lattice {
         return join_empty(val);
     }
 
-    auto new_var(mlir_value val) {
+    auto new_alloca(mlir_value val) {
         auto set = pointee_set();
         set.insert({get_alloc_name()});
-        return pt_relation->insert({{val}, set});
+        auto [it, inserted] = pt_relation->insert({{val}, set});
+        if (inserted)
+            return change_result::Change;
+        else
+            return join_var(val, set);
+
     }
 
     auto new_var(mlir_value var, const pointee_set& pt_set) {

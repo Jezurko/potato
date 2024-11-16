@@ -151,8 +151,7 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
 
     change_result visit_pt_op(pt::AllocOp &op, const pt_lattice &before, pt_lattice *after) {
         auto changed = after->join(before);
-        if (after->new_var(op.getResult()).second)
-            changed |= change_result::Change;
+        changed |= after->new_alloca(op.getResult());
         return changed;
     }
 
