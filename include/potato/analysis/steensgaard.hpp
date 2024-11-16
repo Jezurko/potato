@@ -60,9 +60,9 @@ namespace potato::analysis {
                 }
 
                 T found = x;
-                const T &parent = find_it->second;
+                T parent = find_it->second;
                 while (found != parent) {
-                    auto &parent_parent = parents[parent];
+                    auto parent_parent = parents[parent];
                     parents[found] = parent_parent;
                     found = parent_parent;
                 }
@@ -130,8 +130,12 @@ namespace potato::analysis {
         std::optional< std::string > alloc_name = {};
         llvm::StringRef get_alloc_name();
 
-        elem_t lookup(const elem_t &val) const {
-            return sets().find(val);
+        elem_t *lookup(const elem_t &val) const {
+            auto trg_it = mapping().find(val);
+            if (trg_it == mapping().end())
+                return nullptr;
+            return &trg_it->second;
+
         }
 
         static auto new_symbol(const llvm::StringRef name) {
