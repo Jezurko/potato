@@ -147,13 +147,16 @@ namespace potato::analysis {
             return elem_t();
         }
 
-        auto join_empty(mlir_value val) {
-            sets().insert(val);
+        auto new_alloca(mlir_value val) {
+            auto alloca = elem_t(get_alloc_name());
+            return join_var(val, alloca);
         }
 
-        auto add_constant(mlir_value val) {
-            return join_empty(val);
+        auto join_empty(mlir_value val) {
+            return sets().insert(val) ? change_result::Change : change_result::NoChange;
         }
+
+        auto add_constant(mlir_value val) { return join_empty(val); }
 
         change_result make_union(elem_t lhs, elem_t rhs) {
             auto lhs_root = sets().find(lhs);
@@ -220,6 +223,10 @@ namespace potato::analysis {
                 return change_result::Change;
             }
             return make_union(ptr_trg->second, new_trg_rep);
+        }
+
+        change_result join_var(const elem_t &ptr, const elem_t *new_trg) {
+            return join_var(ptr, *new_trg);
         }
 
         change_result set_all_unknown() {
