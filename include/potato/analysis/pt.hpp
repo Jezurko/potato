@@ -79,11 +79,8 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
         }
 
         if (lhs_pt.is_top()) {
-            // TODO: do not access the relation by name
-            for (auto &[_, pt_set] : *after->pt_relation) {
-                changed |= pt_set.join(*rhs);
-            }
-            return changed;
+            // all pointers may alias, because they contain rhs
+            return after->set_all_unknown();
         }
 
         std::vector< const typename pt_lattice::elem_t * > to_update;
