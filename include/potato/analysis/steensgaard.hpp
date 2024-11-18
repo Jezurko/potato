@@ -164,12 +164,11 @@ namespace potato::analysis {
         std::shared_ptr< relation_t > info;
 
         private:
-        auto &mapping() const { return info->mapping; }
-        auto &sets() const { return info->sets; }
-        auto &all_unknown() const { return info->all_unknown; }
+        inline auto &mapping() const { return info->mapping; }
+        inline auto &sets() const { return info->sets; }
+        inline auto &all_unknown() const { return info->all_unknown; }
 
         public:
-
         bool initialized() const { return (bool) info; }
         void initialize_with(std::shared_ptr< relation_t > &relation) { info = relation; }
 
