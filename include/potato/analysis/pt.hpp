@@ -67,36 +67,29 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
     change_result visit_pt_op(pt::AssignOp &op, const pt_lattice &before, pt_lattice *after) {
         auto changed = after->join(before);
 
-        auto lhs = before.lookup(op.getLhs());
+        auto lhs = after->lookup(op.getLhs());
         if (!lhs) {
             return changed;
         }
-        const auto &lhs_pt = *lhs;
-
-        const auto rhs = before.lookup(op.getRhs());
-        if (!rhs || rhs->is_bottom()) {
+        const auto rhs = after->lookup(op.getRhs());
+        if (!rhs) {
             return changed;
         }
 
-        if (lhs_pt.is_top()) {
+        if (lhs->is_top()) {
             // all pointers may alias, because they contain rhs
             return after->set_all_unknown();
         }
 
-        std::vector< const typename pt_lattice::elem_t * > to_update;
-        for (auto &lhs_val : lhs_pt.get_set_ref()) {
-            to_update.push_back(&lhs_val);
-        }
-        // This has to be done so that we don't change the set we are iterating over under our hands
-        for (auto &key : to_update) {
-            changed |= after->join_var(*key, rhs);
-        }
+        changed |= after->join_all_pointees_with(lhs, rhs);
 
         // if we have written to a value, accessors of this value should know about the change
         // this is necessary for e.g. dereference
         // TODO: consider moving this into a special method
-        auto lhs_state = this->template getOrCreate< pt_lattice >(op.getLhs().getDefiningOp());
-        propagateIfChanged(lhs_state, changed);
+        if constexpr (pt_lattice::propagate_assign()) {
+            auto lhs_state = this->template getOrCreate< pt_lattice >(op.getLhs().getDefiningOp());
+            propagateIfChanged(lhs_state, changed);
+        }
 
         return changed;
     };
@@ -117,31 +110,15 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
     change_result visit_pt_op(pt::DereferenceOp &op, const pt_lattice &before, pt_lattice *after) {
         auto changed = after->join(before);
 
-        const auto rhs_pt = before.lookup(op.getPtr());
-        if (!rhs_pt || rhs_pt->is_bottom()) {
-            // we don't know yet - bail out
+        const auto rhs_pt = after->lookup(op.getPtr());
+        if (!rhs_pt) {
             return changed;
         }
         if (rhs_pt->is_top()) {
-            changed |= after->join_var(op.getResult(), rhs_pt);
+            changed |= after->join_var(op.getResult(), after->new_top_set());
             return changed;
         }
-
-        std::vector< decltype(before.lookup(typename pt_lattice::elem_t())) > to_join;
-        for (const auto &val : rhs_pt->get_set_ref()) {
-            auto val_pt = before.lookup(val);
-            if (val_pt) {
-                to_join.push_back(val_pt);
-            }
-        }
-
-        if (to_join.empty()) {
-            changed |= after->join_empty(op.getResult());
-        }
-
-        for (auto *join : to_join) {
-            changed |= after->join_var(op.getResult(), join);
-        }
+        changed |= after->copy_all_pts_into({op.getResult()}, rhs_pt);
 
         return changed;
     };
@@ -258,7 +235,9 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
                 if (auto arg_pt = after->lookup(caller_arg))
                     changed |= after->join_var(callee_arg, arg_pt);
             }
-            propagateIfChanged(this->template getOrCreate< pt_lattice >(&callee_entry), changed);
+            if constexpr(pt_lattice::propagate_call_arg_zip()) {
+                propagateIfChanged(this->template getOrCreate< pt_lattice >(&callee_entry), changed);
+            }
 
             // Manage the callee exit
             if (auto before_exit = mlir::dyn_cast< mlir::Operation * >(before.getPoint());
