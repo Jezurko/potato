@@ -1,6 +1,7 @@
 add_mlir_dialect_library(MLIRPotatoAnalysis
     pt.cpp
     andersen.cpp
+    steensgaard.cpp
 
     LINK_LIBS PUBLIC
     MLIRpotato
