@@ -34,7 +34,7 @@ namespace potato::pt
                 signalPassFailure();
 
             if (print_lattice)
-                analysis::print_analysis_result(solver, root, llvm::outs());
+                potato::util::print_analysis_result< potato::analysis::steensgaard >(solver, root, llvm::outs());
             //if (print_stats)
             //    analysis::print_analysis_stats(solver, root, llvm::outs());
             //if (print_func_stats)
