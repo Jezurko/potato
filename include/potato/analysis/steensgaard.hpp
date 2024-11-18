@@ -153,6 +153,7 @@ namespace potato::analysis {
 
         std::unordered_map< elem_t, elem_t > mapping;
         bool all_unknown;
+        unsigned int mem_loc_count = 0;
         size_t dummy_count = 0;
     };
 
@@ -172,7 +173,6 @@ namespace potato::analysis {
         bool initialized() const { return (bool) info; }
         void initialize_with(std::shared_ptr< relation_t > &relation) { info = relation; }
 
-        static unsigned int mem_loc_count;
         unsigned int alloc_count();
 
         std::optional< std::string > alloc_name = {};
