@@ -1,5 +1,11 @@
 #pragma once
 
+#include "potato/util/warnings.hpp"
+
+POTATO_RELAX_WARNINGS
+#include <llvm/ADT/Hashing.h>
+POTATO_UNRELAX_WARNINGS
+
 #include "potato/analysis/utils.hpp"
 #include "potato/util/common.hpp"
 
@@ -11,26 +17,49 @@
 namespace potato::analysis {
     struct stg_elem {
         std::optional< pt_element > elem;
+        std::optional< size_t > dummy_id;
 
-        stg_elem(const llvm::StringRef name) : elem(pt_element(name)) {}
-        stg_elem(mlir_value val)             : elem(pt_element(val)) {}
-        stg_elem() : elem(std::nullopt) {}
+        stg_elem(const llvm::StringRef name) : elem(pt_element(name)), dummy_id(std::nullopt) {}
+        stg_elem(mlir_value val)             : elem(pt_element(val)), dummy_id(std::nullopt) {}
+        stg_elem(size_t id)                  : elem(std::nullopt), dummy_id(id) {}
+        stg_elem()                           : elem(std::nullopt), dummy_id(std::nullopt) {}
 
         bool operator==(const stg_elem &rhs) const = default;
 
-        inline bool is_unknown() const { return !elem.has_value(); }
+        inline bool is_unknown() const { return !is_dummy() && !elem.has_value(); }
+
+        inline bool is_dummy() const { return dummy_id.has_value(); }
 
         inline bool is_top() const { return is_unknown(); }
 
-        constexpr inline bool is_bottom() const { return false; }
+        inline bool is_bottom() const { return is_dummy(); }
+
+        void print(llvm::raw_ostream &os) const {
+            if (elem) {
+                elem->print(os);
+                return;
+            }
+            if (dummy_id) {
+                os << "dummy_" << *dummy_id;
+                return;
+            }
+            if (is_top()) {
+                os << "top";
+                return;
+            }
+        }
     };
 
 } // namespace potato::analysis
 
 template <>
 struct std::hash< potato::analysis::stg_elem > {
-    std::size_t operator() (const potato::analysis::stg_elem &value) const {
-        return std::hash< std::optional< potato::analysis::pt_element > >{}(value.elem);
+    using stg_elem = potato::analysis::stg_elem;
+    using pt_element = potato::analysis::pt_element;
+
+    std::size_t operator() (const stg_elem &value) const {
+        return llvm::hash_combine(std::hash< std::optional< pt_element > >{}(value.elem),
+                                  std::hash< std::optional< size_t > >{}(value.dummy_id));
     }
 };
 
@@ -78,11 +107,27 @@ namespace potato::analysis {
                 size_t &x_rank = rank[x_root];
                 size_t &y_rank = rank[y_root];
 
+                if (x_root.is_dummy()) {
+                    parents[x_root] = y_root;
+                    children[y_root].insert(x_root);
+                    if (x_rank >= y_rank) {
+                        y_rank = x_rank + 1;
+                    }
+                    return y_root;
+                }
+                if (y_root.is_dummy()) {
+                    parents[y_root] = x_root;
+                    children[x_root].insert(y_root);
+                    if (y_rank >= x_rank) {
+                        x_rank = y_rank + 1;
+                    }
+                    return x_root;
+                }
+
                 if (x_rank > y_rank) {
                     parents[y_root] = x_root;
                     children[x_root].insert(y_root);
                     return x_root;
-
                 } else {
                     parents[x_root] = y_root;
                     children[y_root].insert(x_root);
@@ -106,6 +151,7 @@ namespace potato::analysis {
 
         std::unordered_map< elem_t, elem_t > mapping;
         bool all_unknown;
+        size_t dummy_count = 0;
     };
 
     struct steensgaard : mlir_dense_abstract_lattice {
@@ -130,10 +176,10 @@ namespace potato::analysis {
         std::optional< std::string > alloc_name = {};
         llvm::StringRef get_alloc_name();
 
-        elem_t *lookup(const elem_t &val) const {
+        elem_t *lookup(const elem_t &val) {
             auto trg_it = mapping().find(val);
             if (trg_it == mapping().end())
-                return nullptr;
+                return &mapping().emplace(val, new_dummy()).first->second;
             return &trg_it->second;
 
         }
@@ -145,6 +191,10 @@ namespace potato::analysis {
         static auto new_top_set() {
             // default constructor creates unknown
             return elem_t();
+        }
+
+        elem_t new_dummy() {
+            return elem_t(info->dummy_count++);
         }
 
         auto new_alloca(mlir_value val) {
