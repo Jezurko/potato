@@ -207,6 +207,46 @@ namespace potato::analysis {
             return sets().insert(val) ? change_result::Change : change_result::NoChange;
         }
 
+        change_result join_all_pointees_with(elem_t *to, const elem_t *from) {
+            auto to_trg_it = mapping().find(*to);
+            if (to_trg_it == mapping().end()) {
+                mapping().insert({*to, *from});
+                return change_result::Change;
+            }
+            return make_union(to_trg_it->second, *from);
+        }
+
+
+        change_result copy_all_pts_into(elem_t &&to, const elem_t *from) {
+            auto from_rep = sets().find(*from);
+            auto to_rep = sets().find(to);
+            auto to_trg_it = mapping().find(to_rep);
+            auto from_trg_it = mapping().find(from_rep);
+
+            if (from_trg_it == mapping().end()) {
+                if (to_trg_it == mapping().end()) {
+                    // tie targets with a dummy
+                    auto dummy = new_dummy();
+                    sets().insert(dummy);
+                    mapping().emplace(to_rep, dummy);
+                    mapping().emplace(from_rep, dummy);
+                } else {
+                    // tie targets together
+                    mapping().emplace(from_rep, to_trg_it->second);
+                }
+                return change_result::Change;
+            }
+
+            auto &from_trg = from_trg_it->second;
+
+            if (to_trg_it == mapping().end()) {
+                mapping().emplace(to_rep, from_trg);
+                return change_result::Change;
+            }
+
+            return make_union(to_trg_it->second, from_trg);
+        }
+
         auto add_constant(mlir_value val) { return join_empty(val); }
 
         change_result make_union(elem_t lhs, elem_t rhs) {
@@ -323,9 +363,26 @@ namespace potato::analysis {
             return this->merge(*static_cast< const steensgaard *>(&rhs));
         };
 
-        void print(llvm::raw_ostream &os) const override;
+        void print(llvm::raw_ostream &os) const override {
+            for (const auto &[src, trg] : mapping()) {
+                src.print(os);
+                os << " -> {";
+                auto trg_rep = sets().find(trg);
+                auto sep = "";
+                for (auto child : sets().children.at(trg_rep)) {
+                    os << sep;
+                    child.print(os);
+                    sep = ", ";
+                }
+                os << "}\n";
+            }
+        }
 
-        static void add_dependencies(mlir::Operation *op, mlir_dense_dfa< steensgaard > *analysis, ppoint point, auto get_or_create);
+        static void add_dependencies(mlir::Operation *op, mlir_dense_dfa< steensgaard > *analysis, ppoint point, auto get_or_create) { return; }
+
+        constexpr static bool propagate_assign() { return false; }
+        constexpr static bool propagate_call_arg_zip() { return false; }
+
         alias_res alias(auto lhs, auto rhs) const;
     };
 } //namespace potato::analysis
