@@ -86,14 +86,16 @@ namespace potato::analysis {
                 auto find_it = parents.find(x);
                 if (find_it == parents.end()) {
                     insert(x);
+                    find_it = parents.find(x);
                 }
 
                 T found = x;
                 T parent = find_it->second;
-                while (found != parent) {
-                    auto parent_parent = parents[parent];
+                while (found != parents[found]) {
+                    auto &parent_parent = parents[parent];
                     parents[found] = parent_parent;
                     found = parent_parent;
+                    parent = parents[found];
                 }
                 return found;
             }
