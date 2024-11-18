@@ -226,14 +226,18 @@ namespace potato::analysis {
             }
 
             // merge outgoing edges
-            if (lhs_trg == mapping().end() && rhs_root != new_root) {
-                mapping().insert({new_root, rhs_trg->second});
-                mapping().erase(rhs_trg);
+            if (lhs_trg == mapping().end()) {
+                if (lhs_root == new_root) {
+                    mapping().emplace(new_root, rhs_trg->second);
+                    mapping().erase(rhs_trg);
+                }
                 return change_result::Change;
             }
-            if (rhs_trg == mapping().end() && lhs_root != new_root) {
-                mapping().insert({new_root, lhs_trg->second});
-                mapping().erase(lhs_trg);
+            if (rhs_trg == mapping().end()) {
+                if (rhs_root == new_root) {
+                    mapping().emplace(new_root, lhs_trg->second);
+                    mapping().erase(lhs_trg);
+                }
                 return change_result::Change;
             }
 
