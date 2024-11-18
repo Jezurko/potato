@@ -2,6 +2,7 @@
 
 #include "potato/analysis/lattice.hpp"
 #include "potato/analysis/utils.hpp"
+#include "potato/dialect/ops.hpp"
 #include "potato/util/common.hpp"
 
 #include <memory>
@@ -16,6 +17,7 @@ struct aa_lattice : mlir_dense_abstract_lattice {
 
     std::shared_ptr< pt_map< pt_element, lattice_set > > pt_relation;
 
+    // TODO: remove this
     static unsigned int mem_loc_count;
     unsigned int alloc_count();
 
@@ -182,6 +184,43 @@ struct aa_lattice : mlir_dense_abstract_lattice {
         return val_pt->join(*set);
     }
 
+    // for each p in to lookup pts(p) and join it with from
+    change_result join_all_pointees_with(pointee_set *to, const pointee_set *from) {
+        auto changed = change_result::NoChange;
+        std::vector< const elem_t * > to_update;
+        for (auto &val : to->get_set_ref()) {
+            to_update.push_back(&val);
+        }
+        // This has to be done so that we don't change the set we are iterating over under our hands
+        for (auto &key : to_update) {
+            changed |= join_var(*key, from);
+        }
+
+        return changed;
+    }
+
+    // for each p in from do pts(to) join_with pts(p)
+    change_result copy_all_pts_into(pt_element to, const pointee_set *from) {
+        auto changed = change_result::NoChange;
+        std::vector< const pointee_set * > to_join;
+
+        for (const auto &val : from->get_set_ref()) {
+            auto val_pt = lookup(val);
+            if (val_pt) {
+                to_join.push_back(val_pt);
+            }
+        }
+
+        // make sure `to` is in the lattice
+        changed |= join_var(to, pointee_set());
+
+        for (auto *join : to_join) {
+            changed |= join_var(to, join);
+        }
+
+        return changed;
+    }
+
     change_result set_all_unknown() {
         auto changed = change_result::NoChange;
         for (auto &[_, pt_set] : *pt_relation) {
@@ -248,6 +287,9 @@ struct aa_lattice : mlir_dense_abstract_lattice {
             arg_state->addDependency(point, analysis);
         }
     }
+
+    constexpr static bool propagate_assign() { return true; }
+    constexpr static bool propagate_call_arg_zip() { return true; }
 
     alias_res alias(auto lhs, auto rhs) const {
         const auto lhs_it = find(lhs);
