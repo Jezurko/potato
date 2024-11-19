@@ -47,7 +47,8 @@ namespace potato::test {
                         llvm::errs()
                             << "Arguments " << i << " and " << j
                             << " of call at " << call.getLoc()
-                            << " do not " << expected_res << "\n";
+                            << "have wrong alias!\n"
+                            << "Expected: " << expected_res << " but got: " << alias << "\n";
                         assert(false);
                     }
                 }
