@@ -14,7 +14,8 @@ POTATO_RELAX_WARNINGS
 #include <llvm/ADT/TypeSwitch.h>
 POTATO_UNRELAX_WARNINGS
 
-#include "potato/analysis/context.hpp"
+#include "potato/analysis/config.hpp"
+#include "potato/analysis/function_models.hpp"
 #include "potato/dialect/ops.hpp"
 #include "potato/util/common.hpp"
 
@@ -301,6 +302,8 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
     mlir::LogicalResult initialize(mlir_operation *op) override {
         if (!relation) {
             relation = std::make_shared< typename pt_lattice::relation_t >();
+            // TODO: move to constructor
+            models = load_and_parse(pointsto_analysis_config);
         }
         auto state = this->template getOrCreate< pt_lattice >(op);
         state->initialize_with(relation);
@@ -311,8 +314,11 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
         relation->print(os);
     }
 
+
     private:
     std::shared_ptr< typename pt_lattice::relation_t > relation;
+    function_models models;
+
 };
 
 void print_analysis_result(mlir::DataFlowSolver &solver, mlir_operation *op, llvm::raw_ostream &os);

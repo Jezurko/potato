@@ -1,0 +1,5 @@
+#pragma once
+
+namespace potato::analysis {
+    constexpr auto pointsto_analysis_config = "@POINTSTO_CONFIG_DIR@/default-pointsto-config.yaml";
+} // namespace potato::analysis
