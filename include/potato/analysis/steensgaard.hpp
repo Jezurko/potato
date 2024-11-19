@@ -182,14 +182,13 @@ namespace potato::analysis {
             if (trg_it == mapping().end())
                 return &mapping().emplace(val, new_dummy()).first->second;
             return &trg_it->second;
-
         }
 
-        static auto new_symbol(const llvm::StringRef name) {
+        static elem_t new_symbol(const llvm::StringRef name) {
             return elem_t(name);
         }
 
-        static auto new_top_set() {
+        static elem_t new_top_set() {
             // default constructor creates unknown
             return elem_t();
         }
@@ -198,12 +197,12 @@ namespace potato::analysis {
             return elem_t(info->dummy_count++);
         }
 
-        auto new_alloca(mlir_value val) {
+        change_result new_alloca(mlir_value val) {
             auto alloca = elem_t(get_alloc_name());
             return join_var(val, alloca);
         }
 
-        auto join_empty(mlir_value val) {
+        change_result join_empty(mlir_value val) {
             return sets().insert(val) ? change_result::Change : change_result::NoChange;
         }
 
