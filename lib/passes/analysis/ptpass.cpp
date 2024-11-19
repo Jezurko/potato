@@ -1,4 +1,5 @@
 #include "potato/passes/analysis.hpp"
+#include "potato/util/test.hpp"
 #include "potato/util/warnings.hpp"
 #include "potato/analysis/andersen.hpp"
 #include "potato/analysis/pt.hpp"
@@ -35,6 +36,7 @@ namespace potato::pt
 
             if (print_lattice)
                 analysis::print_analysis_result(solver, root, llvm::outs());
+            test::check_aliases< analysis::aa_lattice >(solver, root);
             //if (print_stats)
             //    analysis::print_analysis_stats(solver, root, llvm::outs());
             //if (print_func_stats)
