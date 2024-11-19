@@ -56,19 +56,19 @@ struct aa_lattice : mlir_dense_abstract_lattice {
         return lookup(pt_element(val));
     }
 
-    static auto new_symbol(const llvm::StringRef name) {
+    static elem_t new_symbol(const llvm::StringRef name) {
         return pt_element(name);
     }
 
-    static auto new_pointee_set() {
+    static pointee_set new_pointee_set() {
         return pointee_set();
     }
 
-    static auto new_top_set() {
+    static pointee_set new_top_set() {
         return pointee_set::make_top();
     }
 
-    auto join_empty(mlir_value val) {
+    change_result join_empty(mlir_value val) {
         auto set = pointee_set();
         auto inserted = pt_relation->insert({{val}, set});
         if (inserted.second) {
@@ -77,11 +77,11 @@ struct aa_lattice : mlir_dense_abstract_lattice {
         return change_result::NoChange;
     }
 
-    auto add_constant(mlir_value val) {
+    change_result add_constant(mlir_value val) {
         return join_empty(val);
     }
 
-    auto new_alloca(mlir_value val) {
+    change_result new_alloca(mlir_value val) {
         auto set = pointee_set();
         set.insert({get_alloc_name()});
         auto [it, inserted] = pt_relation->insert({{val}, set});
