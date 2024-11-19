@@ -295,21 +295,18 @@ struct aa_lattice : mlir_dense_abstract_lattice {
     constexpr static bool propagate_call_arg_zip() { return true; }
 
     alias_res alias(auto lhs, auto rhs) const {
-        const auto lhs_it = find(lhs);
-        const auto rhs_it = find(rhs);
+        const auto lhs_pt = lookup(lhs);
+        const auto rhs_pt = lookup(rhs);
         // If we do not know at least one of the arguments we can not deduce any aliasing information
         // TODO: can this happen with correct usage? Should we emit a warning?
-        if (lhs_it == pt_relation->end() || rhs_it() == pt_relation->end())
+        if (!lhs_pt || !rhs_pt)
             return alias_res(alias_kind::MayAlias);
 
-        const auto &lhs_pt = *lhs_it;
-        const auto &rhs_pt = *rhs_it;
-
-        if (sets_intersect(*lhs_it, *rhs_it)) {
-            if (lhs_pt.size() == 1 && rhs_pt.size() == 1) {
-                for (auto &member : lhs_pt) {
+        if (sets_intersect(lhs_pt->get_set_ref(), rhs_pt->get_set_ref())) {
+            if (lhs_pt->is_single_target() && rhs_pt->is_single_target()) {
+                for (const auto &member : lhs_pt->get_set_ref()) {
                     // for dynamically allocated values we can not return MustAlias.
-                    if (member.val)
+                    if (std::holds_alternative< mlir_value >(member.id))
                         return alias_res(alias_kind::MustAlias);
                 }
             }
