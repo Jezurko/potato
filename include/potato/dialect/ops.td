@@ -3,10 +3,11 @@
 
 include "mlir/IR/OpBase.td"
 include "mlir/IR/BuiltinAttributes.td"
+include "mlir/IR/SymbolInterfaces.td"
 include "mlir/Interfaces/SideEffectInterfaces.td"
 
 def Potato_AddressOp
-  : Potato_Op< "address" >
+  : Potato_Op< "address", [SymbolUserOpInterface, DeclareOpInterfaceMethods<SymbolUserOpInterface>] >
   , Arguments<( ins Optional< AnyType >:$val, OptionalAttr< FlatSymbolRefAttr>:$symbol )>
   , Results<( outs AnyType:$ptr )>
 {
@@ -56,11 +57,11 @@ def Potato_ConstantOp
 }
 
 def Potato_GlobalVarOp
-  : Potato_Op< "global", [IsolatedFromAbove] >
-  , Arguments<( ins SymbolNameAttr:$name, BoolAttr:$local )>
+  : Potato_Op< "global", [IsolatedFromAbove, Symbol] >
+  , Arguments<( ins SymbolNameAttr:$sym_name, BoolAttr:$local )>
 {
   let regions = (region AnyRegion:$init);
-  let assemblyFormat = [{ attr-dict $name `local` `:` $local ($init^)? }];
+  let assemblyFormat = [{ attr-dict $sym_name `local` `:` $local ($init^)? }];
 }
 
 def Potato_UnknownPtrOp
