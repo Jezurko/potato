@@ -49,6 +49,8 @@ config.potato_test_util = os.path.join(config.potato_src_root, 'test/utils')
 config.potato_bin_dir = os.path.join(config.potato_obj_root, 'bin')
 tools = [
     ToolSubst('%potato-opt', command = 'potato-opt'),
+    ToolSubst('%emit-llvm', command = 'clang -S -emit-llvm'),
+    ToolSubst('%llvm-to-mlir', command = 'mlir-translate -import-llvm'),
     ToolSubst('%file-check', command = 'FileCheck'),
     ToolSubst('%cc', command = config.host_cc)
 ]
