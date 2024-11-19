@@ -42,6 +42,8 @@ using call_graph = mlir::CallGraph;
 using cg_node    = mlir::CallGraphNode;
 using cg_edge    = mlir::CallGraphNode::Edge;
 
+using string_ref = llvm::StringRef;
+
 namespace potato::util {
     // Copy-pasted from llvm SetOperations.h with the addition of return value
     // that returns bool whether S1 changed, providing more uniform API for set operations
