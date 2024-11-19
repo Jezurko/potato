@@ -334,14 +334,6 @@ namespace potato::analysis {
             return change_result::Change;
         }
 
-        // store map elem->target
-        // store UF of all elems that point to the same
-        // %x = copy %y - x.trg = find(y.trg)
-        // %x = addr_of glob - x.trg = find(glob)
-        // %x = *y - %x x.trg = find(find(y.trg).trg)
-        // %x = alloc - %x.trg = alloc; insert(alloc)
-        // assign %y to %x = union(find(x.trg), find(y))
-
         change_result merge(const steensgaard &rhs) {
             if (info && !rhs.info)
                 return change_result::NoChange;
@@ -383,6 +375,19 @@ namespace potato::analysis {
         constexpr static bool propagate_assign() { return false; }
         constexpr static bool propagate_call_arg_zip() { return false; }
 
-        alias_res alias(auto lhs, auto rhs) const;
+        alias_res alias(auto lhs, auto rhs) {
+            auto lhs_trg = sets().find(*lookup(lhs));
+            auto rhs_trg = sets().find(*lookup(rhs));
+            if (lhs_trg.is_dummy() || rhs_trg.is_dummy()) {
+                return alias_kind::NoAlias;
+            }
+            if (lhs_trg == rhs_trg) {
+                return alias_kind::MayAlias;
+            }
+            if (lhs_trg != rhs_trg) {
+                return alias_kind::NoAlias;
+            }
+            // TODO: MustAlias
+        };
     };
 } //namespace potato::analysis
