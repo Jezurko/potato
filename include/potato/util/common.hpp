@@ -60,11 +60,13 @@ namespace potato::util {
     }
 
     template< typename analysis_lattice >
-    const analysis_lattice *get_analysis(mlir::DataFlowSolver &solver, mlir_operation *root) {
-        const analysis_lattice *lattice = nullptr;
+    analysis_lattice *get_analysis(mlir::DataFlowSolver &solver, mlir_operation *root) {
+        analysis_lattice *lattice = nullptr;
         root->walk([&](mlir_operation *op) -> mlir::WalkResult {
-            if(auto state = solver.lookupState< analysis_lattice >(op)) {
-                lattice = state;
+            if(solver.lookupState< analysis_lattice >(op)) {
+                // get non-const state for analyses like steensgaard
+                // that might modify the state on lookup
+                lattice = solver.getOrCreateState< analysis_lattice >(op);
                 return mlir::WalkResult::interrupt();
             }
             return mlir::WalkResult::advance();
