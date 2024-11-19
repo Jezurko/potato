@@ -8,6 +8,7 @@ POTATO_RELAX_WARNINGS
 #include <mlir/Analysis/DataFlow/DenseAnalysis.h>
 #include <mlir/Interfaces/CallInterfaces.h>
 #include <mlir/Interfaces/FunctionInterfaces.h>
+#include <mlir/IR/SymbolTable.h>
 #include <mlir/IR/Value.h>
 
 #include <llvm/ADT/TypeSwitch.h>
@@ -88,6 +89,19 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
         // this is necessary for e.g. dereference
         // TODO: consider moving this into a special method
         if constexpr (pt_lattice::propagate_assign()) {
+            auto lhs_def = op.getLhs().getDefiningOp();
+
+            // If we have written into a global, we need to notify all users
+            if (auto addr = mlir::dyn_cast< pt::AddressOp >(lhs_def)) {
+                auto symbol = mlir::SymbolTable::lookupNearestSymbolFrom(op, addr.getSymbolAttr());
+                auto users = mlir::SymbolTable::getSymbolUses(symbol, symbol->getParentOp());
+                assert(users);
+                for (auto user : *users) {
+                    auto user_state = this->template getOrCreate< pt_lattice >(user.getUser());
+                    propagateIfChanged(user_state, changed);
+                }
+
+            }
             auto lhs_state = this->template getOrCreate< pt_lattice >(op.getLhs().getDefiningOp());
             propagateIfChanged(lhs_state, changed);
         }
