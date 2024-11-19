@@ -60,18 +60,23 @@ namespace potato::util {
     }
 
     template< typename analysis_lattice >
+    const analysis_lattice *get_analysis(mlir::DataFlowSolver &solver, mlir_operation *root) {
+        const analysis_lattice *lattice = nullptr;
+        root->walk([&](mlir_operation *op) -> mlir::WalkResult {
+            if(auto state = solver.lookupState< analysis_lattice >(op)) {
+                lattice = state;
+                return mlir::WalkResult::interrupt();
+            }
+            return mlir::WalkResult::advance();
+        });
+        return lattice;
+    }
+
+    template< typename analysis_lattice >
     void print_analysis_result(mlir::DataFlowSolver &solver, mlir_operation *op, llvm::raw_ostream &os)
     {
-        bool printed = false;
-        op->walk([&](mlir_operation *op) {
-            if(auto state = solver.lookupState< analysis_lattice >(op)) {
-                if (!printed) {
-                    state->print(os);
-                    printed = true;
-                }
-                return;
-            }
-        });
+        auto lattice = get_analysis< analysis_lattice >(solver, op);
+        lattice->print(os);
     }
 
 } // namespace potato::util
