@@ -5,13 +5,13 @@ namespace potato::analysis {
 void pt_element::print(llvm::raw_ostream &os) const {
     switch (kind) {
         case elem_kind::alloca:
-            os << "mem_alloc" << operation->getLoc();
+            os << "mem_alloc at: " << operation->getLoc();
             if (val) {
                 os << " for: " << val;
             }
             break;
         case elem_kind::var:
-            os << "var:" << val;
+            os << "var: " << val;
         break;
         case elem_kind::func:
         case elem_kind::global:
