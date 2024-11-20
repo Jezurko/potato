@@ -2,7 +2,6 @@
 
 #include "potato/analysis/lattice.hpp"
 #include "potato/analysis/utils.hpp"
-#include "potato/dialect/ops.hpp"
 #include "potato/util/common.hpp"
 
 #include <memory>
@@ -301,6 +300,10 @@ struct aa_lattice : mlir_dense_abstract_lattice {
         // TODO: can this happen with correct usage? Should we emit a warning?
         if (!lhs_pt || !rhs_pt)
             return alias_res(alias_kind::MayAlias);
+
+        if (lhs_pt->is_top() || rhs_pt->is_top()) {
+            return alias_res(alias_kind::MayAlias);
+        }
 
         if (sets_intersect(lhs_pt->get_set_ref(), rhs_pt->get_set_ref())) {
             if (lhs_pt->is_single_target() && rhs_pt->is_single_target()) {
