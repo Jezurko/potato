@@ -1,0 +1,5 @@
+- function: malloc
+  model:
+    return_effect: alloc
+    arguments:
+      - none
