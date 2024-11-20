@@ -21,6 +21,8 @@ using mlir_block = mlir::Block;
 using mlir_region = mlir::Region;
 using change_result = mlir::ChangeResult;
 using mlir_loc = mlir::Location;
+using operand_range = mlir::OperandRange;
+using result_range = mlir::ResultRange;
 
 using logical_result = mlir::LogicalResult;
 
