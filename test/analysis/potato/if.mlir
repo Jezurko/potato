@@ -18,4 +18,4 @@
     }
 } ): () -> ()
 
-// CHECK: mem_alloc2 -> {mem_alloc{{[0,1]}}, mem_alloc{{[0,1]}}}
+// CHECK: mem_alloc at: loc({{.*}}:8:14) -> {mem_alloc at: loc({{.*}}:{{[5,6]}}:14), mem_alloc at: loc({{.*}}:{{[5,6]}}:14)}

@@ -29,5 +29,5 @@ module attributes {dlti.dl_spec = #dlti.dl_spec<#dlti.dl_entry<f64, dense<64> : 
   }
 }
 
-// CHECK-DAG: <block argument> of type '!llvm.ptr' at index: 0 -> {mem_alloc{{[0-9]+}}}
-// CHECK-DAG: <block argument> of type '!llvm.ptr' at index: 1 -> {mem_alloc{{[0-9]+}}}
+// CHECK-DAG: <block argument> of type '!llvm.ptr' at index: 0 -> {mem_alloc at: loc({{.*}}20:10)}
+// CHECK-DAG: <block argument> of type '!llvm.ptr' at index: 1 -> {mem_alloc at: loc({{.*}}21:10)}
