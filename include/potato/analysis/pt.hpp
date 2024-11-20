@@ -271,15 +271,59 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
         }
 
         if (action == call_cf_action::ExternalCallee) {
+            if (auto symbol = mlir::dyn_cast< mlir::SymbolRefAttr >(call.getCallableForCallee())) {
+                if (auto model_it = models.find(symbol.getLeafReference()); model_it != models.end()) {
+                    const auto &model = model_it->second;
+                    std::vector< mlir_value > copy_from;
+                    std::vector< mlir_value > copy_to;
+                    for (size_t i = 0; i < model.args.size(); i++) {
+                        switch(model.args[i]) {
+                            case arg_effect::none:
+                                break;
+                            case arg_effect::alloc:
+                                changed |= after->new_alloca(call->getOperand(i));
+                                break;
+                            case arg_effect::copy_src:
+                                copy_from.push_back(call->getOperand(i));
+                                break;
+                            case arg_effect::copy_trg:
+                                copy_to.push_back(call->getOperand(i));
+                                break;
+                            case arg_effect::unknown:
+                                changed |= after->join_var(call->getOperand(i), pt_lattice::new_top_set());
+                        }
+
+                    }
+                    for (auto res : call->getResults()) {
+                        switch (model.ret) {
+                            case ret_effect::none:
+                                break;
+                            case ret_effect::alloc:
+                                changed |= after->new_alloca(res);
+                                break;
+                            case ret_effect::copy_trg:
+                                copy_to.push_back(res);
+                                break;
+                            case ret_effect::unknown:
+                                changed |= after->join_var(res, pt_lattice::new_top_set());
+                                break;
+                        }
+                    }
+                    for (const auto &trg : copy_to) {
+                        for (const auto &src : copy_from) {
+                            auto src_pt = after->lookup(src);
+                            if (src_pt)
+                                changed |= after->join_var(trg, src_pt);
+                        }
+                    }
+                }
+            }
             // TODO:
             // Try to check for "known" functions
             // Try to resolve function pointer calls? (does it happen here?)
             // Make the set of known functions a customization point?
             for (auto operand : call.getArgOperands()) {
                 //TODO: propagate TOP
-            }
-            for (auto result : call->getResults()) {
-                changed |= after->join_var(result, pt_lattice::new_top_set());
             }
             propagateIfChanged(after, changed );
         }
