@@ -300,11 +300,6 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
     }
 
     mlir::LogicalResult initialize(mlir_operation *op) override {
-        if (!relation) {
-            relation = std::make_shared< typename pt_lattice::relation_t >();
-            // TODO: move to constructor
-            models = load_and_parse(pointsto_analysis_config);
-        }
         auto state = this->template getOrCreate< pt_lattice >(op);
         state->initialize_with(relation);
         return base::initialize(op);
@@ -314,6 +309,17 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
         relation->print(os);
     }
 
+    pt_analysis(mlir::DataFlowSolver &solver)
+        : base(solver),
+          models(load_and_parse(pointsto_analysis_config)),
+          relation(std::make_shared< typename pt_lattice::relation_t >())
+        {}
+
+    pt_analysis(mlir::DataFlowSolver &solver, std::string config)
+        : base(solver),
+          models(load_and_parse(config)),
+          relation(std::make_shared< typename pt_lattice::relation_t >())
+        {}
 
     private:
     std::shared_ptr< typename pt_lattice::relation_t > relation;
