@@ -31,12 +31,59 @@ namespace potato::analysis {
 
     struct pt_element
     {
-        std::variant< mlir_value, llvm::StringRef > id;
+        enum class elem_kind {
+            alloca,
+            var,
+            func,
+            global
+        } kind;
+        mlir_value val;
+        mlir_operation *operation;
+
+        pt_element(elem_kind kind, mlir_value val, mlir_operation *op)
+            : kind(kind), val(val), operation(op) {};
+        pt_element(mlir_value val) : kind(elem_kind::var), val(val), operation(nullptr) {}
+
+        static pt_element make_func(mlir_operation *op) {
+            return pt_element(elem_kind::func, {}, op);
+        }
+
+        static pt_element make_glob(mlir_operation *op) {
+            return pt_element(elem_kind::global, {}, op);
+        }
+
+        static pt_element make_alloca(mlir_operation *op, mlir_value val = {}) {
+            return pt_element(elem_kind::alloca, val, op);
+        }
+
+        static pt_element make_var(mlir_value val) {
+            return pt_element(elem_kind::var, val, nullptr);
+        }
+
+        bool is_alloca() const { return kind == elem_kind::alloca; }
+        bool is_var() const { return kind == elem_kind::var; }
+        bool is_func() const { return kind == elem_kind::func; }
+        bool is_global() const { return kind == elem_kind::global; }
 
         bool operator==(const pt_element &rhs) const = default;
 
         void print(llvm::raw_ostream &os) const {
-            std::visit([&](auto &&arg) { os << arg; }, id);
+            switch (kind) {
+                case elem_kind::alloca:
+                    os << "mem_alloc" << operation->getLoc();
+                    if (val) {
+                        os << " for: " << val;
+                    }
+                    break;
+                case elem_kind::var:
+                    os << "var:" << val;
+                break;
+                case elem_kind::func:
+                case elem_kind::global:
+                    auto symbol = mlir::cast< mlir::SymbolOpInterface >(operation);
+                    os << symbol.getName();
+                break;
+            }
         };
     };
 
@@ -65,8 +112,13 @@ struct std::hash< llvm::StringRef > {
 
 template <>
 struct std::hash< potato::analysis::pt_element > {
-    std::size_t operator() (const potato::analysis::pt_element &value) const {
-        return std::hash< std::variant< mlir_value, llvm::StringRef > >{}(value.id);
+    using pt_element = potato::analysis::pt_element;
+    std::size_t operator() (const pt_element &value) const {
+        return llvm::hash_combine(
+            llvm::hash_value(value.kind),
+            std::hash< mlir_value >{}(value.val),
+            std::hash< mlir_operation * >{}(value.operation)
+        );
     }
 };
 
@@ -80,17 +132,31 @@ namespace llvm {
 
     template<>
     struct DenseMapInfo< pt_element > {
-        using value_info = DenseMapInfo< std::variant< mlir_value, llvm::StringRef > >;
+        using kind_info = DenseMapInfo< pt_element::elem_kind >;
+        using val_info = DenseMapInfo< mlir_value >;
+        using op_info = DenseMapInfo< mlir_operation * >;
         static inline pt_element getEmptyKey() {
-            return pt_element(value_info::getEmptyKey());
+            return pt_element(
+                    kind_info::getEmptyKey(),
+                    val_info::getEmptyKey(),
+                    op_info::getEmptyKey()
+            );
         }
 
         static inline pt_element getTombstoneKey() {
-            return pt_element(value_info::getTombstoneKey());
+            return pt_element(
+                    kind_info::getTombstoneKey(),
+                    val_info::getTombstoneKey(),
+                    op_info::getTombstoneKey()
+            );
         }
 
         static unsigned getHashValue(const pt_element &val) {
-            return value_info::getHashValue(val.id);
+            return llvm::hash_combine(
+                    kind_info::getHashValue(val.kind),
+                    val_info::getHashValue(val.val),
+                    op_info::getHashValue(val.operation)
+            );
         }
 
         static bool isEqual(const pt_element &lhs, const pt_element &rhs) {
