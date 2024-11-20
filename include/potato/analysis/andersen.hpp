@@ -5,7 +5,6 @@
 #include "potato/util/common.hpp"
 
 #include <memory>
-#include <string>
 
 namespace potato::analysis {
 struct aa_lattice : mlir_dense_abstract_lattice {
@@ -14,14 +13,7 @@ struct aa_lattice : mlir_dense_abstract_lattice {
     using pointee_set = lattice_set< elem_t >;
     using relation_t = pt_map< elem_t, lattice_set >;
 
-    std::shared_ptr< pt_map< pt_element, lattice_set > > pt_relation;
-
-    // TODO: remove this
-    static unsigned int mem_loc_count;
-    unsigned int alloc_count();
-
-    std::optional< std::string > alloc_name = {};
-    llvm::StringRef get_alloc_name();
+    std::shared_ptr< pt_map< elem_t, lattice_set > > pt_relation;
 
     bool initialized() const { return (bool) pt_relation; }
     void initialize_with(std::shared_ptr< relation_t > &relation) { pt_relation = relation; }
@@ -29,7 +21,7 @@ struct aa_lattice : mlir_dense_abstract_lattice {
     // TODO: Probably replace most of the following functions with some custom API that doesn't introduce
     //       so many random return values with iterators and stuff
 
-    const pointee_set *lookup(const pt_element &val) const {
+    const pointee_set *lookup(const elem_t &val) const {
         if (!pt_relation)
             return nullptr;
         auto it = pt_relation->find(val);
@@ -39,10 +31,10 @@ struct aa_lattice : mlir_dense_abstract_lattice {
     }
 
     const pointee_set *lookup(const mlir_value &val) const {
-        return lookup(pt_element(val));
+        return lookup(elem_t(val));
     }
 
-    pointee_set *lookup(const pt_element &val) {
+    pointee_set *lookup(const elem_t &val) {
         if (!pt_relation)
             return nullptr;
         auto it = pt_relation->find(val);
@@ -52,11 +44,15 @@ struct aa_lattice : mlir_dense_abstract_lattice {
     }
 
     pointee_set *lookup(const mlir_value &val) {
-        return lookup(pt_element(val));
+        return lookup(elem_t(val));
     }
 
-    static elem_t new_symbol(const llvm::StringRef name) {
-        return pt_element(name);
+    static elem_t new_func(mlir_operation *op) {
+        return elem_t::make_func(op);
+    }
+
+    static elem_t new_glob(mlir_operation *op) {
+        return elem_t::make_glob(op);
     }
 
     static pointee_set new_pointee_set() {
@@ -82,7 +78,7 @@ struct aa_lattice : mlir_dense_abstract_lattice {
 
     change_result new_alloca(mlir_value val) {
         auto set = pointee_set();
-        set.insert({get_alloc_name()});
+        set.insert(elem_t::make_alloca(val.getDefiningOp()));
         auto [it, inserted] = pt_relation->insert({{val}, set});
         if (inserted)
             return change_result::Change;
@@ -100,7 +96,7 @@ struct aa_lattice : mlir_dense_abstract_lattice {
         pointee_set set{};
         auto pointee_it = pt_relation->find({pointee});
         if (pointee_it == pt_relation->end()) {
-            set.insert({get_alloc_name()});
+            set.insert(elem_t::make_alloca(var.getDefiningOp()));
         } else {
             set.insert(pointee_it->first);
         }
@@ -135,7 +131,7 @@ struct aa_lattice : mlir_dense_abstract_lattice {
         return change_result::NoChange;
     }
 
-    change_result set_var(pt_element elem, const pointee_set &set) {
+    change_result set_var(elem_t elem, const pointee_set &set) {
         auto [var, inserted] = pt_relation->insert({elem, set});
         if (inserted)
             return change_result::Change;
@@ -149,9 +145,9 @@ struct aa_lattice : mlir_dense_abstract_lattice {
     change_result join_var(mlir_value val, mlir_value trg) {
         auto val_pt  = lookup(val);
         if (!val_pt) {
-            return set_var(val, pointee_set({trg}));
+            return set_var(val, elem_t::make_alloca(trg.getDefiningOp()));
         }
-        return val_pt->join(pointee_set({trg}));
+        return val_pt->join(pointee_set(elem_t::make_alloca(trg.getDefiningOp())));
     }
 
     change_result join_var(mlir_value val, const pointee_set &set) {
@@ -162,7 +158,7 @@ struct aa_lattice : mlir_dense_abstract_lattice {
         return val_pt->join(set);
     }
 
-    change_result join_var(pt_element elem, const pointee_set &set) {
+    change_result join_var(elem_t elem, const pointee_set &set) {
         auto val_pt  = lookup(elem);
         if (!val_pt) {
             return set_var(elem, set);
@@ -178,7 +174,7 @@ struct aa_lattice : mlir_dense_abstract_lattice {
         return val_pt->join(*set);
     }
 
-    change_result join_var(pt_element elem, const pointee_set *set) {
+    change_result join_var(elem_t elem, const pointee_set *set) {
         auto val_pt  = lookup(elem);
         if (!val_pt) {
             return set_var(elem, *set);
@@ -202,7 +198,7 @@ struct aa_lattice : mlir_dense_abstract_lattice {
     }
 
     // for each p in from do pts(to) join_with pts(p)
-    change_result copy_all_pts_into(pt_element to, const pointee_set *from) {
+    change_result copy_all_pts_into(elem_t to, const pointee_set *from) {
         auto changed = change_result::NoChange;
         std::vector< const pointee_set * > to_join;
 
@@ -309,7 +305,7 @@ struct aa_lattice : mlir_dense_abstract_lattice {
             if (lhs_pt->is_single_target() && rhs_pt->is_single_target()) {
                 for (const auto &member : lhs_pt->get_set_ref()) {
                     // for dynamically allocated values we can not return MustAlias.
-                    if (std::holds_alternative< mlir_value >(member.id))
+                    if (!member.is_alloca())
                         return alias_res(alias_kind::MustAlias);
                 }
             }
