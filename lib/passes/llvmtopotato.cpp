@@ -348,33 +348,6 @@ namespace potato::conv::llvmtopt
         address_of_op
     >;
 
-    struct malloc_call : mlir::OpConversionPattern< mlir::LLVM::CallOp > {
-        using base = mlir::OpConversionPattern< mlir::LLVM::CallOp >;
-        using base::base;
-        using adaptor_t = typename mlir::LLVM::CallOp::Adaptor;
-
-        logical_result matchAndRewrite(mlir::LLVM::CallOp op,
-                                       adaptor_t adaptor,
-                                       mlir::ConversionPatternRewriter &rewriter
-        ) const override {
-            if (auto name = op.getCallee()) {
-                if (name.value() != "malloc")
-                    return mlir::failure();
-            }
-            rewriter.replaceOpWithNewOp< pt::AllocOp >(
-                    op,
-                    this->getTypeConverter()->convertType(op.getResult().getType()),
-                    mlir::ValueRange{}
-            );
-            return mlir::success();
-
-        }
-    };
-
-    using call_rewrite_patterns = util::type_list<
-        malloc_call
-    >;
-
     struct potato_target : public mlir::ConversionTarget {
         potato_target(mlir::MLIRContext &ctx) : ConversionTarget(ctx) {
             addLegalDialect< pt::PotatoDialect >();
@@ -383,7 +356,6 @@ namespace potato::conv::llvmtopt
 
     using pattern_list = util::concat<
         alloc_patterns,
-        call_rewrite_patterns,
         constant_patterns,
         copy_patterns,
         store_patterns,
@@ -414,14 +386,10 @@ namespace potato::conv::llvmtopt
 
             trg.addDynamicallyLegalDialect< mlir::LLVM::LLVMDialect >(
                     [&](auto *op){
-                        if (auto call = mlir::dyn_cast< mlir::LLVM::CallOp >(op)) {
-                            if (auto callee_name = call.getCallee()) {
-                                    return callee_name.value() != "malloc";
-                            }
-                        }
                         return mlir::isa< mlir::BranchOpInterface,
                                           mlir::FunctionOpInterface,
                                           mlir::RegionBranchOpInterface,
+                                          mlir::CallOpInterface,
                                           mlir::LLVM::ReturnOp,
                                           mlir::LLVM::NoAliasScopeDeclOp,
                                           mlir::LLVM::UnreachableOp,
