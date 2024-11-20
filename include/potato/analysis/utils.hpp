@@ -6,15 +6,12 @@ POTATO_RELAX_WARNINGS
 #include <llvm/ADT/DenseMap.h>
 #include <llvm/ADT/DenseSet.h>
 #include <llvm/ADT/Hashing.h>
-#include "llvm/ADT/DenseMapInfoVariant.h"
 #include <llvm/ADT/StringRef.h>
 
 #include <mlir/IR/Value.h>
 POTATO_UNRELAX_WARNINGS
 
 #include "potato/util/common.hpp"
-
-#include <variant>
 
 namespace potato::util {
     template< typename T >
@@ -67,25 +64,10 @@ namespace potato::analysis {
 
         bool operator==(const pt_element &rhs) const = default;
 
-        void print(llvm::raw_ostream &os) const {
-            switch (kind) {
-                case elem_kind::alloca:
-                    os << "mem_alloc" << operation->getLoc();
-                    if (val) {
-                        os << " for: " << val;
-                    }
-                    break;
-                case elem_kind::var:
-                    os << "var:" << val;
-                break;
-                case elem_kind::func:
-                case elem_kind::global:
-                    auto symbol = mlir::cast< mlir::SymbolOpInterface >(operation);
-                    os << symbol.getName();
-                break;
-            }
-        };
+        void print(llvm::raw_ostream &os) const;
     };
+
+    llvm::raw_ostream &operator<<(llvm::raw_ostream &os, const pt_element &e);
 
     bool sets_intersect(const auto &lhs, const auto &rhs) {
         for (const auto &lhs_elem : lhs) {
@@ -124,11 +106,6 @@ struct std::hash< potato::analysis::pt_element > {
 
 namespace llvm {
     using potato::analysis::pt_element;
-
-    inline raw_ostream &operator <<(raw_ostream &os, const pt_element &value) {
-        value.print(os);
-        return os;
-    }
 
     template<>
     struct DenseMapInfo< pt_element > {
