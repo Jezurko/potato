@@ -7,6 +7,7 @@ POTATO_RELAX_WARNINGS
 #include <mlir/Analysis/AliasAnalysis.h>
 #include <mlir/Analysis/CallGraph.h>
 #include <mlir/IR/BuiltinOps.h>
+#include <mlir/IR/SymbolTable.h>
 #include <mlir/IR/Value.h>
 #include <mlir/Interfaces/FunctionInterfaces.h>
 #include <llvm/ADT/SetVector.h>
@@ -28,6 +29,8 @@ using logical_result = mlir::LogicalResult;
 
 using ppoint = mlir::ProgramPoint;
 using call_cf_action = mlir::dataflow::CallControlFlowAction;
+
+using symbol_table = mlir::SymbolTable;
 
 using alias_res = mlir::AliasResult;
 using alias_kind = mlir::AliasResult::Kind;
