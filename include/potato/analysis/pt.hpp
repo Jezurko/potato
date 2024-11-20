@@ -39,7 +39,20 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
             auto symbol_ref = op.getSymbol();
             assert(symbol_ref && "Address of op without value or proper attribute.");
 
-            changed |= after->join_var(op.getPtr(), pt_lattice::new_symbol(symbol_ref.value()));
+            auto symbol = symbol_table::lookupNearestSymbolFrom(
+                op.getOperation(),
+                op.getSymbolAttr()
+            );
+
+            if (mlir::isa< mlir::FunctionOpInterface >(symbol)) {
+                changed |= after->join_var(op.getPtr(), pt_lattice::new_func(symbol));
+            }
+
+            if (mlir::isa< pt::GlobalVarOp >(symbol)) {
+                changed |= after->join_var(op.getPtr(), pt_lattice::new_glob(symbol));
+            }
+
+            //changed |= after->join_var(op.getPtr(), pt_lattice::new_symbol(symbol_ref.value()));
         }
         return changed;
     };
@@ -56,13 +69,13 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
                 for (auto ret_arg : ret_op->getOperands()) {
                     auto *arg_pt = ret_state->lookup(ret_arg);
                     if (arg_pt) {
-                        changed |= after->join_var(pt_lattice::new_symbol(op.getName()), arg_pt);
+                        changed |= after->join_var(pt_lattice::new_glob(op.getOperation()), arg_pt);
                     }
                 }
                 return changed;
             }
         }
-        changed |= after->join_var(pt_lattice::new_symbol(op.getName()), pt_lattice::new_top_set());
+        changed |= after->join_var(pt_lattice::new_glob(op.getOperation()), pt_lattice::new_top_set());
         return changed;
     }
 
@@ -94,8 +107,8 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
 
             // If we have written into a global, we need to notify all users
             if (auto addr = mlir::dyn_cast< pt::AddressOp >(lhs_def)) {
-                auto symbol = mlir::SymbolTable::lookupNearestSymbolFrom(op, addr.getSymbolAttr());
-                auto users = mlir::SymbolTable::getSymbolUses(symbol, symbol->getParentOp());
+                auto symbol = symbol_table::lookupNearestSymbolFrom(op, addr.getSymbolAttr());
+                auto users  = symbol_table::getSymbolUses(symbol, symbol->getParentOp());
                 assert(users);
                 for (auto user : *users) {
                     auto user_state = this->template getOrCreate< pt_lattice >(user.getUser());
@@ -277,11 +290,12 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
                     std::vector< mlir_value > copy_from;
                     std::vector< mlir_value > copy_to;
                     for (size_t i = 0; i < model.args.size(); i++) {
+                        auto arg_changed = change_result::NoChange;
                         switch(model.args[i]) {
                             case arg_effect::none:
                                 break;
                             case arg_effect::alloc:
-                                changed |= after->new_alloca(call->getOperand(i));
+                                arg_changed |= after->new_alloca(call->getOperand(i));
                                 break;
                             case arg_effect::copy_src:
                                 copy_from.push_back(call->getOperand(i));
@@ -290,9 +304,15 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
                                 copy_to.push_back(call->getOperand(i));
                                 break;
                             case arg_effect::unknown:
-                                changed |= after->join_var(call->getOperand(i), pt_lattice::new_top_set());
+                                arg_changed |= after->join_var(call->getOperand(i), pt_lattice::new_top_set());
                         }
-
+                        if constexpr (pt_lattice::propagate_assign()) {
+                            propagateIfChanged(
+                                this->template getOrCreate< pt_lattice >(call->getOperand(i).getDefiningOp()),
+                                arg_changed
+                            );
+                        }
+                        changed |= arg_changed;
                     }
                     // TODO: we only represent single return funtions right now
                     // adding multiple-returns should not be complicated
@@ -313,9 +333,18 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
                     }
                     for (const auto &trg : copy_to) {
                         for (const auto &src : copy_from) {
-                            auto src_pt = after->lookup(src);
-                            if (src_pt)
-                                changed |= after->join_var(trg, src_pt);
+                            if (auto src_pt = after->lookup(src); src_pt) {
+                                auto trg_changed = after->join_var(trg, src_pt);
+                                if constexpr (pt_lattice::propagate_assign()) {
+                                    if (auto def_op = trg.getDefiningOp(); def_op != call.getOperation()) {
+                                        propagateIfChanged(
+                                            this->template getOrCreate< pt_lattice >(def_op),
+                                            trg_changed
+                                        );
+                                    }
+                                }
+                                changed |= trg_changed;
+                            }
                         }
                     }
                 }
