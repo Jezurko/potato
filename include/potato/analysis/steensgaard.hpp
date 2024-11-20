@@ -12,7 +12,6 @@ POTATO_UNRELAX_WARNINGS
 #include <memory>
 #include <unordered_map>
 #include <unordered_set>
-#include <string>
 
 namespace potato::analysis {
     struct stg_elem {
@@ -53,22 +52,10 @@ namespace potato::analysis {
         inline bool is_func() const { return elem && elem->is_func(); }
         inline bool is_global() const { return elem && elem->is_global(); }
 
-        void print(llvm::raw_ostream &os) const {
-            if (elem) {
-                elem->print(os);
-                return;
-            }
-            if (dummy_id) {
-                os << "dummy_" << *dummy_id;
-                return;
-            }
-            if (is_top()) {
-                os << "top";
-                return;
-            }
-        }
+        void print(llvm::raw_ostream &os) const;
     };
 
+    llvm::raw_ostream &operator<<(llvm::raw_ostream &os, const stg_elem &e);
 } // namespace potato::analysis
 
 template <>
@@ -190,202 +177,35 @@ namespace potato::analysis {
         bool initialized() const { return (bool) info; }
         void initialize_with(std::shared_ptr< relation_t > &relation) { info = relation; }
 
-        elem_t *lookup(const elem_t &val) {
-            auto trg_it = mapping().find(val);
-            if (trg_it == mapping().end())
-                return &mapping().emplace(val, new_dummy()).first->second;
-            return &trg_it->second;
-        }
-
-        static elem_t new_top_set() {
-            // default constructor creates unknown
-            return elem_t();
-        }
-
-        elem_t new_dummy() {
-            return elem_t(info->dummy_count++);
-        }
-
-
-        static elem_t new_func(mlir_operation *op) {
-            return elem_t::make_func(op);
-        }
-
-        static elem_t new_glob(mlir_operation *op) {
-            return elem_t::make_glob(op);
-        }
-
-        change_result new_alloca(mlir_value val) {
-            auto alloca = elem_t::make_alloca(val.getDefiningOp());
-            return join_var(val, alloca);
-        }
-
+        elem_t *lookup(const elem_t &val);
+        // default constructor creates unknown
+        static elem_t new_top_set() { return elem_t(); }
+        elem_t new_dummy() { return elem_t(info->dummy_count++); }
+        static elem_t new_func(mlir_operation *op) { return elem_t::make_func(op); }
+        static elem_t new_glob(mlir_operation *op) { return elem_t::make_glob(op); }
+        change_result new_alloca(mlir_value val);
         change_result join_empty(mlir_value val) {
             return sets().insert(val) ? change_result::Change : change_result::NoChange;
         }
+        change_result join_all_pointees_with(elem_t *to, const elem_t *from);
+        change_result copy_all_pts_into(elem_t &&to, const elem_t *from);
 
-        change_result join_all_pointees_with(elem_t *to, const elem_t *from) {
-            auto to_trg_it = mapping().find(*to);
-            if (to_trg_it == mapping().end()) {
-                mapping().insert({*to, *from});
-                return change_result::Change;
-            }
-            return make_union(to_trg_it->second, *from);
-        }
+        change_result add_constant(mlir_value val) { return join_empty(val); }
 
-
-        change_result copy_all_pts_into(elem_t &&to, const elem_t *from) {
-            auto from_rep = sets().find(*from);
-            auto to_rep = sets().find(to);
-            auto to_trg_it = mapping().find(to_rep);
-            auto from_trg_it = mapping().find(from_rep);
-
-            if (from_trg_it == mapping().end()) {
-                if (to_trg_it == mapping().end()) {
-                    // tie targets with a dummy
-                    auto dummy = new_dummy();
-                    sets().insert(dummy);
-                    mapping().emplace(to_rep, dummy);
-                    mapping().emplace(from_rep, dummy);
-                } else {
-                    // tie targets together
-                    mapping().emplace(from_rep, to_trg_it->second);
-                }
-                return change_result::Change;
-            }
-
-            auto &from_trg = from_trg_it->second;
-
-            if (to_trg_it == mapping().end()) {
-                mapping().emplace(to_rep, from_trg);
-                return change_result::Change;
-            }
-
-            return make_union(to_trg_it->second, from_trg);
-        }
-
-        auto add_constant(mlir_value val) { return join_empty(val); }
-
-        change_result make_union(elem_t lhs, elem_t rhs) {
-            auto lhs_root = sets().find(lhs);
-            auto rhs_root = sets().find(rhs);
-            if (lhs_root == rhs_root) {
-                return change_result::NoChange;
-            }
-
-            auto lhs_trg = mapping().find(lhs_root);
-            auto rhs_trg = mapping().find(rhs_root);
-
-            auto new_root = sets().set_union(lhs, rhs);
-
-            if (lhs_trg == mapping().end() && rhs_trg == mapping().end()) {
-                return change_result::Change;
-            }
-
-            // merge outgoing edges
-            if (lhs_trg == mapping().end()) {
-                if (lhs_root == new_root) {
-                    mapping().emplace(new_root, rhs_trg->second);
-                    mapping().erase(rhs_trg);
-                }
-                return change_result::Change;
-            }
-            if (rhs_trg == mapping().end()) {
-                if (rhs_root == new_root) {
-                    mapping().emplace(new_root, lhs_trg->second);
-                    mapping().erase(lhs_trg);
-                }
-                return change_result::Change;
-            }
-
-            if (lhs_trg->second.is_unknown()) {
-                mapping()[rhs_root] = lhs_trg->second;
-                return change_result::Change;
-            }
-
-            if (rhs_trg->second.is_unknown()) {
-                mapping()[lhs_root] = rhs_trg->second;
-            }
-
-            // if both have outgoing edge, unify the targets and remove the redundant edge
-            std::ignore = make_union(lhs_trg->second, rhs_trg->second);
-            if (new_root == lhs_root) {
-                mapping().erase(rhs_trg);
-            } else {
-                mapping().erase(lhs_trg);
-            }
-
-            return change_result::Change;
-        }
-
-        change_result join_var(const elem_t &ptr, const elem_t &new_trg) {
-            auto ptr_rep = sets().find(ptr);
-            auto new_trg_rep = sets().find(new_trg);
-
-            auto ptr_trg = mapping().find(ptr_rep);
-            if (ptr_trg == mapping().end()) {
-                mapping().insert({ptr_rep, new_trg_rep});
-                return change_result::Change;
-            }
-            if (ptr_trg->second.is_unknown()) {
-                return change_result::NoChange;
-            }
-            if (new_trg_rep.is_unknown()) {
-                mapping()[ptr_rep] = new_trg_rep;
-                return change_result::Change;
-            }
-            return make_union(ptr_trg->second, new_trg_rep);
-        }
-
+        change_result make_union(elem_t lhs, elem_t rhs);
+        change_result join_var(const elem_t &ptr, const elem_t &new_trg);
         change_result join_var(const elem_t &ptr, const elem_t *new_trg) {
             return join_var(ptr, *new_trg);
         }
 
-        change_result set_all_unknown() {
-            auto &unknown = all_unknown();
-            if (unknown) {
-                return change_result::NoChange;
-            }
-
-            unknown = true;
-            return change_result::Change;
-        }
-
-        change_result merge(const steensgaard &rhs) {
-            if (info && !rhs.info)
-                return change_result::NoChange;
-            if (info && rhs.info == info) {
-                return change_result::NoChange;
-            }
-            if (info && rhs.info) {
-                llvm::errs() << "Merging two different relations.\n";
-                //TODO
-            }
-            if (rhs.info) {
-                info = rhs.info;
-                return change_result::Change;
-            }
-            return change_result::NoChange;
-        };
+        change_result set_all_unknown();
+        change_result merge(const steensgaard &rhs);
 
         change_result join(const mlir_dense_abstract_lattice &rhs) override {
             return this->merge(*static_cast< const steensgaard *>(&rhs));
         };
 
-        void print(llvm::raw_ostream &os) const override {
-            for (const auto &[src, trg] : mapping()) {
-                src.print(os);
-                os << " -> {";
-                auto trg_rep = sets().find(trg);
-                auto sep = "";
-                for (auto child : sets().children.at(trg_rep)) {
-                    os << sep;
-                    child.print(os);
-                    sep = ", ";
-                }
-                os << "}\n";
-            }
-        }
+        void print(llvm::raw_ostream &os) const override;
 
         static void add_dependencies(mlir::Operation *op, mlir_dense_dfa< steensgaard > *analysis, ppoint point, auto get_or_create) { return; }
 
@@ -398,13 +218,12 @@ namespace potato::analysis {
             if (lhs_trg.is_dummy() || rhs_trg.is_dummy()) {
                 return alias_kind::NoAlias;
             }
-            if (lhs_trg == rhs_trg) {
-                return alias_kind::MayAlias;
-            }
             if (lhs_trg != rhs_trg) {
                 return alias_kind::NoAlias;
             }
-            // TODO: MustAlias
+            // TODO: MustAlias - dummies!
+            return alias_kind::MayAlias;
         };
     };
+llvm::raw_ostream &operator<<(llvm::raw_ostream &os, const steensgaard &l);
 } //namespace potato::analysis
