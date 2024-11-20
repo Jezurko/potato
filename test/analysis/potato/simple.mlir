@@ -12,5 +12,5 @@
 } ): () -> ()
 
 // CHECK-DAG: %0 = pt.constant : !pt.ptr -> {}
-// CHECK-DAG: %1 = pt.alloc : !pt.ptr -> {mem_alloc0}
+// CHECK-DAG: %1 = pt.alloc : !pt.ptr -> {mem_alloc at: loc({{.*}}:6:14)}
 // CHECK-DAG: %2 = pt.deref %1 : (!pt.ptr) -> !pt.ptr -> {}
