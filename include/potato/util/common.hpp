@@ -36,8 +36,6 @@ using alias_res = mlir::AliasResult;
 using alias_kind = mlir::AliasResult::Kind;
 
 using optional_value = std::optional< mlir_value >;
-using optional_operation = std::optional< mlir_operation >;
-using optional_loc = std::optional< mlir_loc >;
 
 template < typename lattice >
 using mlir_dense_dfa = mlir::dataflow::DenseForwardDataFlowAnalysis< lattice >;
