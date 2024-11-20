@@ -294,6 +294,8 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
                         }
 
                     }
+                    // TODO: we only represent single return funtions right now
+                    // adding multiple-returns should not be complicated
                     for (auto res : call->getResults()) {
                         switch (model.ret) {
                             case ret_effect::none:
@@ -318,13 +320,7 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
                     }
                 }
             }
-            // TODO:
-            // Try to check for "known" functions
-            // Try to resolve function pointer calls? (does it happen here?)
-            // Make the set of known functions a customization point?
-            for (auto operand : call.getArgOperands()) {
-                //TODO: propagate TOP
-            }
+            // TODO: Resolve function pointer calls (does it happen here?)
             propagateIfChanged(after, changed );
         }
     };
@@ -355,14 +351,14 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
 
     pt_analysis(mlir::DataFlowSolver &solver)
         : base(solver),
-          models(load_and_parse(pointsto_analysis_config)),
-          relation(std::make_shared< typename pt_lattice::relation_t >())
+          relation(std::make_shared< typename pt_lattice::relation_t >()),
+          models(load_and_parse(pointsto_analysis_config))
         {}
 
     pt_analysis(mlir::DataFlowSolver &solver, std::string config)
         : base(solver),
-          models(load_and_parse(config)),
-          relation(std::make_shared< typename pt_lattice::relation_t >())
+          relation(std::make_shared< typename pt_lattice::relation_t >()),
+          models(load_and_parse(config))
         {}
 
     private:
