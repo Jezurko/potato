@@ -66,9 +66,9 @@ namespace potato::analysis::trad {
             changed |= after->set_var(op.getResult(), aa_lattice::new_top_set());
             return propagateIfChanged(after, changed);
         }
-        std::vector< decltype(before.lookup(typename aa_lattice::elem_t())) > to_join;
+        std::vector< aa_lattice::pointee_set * > to_join;
         for (const auto &rhs_val : rhs_pt->get_set_ref()) {
-            auto rhs_pt = before.lookup(rhs_val);
+            auto rhs_pt = after->lookup(rhs_val);
             if (rhs_pt) {
                 to_join.push_back(rhs_pt);
             } else {
@@ -111,7 +111,16 @@ namespace potato::analysis::trad {
 
     void llvm_andersen::visit_op(mllvm::AddressOfOp &op, const aa_lattice &before, aa_lattice *after) {
         auto changed = after->join(before);
-        changed |= after->join_var(op.getResult(), aa_lattice::new_symbol(op.getGlobalName()));
+        auto symbol = symbol_table::lookupNearestSymbolFrom(
+            op.getOperation(),
+            op.getGlobalNameAttr()
+        );
+        if (mlir::isa< mlir::FunctionOpInterface >(symbol)) {
+            changed |= after->join_var(op.getResult(), aa_lattice::new_func(symbol));
+        }
+        if (mlir::isa< mllvm::GlobalOp >(symbol)) {
+            changed |= after->join_var(op.getResult(), aa_lattice::new_glob(symbol));
+        }
         propagateIfChanged(after, changed);
     }
 
@@ -135,13 +144,13 @@ namespace potato::analysis::trad {
                 for (auto ret_arg : ret_op->getOperands()) {
                     auto *arg_pt = ret_state->lookup(ret_arg);
                     if (arg_pt) {
-                        changed |= after->join_var(aa_lattice::new_symbol(op.getName()), *arg_pt);
+                        changed |= after->join_var(aa_lattice::new_glob(op.getOperation()), *arg_pt);
                     }
                 }
                 return propagateIfChanged(after, changed);
             }
         }
-        changed |= after->join_var(aa_lattice::new_symbol(op.getName()), aa_lattice::new_top_set());
+        changed |= after->join_var(aa_lattice::new_glob(op.getOperation()), aa_lattice::new_top_set());
         propagateIfChanged(after, changed);
     }
 
