@@ -19,20 +19,39 @@ namespace potato::analysis {
         std::optional< pt_element > elem;
         std::optional< size_t > dummy_id;
 
-        stg_elem(const llvm::StringRef name) : elem(pt_element(name)), dummy_id(std::nullopt) {}
         stg_elem(mlir_value val)             : elem(pt_element(val)), dummy_id(std::nullopt) {}
         stg_elem(size_t id)                  : elem(std::nullopt), dummy_id(id) {}
         stg_elem()                           : elem(std::nullopt), dummy_id(std::nullopt) {}
 
+        stg_elem(pt_element::elem_kind kind, mlir_value val, mlir_operation *op)
+            : elem(pt_element(kind, val, op)), dummy_id(std::nullopt) {}
+
+        static stg_elem make_func(mlir_operation *op) {
+            return stg_elem(pt_element::elem_kind::func, {}, op);
+        }
+
+        static stg_elem make_glob(mlir_operation *op) {
+            return stg_elem(pt_element::elem_kind::global, {}, op);
+        }
+
+        static stg_elem make_alloca(mlir_operation *op, mlir_value val = {}) {
+            return stg_elem(pt_element::elem_kind::alloca, val, op);
+        }
+
+        static stg_elem make_var(mlir_value val) {
+            return stg_elem(pt_element::elem_kind::var, val, nullptr);
+        }
+
         bool operator==(const stg_elem &rhs) const = default;
 
         inline bool is_unknown() const { return !is_dummy() && !elem.has_value(); }
-
         inline bool is_dummy() const { return dummy_id.has_value(); }
-
         inline bool is_top() const { return is_unknown(); }
-
         inline bool is_bottom() const { return is_dummy(); }
+        inline bool is_alloca() const { return elem && elem->is_alloca(); }
+        inline bool is_var() const { return elem && elem->is_var(); }
+        inline bool is_func() const { return elem && elem->is_func(); }
+        inline bool is_global() const { return elem && elem->is_global(); }
 
         void print(llvm::raw_ostream &os) const {
             if (elem) {
@@ -153,7 +172,6 @@ namespace potato::analysis {
 
         std::unordered_map< elem_t, elem_t > mapping;
         bool all_unknown;
-        unsigned int mem_loc_count = 0;
         size_t dummy_count = 0;
     };
 
@@ -172,20 +190,11 @@ namespace potato::analysis {
         bool initialized() const { return (bool) info; }
         void initialize_with(std::shared_ptr< relation_t > &relation) { info = relation; }
 
-        unsigned int alloc_count();
-
-        std::optional< std::string > alloc_name = {};
-        llvm::StringRef get_alloc_name();
-
         elem_t *lookup(const elem_t &val) {
             auto trg_it = mapping().find(val);
             if (trg_it == mapping().end())
                 return &mapping().emplace(val, new_dummy()).first->second;
             return &trg_it->second;
-        }
-
-        static elem_t new_symbol(const llvm::StringRef name) {
-            return elem_t(name);
         }
 
         static elem_t new_top_set() {
@@ -197,8 +206,17 @@ namespace potato::analysis {
             return elem_t(info->dummy_count++);
         }
 
+
+        static elem_t new_func(mlir_operation *op) {
+            return elem_t::make_func(op);
+        }
+
+        static elem_t new_glob(mlir_operation *op) {
+            return elem_t::make_glob(op);
+        }
+
         change_result new_alloca(mlir_value val) {
-            auto alloca = elem_t(get_alloc_name());
+            auto alloca = elem_t::make_alloca(val.getDefiningOp());
             return join_var(val, alloca);
         }
 
