@@ -51,8 +51,6 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
             if (mlir::isa< pt::GlobalVarOp >(symbol)) {
                 changed |= after->join_var(op.getPtr(), pt_lattice::new_glob(symbol));
             }
-
-            //changed |= after->join_var(op.getPtr(), pt_lattice::new_symbol(symbol_ref.value()));
         }
         return changed;
     };
