@@ -67,7 +67,7 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
                 ret_state->addDependency(after->getPoint(), this);
                 propagateIfChanged(ret_state, ret_state->join(before));
                 for (auto ret_arg : ret_op->getOperands()) {
-                    auto *arg_pt = ret_state->lookup(ret_arg);
+                    auto arg_pt = ret_state->lookup(ret_arg);
                     if (arg_pt) {
                         changed |= after->join_var(pt_lattice::new_glob(op.getOperation()), arg_pt);
                     }
@@ -129,7 +129,7 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
         for (auto operand : op.getOperands()) {
             auto operand_pt = after->lookup(operand);
             if (operand_pt) {
-                changed |= after->join_var(op.getResult(), *operand_pt);
+                changed |= after->join_var(op.getResult(), operand_pt);
             }
         }
 
