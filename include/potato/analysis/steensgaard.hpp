@@ -245,8 +245,17 @@ namespace potato::analysis {
             if (lhs_trg != rhs_trg) {
                 return alias_kind::NoAlias;
             }
-            // TODO: MustAlias - dummies!
-            return alias_kind::MayAlias;
+            for (auto child : sets().children[lhs_trg]) {
+                if (!child.is_dummy() && child != lhs_trg) {
+                    return alias_kind::MayAlias;
+                }
+            }
+            for (auto child : sets().children[rhs_trg]) {
+                if (!child.is_dummy() && child != rhs_trg) {
+                    return alias_kind::MayAlias;
+                }
+            }
+            return alias_kind::MustAlias;
         };
     };
 llvm::raw_ostream &operator<<(llvm::raw_ostream &os, const steensgaard &l);
