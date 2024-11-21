@@ -180,7 +180,7 @@ namespace potato::analysis {
         elem_t *lookup(const elem_t &val);
         // default constructor creates unknown
         static elem_t new_top_set() { return elem_t(); }
-        elem_t new_dummy() { return elem_t(info->dummy_count++); }
+        elem_t new_dummy();
         static elem_t new_func(mlir_operation *op) { return elem_t::make_func(op); }
         static elem_t new_glob(mlir_operation *op) { return elem_t::make_glob(op); }
         change_result new_alloca(mlir_value val);
