@@ -22,10 +22,18 @@ llvm::raw_ostream &operator<<(llvm::raw_ostream &os, const stg_elem &e) {
 }
 
 steensgaard::elem_t *steensgaard::lookup(const elem_t &val) {
-    auto trg_it = mapping().find(val);
-    if (trg_it == mapping().end())
-        return &mapping().emplace(val, new_dummy()).first->second;
+    auto val_rep = sets().find(val);
+    auto trg_it = mapping().find(val_rep);
+    if (trg_it == mapping().end()) {
+        return &mapping().emplace(val_rep, new_dummy()).first->second;
+    }
     return &trg_it->second;
+}
+
+steensgaard::elem_t steensgaard::new_dummy() {
+    auto dummy = elem_t(info->dummy_count++);
+    sets().insert(dummy);
+    return dummy;
 }
 
 change_result steensgaard::new_alloca(mlir_value val) {
@@ -34,9 +42,10 @@ change_result steensgaard::new_alloca(mlir_value val) {
 }
 
 change_result steensgaard::join_all_pointees_with(elem_t *to, const elem_t *from) {
-    auto to_trg_it = mapping().find(*to);
+    auto to_rep = sets().find(*to);
+    auto to_trg_it = mapping().find(to_rep);
     if (to_trg_it == mapping().end()) {
-        mapping().insert({*to, *from});
+        mapping().emplace(to_rep, *from);
         return change_result::Change;
     }
     return make_union(to_trg_it->second, *from);
@@ -52,7 +61,6 @@ change_result steensgaard::copy_all_pts_into(elem_t &&to, const elem_t *from) {
         if (to_trg_it == mapping().end()) {
             // tie targets with a dummy
             auto dummy = new_dummy();
-            sets().insert(dummy);
             mapping().emplace(to_rep, dummy);
             mapping().emplace(from_rep, dummy);
         } else {
