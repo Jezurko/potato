@@ -227,6 +227,104 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
             .Default([&](auto &pt_op) { propagateIfChanged(after, after->join(before)); });
     };
 
+    change_result visit_function_at_exit(const pt_lattice &before, pt_lattice *after, mlir_operation *callee, mlir::CallOpInterface call) {
+        auto changed = change_result::NoChange;
+        auto &callee_entry = callee->getRegion(0).front();
+        auto callee_args   = callee_entry.getArguments();
+
+        for (const auto &[callee_arg, caller_arg] :
+             llvm::zip_equal(callee_args, call.getArgOperands()))
+        {
+            if (auto arg_pt = after->lookup(caller_arg))
+                changed |= after->join_var(callee_arg, arg_pt);
+        }
+        if constexpr(pt_lattice::propagate_call_arg_zip()) {
+            propagateIfChanged(this->template getOrCreate< pt_lattice >(&callee_entry), changed);
+        }
+
+        // Manage the callee exit
+        if (auto before_exit = mlir::dyn_cast< mlir::Operation * >(before.getPoint());
+                 before_exit && before_exit->template hasTrait< mlir::OpTrait::ReturnLike>()
+        ) {
+            for (size_t i = 0; i < call->getNumResults(); i++) {
+                auto res_arg = before_exit->getOperand(i);
+                if (auto res_pt = after->lookup(res_arg)) {
+                    changed |= after->join_var(call->getResult(i), res_pt);
+                }
+                if (pt_lattice::propagate_assign()) {
+                    pt_lattice *dep_on_state = this->template getOrCreate< pt_lattice >(res_arg.getDefiningOp());
+                    dep_on_state->addDependency(after->getPoint(), this);
+                }
+            }
+        }
+        return changed;
+    }
+
+    change_result visit_function_model(pt_lattice *after, const function_model &model, mlir::CallOpInterface call) {
+        auto changed = change_result::NoChange;
+        std::vector< mlir_value > copy_from;
+        std::vector< mlir_value > copy_to;
+        for (size_t i = 0; i < model.args.size(); i++) {
+            auto arg_changed = change_result::NoChange;
+            switch(model.args[i]) {
+                case arg_effect::none:
+                    break;
+                case arg_effect::alloc:
+                    arg_changed |= after->new_alloca(call->getOperand(i));
+                    break;
+                case arg_effect::copy_src:
+                    copy_from.push_back(call->getOperand(i));
+                    break;
+                case arg_effect::copy_trg:
+                    copy_to.push_back(call->getOperand(i));
+                    break;
+                case arg_effect::unknown:
+                    arg_changed |= after->join_var(call->getOperand(i), pt_lattice::new_top_set());
+            }
+            if constexpr (pt_lattice::propagate_assign()) {
+                propagateIfChanged(
+                    this->template getOrCreate< pt_lattice >(call->getOperand(i).getDefiningOp()),
+                    arg_changed
+                );
+            }
+            changed |= arg_changed;
+        }
+        // TODO: we only represent single return funtions right now
+        // adding multiple-returns should not be complicated
+        for (auto res : call->getResults()) {
+            switch (model.ret) {
+                case ret_effect::none:
+                    break;
+                case ret_effect::alloc:
+                    changed |= after->new_alloca(res);
+                    break;
+                case ret_effect::copy_trg:
+                    copy_to.push_back(res);
+                    break;
+                case ret_effect::unknown:
+                    changed |= after->join_var(res, pt_lattice::new_top_set());
+                    break;
+            }
+        }
+        for (const auto &trg : copy_to) {
+            for (const auto &src : copy_from) {
+                if (auto src_pt = after->lookup(src); src_pt) {
+                    auto trg_changed = after->join_var(trg, src_pt);
+                    if constexpr (pt_lattice::propagate_assign()) {
+                        if (auto def_op = trg.getDefiningOp(); def_op != call.getOperation()) {
+                            propagateIfChanged(
+                                this->template getOrCreate< pt_lattice >(def_op),
+                                trg_changed
+                            );
+                        }
+                    }
+                    changed |= trg_changed;
+                }
+            }
+        }
+        return changed;
+    }
+
     void visitCallControlFlowTransfer(
         mlir::CallOpInterface call, call_cf_action action,
         const pt_lattice &before, pt_lattice *after
@@ -255,98 +353,15 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
         //   - `before` is the state at the end of a callee exit block;
         //   - `after` is the state after the call operation.
         if (action == call_cf_action::ExitCallee) {
-            auto &callee_entry = callee->getRegion(0).front();
-            auto callee_args   = callee_entry.getArguments();
-
-            for (const auto &[callee_arg, caller_arg] :
-                 llvm::zip_equal(callee_args, call.getArgOperands()))
-            {
-                if (auto arg_pt = after->lookup(caller_arg))
-                    changed |= after->join_var(callee_arg, arg_pt);
-            }
-            if constexpr(pt_lattice::propagate_call_arg_zip()) {
-                propagateIfChanged(this->template getOrCreate< pt_lattice >(&callee_entry), changed);
-            }
-
-            // Manage the callee exit
-            if (auto before_exit = mlir::dyn_cast< mlir::Operation * >(before.getPoint());
-                     before_exit && before_exit->template hasTrait< mlir::OpTrait::ReturnLike>()
-            ) {
-                for (size_t i = 0; i < call->getNumResults(); i++) {
-                    auto res_arg = before_exit->getOperand(i);
-                    if (auto res_pt = after->lookup(res_arg)) {
-                        changed |= after->join_var(call->getResult(i), res_pt);
-                    }
-                }
-            }
-
+            changed |= visit_function_at_exit(before, after, callee, call);
             return propagateIfChanged(after, changed);
         }
 
         if (action == call_cf_action::ExternalCallee) {
-            if (auto symbol = mlir::dyn_cast< mlir::SymbolRefAttr >(call.getCallableForCallee())) {
+            auto callable = call.getCallableForCallee();
+            if (auto symbol = mlir::dyn_cast< mlir::SymbolRefAttr >(callable)) {
                 if (auto model_it = models.find(symbol.getLeafReference()); model_it != models.end()) {
-                    const auto &model = model_it->second;
-                    std::vector< mlir_value > copy_from;
-                    std::vector< mlir_value > copy_to;
-                    for (size_t i = 0; i < model.args.size(); i++) {
-                        auto arg_changed = change_result::NoChange;
-                        switch(model.args[i]) {
-                            case arg_effect::none:
-                                break;
-                            case arg_effect::alloc:
-                                arg_changed |= after->new_alloca(call->getOperand(i));
-                                break;
-                            case arg_effect::copy_src:
-                                copy_from.push_back(call->getOperand(i));
-                                break;
-                            case arg_effect::copy_trg:
-                                copy_to.push_back(call->getOperand(i));
-                                break;
-                            case arg_effect::unknown:
-                                arg_changed |= after->join_var(call->getOperand(i), pt_lattice::new_top_set());
-                        }
-                        if constexpr (pt_lattice::propagate_assign()) {
-                            propagateIfChanged(
-                                this->template getOrCreate< pt_lattice >(call->getOperand(i).getDefiningOp()),
-                                arg_changed
-                            );
-                        }
-                        changed |= arg_changed;
-                    }
-                    // TODO: we only represent single return funtions right now
-                    // adding multiple-returns should not be complicated
-                    for (auto res : call->getResults()) {
-                        switch (model.ret) {
-                            case ret_effect::none:
-                                break;
-                            case ret_effect::alloc:
-                                changed |= after->new_alloca(res);
-                                break;
-                            case ret_effect::copy_trg:
-                                copy_to.push_back(res);
-                                break;
-                            case ret_effect::unknown:
-                                changed |= after->join_var(res, pt_lattice::new_top_set());
-                                break;
-                        }
-                    }
-                    for (const auto &trg : copy_to) {
-                        for (const auto &src : copy_from) {
-                            if (auto src_pt = after->lookup(src); src_pt) {
-                                auto trg_changed = after->join_var(trg, src_pt);
-                                if constexpr (pt_lattice::propagate_assign()) {
-                                    if (auto def_op = trg.getDefiningOp(); def_op != call.getOperation()) {
-                                        propagateIfChanged(
-                                            this->template getOrCreate< pt_lattice >(def_op),
-                                            trg_changed
-                                        );
-                                    }
-                                }
-                                changed |= trg_changed;
-                            }
-                        }
-                    }
+                    changed |= visit_function_model(after, model_it->second, call);
                 }
             }
             // TODO: Resolve function pointer calls (does it happen here?)
