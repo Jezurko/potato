@@ -1,5 +1,6 @@
 #pragma once
 
+#include "potato/analysis/function_models.hpp"
 #include "potato/analysis/lattice.hpp"
 #include "potato/analysis/utils.hpp"
 #include "potato/util/common.hpp"
@@ -99,6 +100,59 @@ struct aa_lattice : mlir_dense_abstract_lattice {
     // for each p in from do pts(to) join_with pts(p)
     change_result copy_all_pts_into(elem_t to, const pointee_set *from);
 
+    change_result resolve_fptr_call(
+        mlir_value val,
+        mlir::CallOpInterface call,
+        const function_models &models,
+        auto get_or_create,
+        auto add_dep,
+        auto propagate
+    ) {
+        auto changed = change_result::NoChange;
+        auto fptr_pt = lookup(val);
+        if (!fptr_pt)
+            return changed;
+
+        if (fptr_pt->is_top())
+            return set_all_unknown();
+
+        for (const auto &fun : fptr_pt->get_set_ref()) {
+            assert(fun.is_func());
+            auto fn = mlir::cast< mlir::FunctionOpInterface >(fun.operation);
+            if (fn.isExternal()) {
+                // TODO: modelled function
+                assert(false);
+            } else {
+                // FIXME: this is almost copy paste from pt.hpp. Can we unify it?
+                auto &callee_entry = fn->getRegion(0).front();
+                auto callee_args   = callee_entry.getArguments();
+
+                for (const auto &[callee_arg, caller_arg] :
+                     llvm::zip_equal(callee_args, call.getArgOperands()))
+                {
+                    if (auto arg_pt = lookup(caller_arg))
+                        changed |= join_var(callee_arg, arg_pt);
+                }
+                propagate(get_or_create(&callee_entry), changed);
+
+                auto handle_return = [&](mlir_operation *op) {
+                        if (op->hasTrait< mlir::OpTrait::ReturnLike >()) {
+                            for (size_t i = 0; i < call->getNumResults(); i++) {
+                                auto res_arg = op->getOperand(i);
+                                if (auto res_pt = lookup(res_arg)) {
+                                    changed |= join_var(call->getResult(i), res_pt);
+                                }
+                                add_dep(res_arg.getDefiningOp());
+                            }
+                        }
+                    };
+
+                fn->walk(handle_return);
+            }
+        }
+        return changed;
+    }
+
     // TODO: rework
     change_result set_all_unknown() {
         auto changed = change_result::NoChange;
@@ -146,8 +200,10 @@ struct aa_lattice : mlir_dense_abstract_lattice {
         const auto rhs_pt = lookup(rhs);
         // If we do not know at least one of the arguments we can not deduce any aliasing information
         // TODO: can this happen with correct usage? Should we emit a warning?
-        if (!lhs_pt || !rhs_pt)
+        if (!lhs_pt || !rhs_pt) {
+            assert(false);
             return alias_res(alias_kind::MayAlias);
+        }
 
         if (lhs_pt->is_top() || rhs_pt->is_top()) {
             return alias_res(alias_kind::MayAlias);

@@ -6,6 +6,7 @@ POTATO_RELAX_WARNINGS
 #include <llvm/ADT/Hashing.h>
 POTATO_UNRELAX_WARNINGS
 
+#include "potato/analysis/function_models.hpp"
 #include "potato/analysis/utils.hpp"
 #include "potato/util/common.hpp"
 
@@ -189,6 +190,29 @@ namespace potato::analysis {
         }
         change_result join_all_pointees_with(elem_t *to, const elem_t *from);
         change_result copy_all_pts_into(elem_t &&to, const elem_t *from);
+
+        change_result resolve_fptr_call(
+            mlir_value val,
+            mlir::CallOpInterface call,
+            const function_models &/*models*/,
+            auto /*get_or_create*/,
+            auto /*add_dep*/,
+            auto /*propagate*/
+        ) {
+            auto changed = change_result::NoChange;
+            auto fptr_trg_rep = sets().find(*lookup(val));
+
+            if (fptr_trg_rep.is_unknown())
+                return set_all_unknown();
+
+            if (fptr_trg_rep.is_dummy()) {
+                // store args and ret into dummy
+            } else {
+                assert(fptr_trg_rep.is_func());
+            }
+            assert(false);
+            return changed;
+        }
 
         change_result add_constant(mlir_value val) { return join_empty(val); }
 

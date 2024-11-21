@@ -201,12 +201,27 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
         propagateIfChanged(after, changed);
     }
 
-    void visitOperation(mlir::Operation *op, const pt_lattice &before, pt_lattice *after) override {
-        auto get_or_create = [this](auto arg) -> pt_lattice * {
+    auto get_or_create() {
+        return [this](auto arg) -> pt_lattice * {
             return this->template getOrCreate< pt_lattice >(arg);
         };
+    }
 
-        pt_lattice::add_dependencies(op, this, after->getPoint(), get_or_create);
+    auto add_dep(ppoint dep) {
+        return [=, this](auto dep_on) {
+            auto dep_on_state = this->template getOrCreate< pt_lattice >(dep_on);
+            dep_on_state->addDependency(dep, this);
+        };
+    }
+
+    auto propagate() {
+        return [this](pt_lattice *lattice, change_result change) -> void {
+            propagateIfChanged(lattice, change);
+        };
+    }
+
+    void visitOperation(mlir::Operation *op, const pt_lattice &before, pt_lattice *after) override {
+        pt_lattice::add_dependencies(op, this, after->getPoint(), get_or_create());
 
         return llvm::TypeSwitch< mlir::Operation *, void >(op)
             .Case< pt::AddressOp,
@@ -362,7 +377,11 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
                     changed |= visit_function_model(after, model_it->second, call);
                 }
             }
-            // TODO: Resolve function pointer calls (does it happen here?)
+            if (auto val = mlir::dyn_cast< mlir_value >(callable)) {
+                changed |= after->resolve_fptr_call(
+                    val, call, models, get_or_create(), add_dep(after->getPoint()), propagate()
+                );
+            }
             propagateIfChanged(after, changed );
         }
     };
