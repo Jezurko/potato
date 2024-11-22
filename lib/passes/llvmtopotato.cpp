@@ -57,8 +57,47 @@ namespace potato::conv::llvmtopt
         }
     };
 
+    struct memcpy_insensitive : mlir::OpConversionPattern< mlir::LLVM::MemcpyOp > {
+        using source = mlir::LLVM::MemcpyOp;
+        using base = mlir::OpConversionPattern< source >;
+        using base::base;
+        using adaptor_t = typename source::Adaptor;
+        logical_result matchAndRewrite(source op,
+                                       adaptor_t adaptor,
+                                       mlir::ConversionPatternRewriter &rewriter
+        ) const override {
+            rewriter.replaceOpWithNewOp< pt::AssignOp >(
+                    op,
+                    adaptor.getDst(),
+                    adaptor.getSrc()
+            );
+            return mlir::success();
+        }
+    };
+
+    struct memset_insensitive : mlir::OpConversionPattern< mlir::LLVM::MemsetOp > {
+        using source = mlir::LLVM::MemsetOp;
+        using base = mlir::OpConversionPattern< source >;
+        using base::base;
+        using adaptor_t = typename source::Adaptor;
+        logical_result matchAndRewrite(source op,
+                                       adaptor_t adaptor,
+                                       mlir::ConversionPatternRewriter &rewriter
+        ) const override {
+            rewriter.replaceOpWithNewOp< pt::AssignOp >(
+                    op,
+                    adaptor.getDst(),
+                    adaptor.getVal()
+            );
+            return mlir::success();
+        }
+    };
+
+
     using store_patterns = util::type_list<
-        store_op
+        store_op,
+        memcpy_insensitive,
+        memset_insensitive
     >;
 
     struct load_op : mlir::OpConversionPattern< mlir::LLVM::LoadOp > {
@@ -130,8 +169,8 @@ namespace potato::conv::llvmtopt
         }
     };
 
-    struct memcpy_insensitive : mlir::OpConversionPattern< mlir::LLVM::MemcpyOp > {
-        using source = mlir::LLVM::MemcpyOp;
+    struct insert_value : mlir::OpConversionPattern< mlir::LLVM::InsertValueOp > {
+        using source = mlir::LLVM::InsertValueOp;
         using base = mlir::OpConversionPattern< source >;
         using base::base;
         using adaptor_t = typename source::Adaptor;
@@ -139,28 +178,11 @@ namespace potato::conv::llvmtopt
                                        adaptor_t adaptor,
                                        mlir::ConversionPatternRewriter &rewriter
         ) const override {
-            rewriter.replaceOpWithNewOp< pt::AssignOp >(
+            auto tc = this->getTypeConverter();
+            rewriter.replaceOpWithNewOp< pt::CopyOp >(
                     op,
-                    adaptor.getDst(),
-                    adaptor.getSrc()
-            );
-            return mlir::success();
-        }
-    };
-
-    struct memset_insensitive : mlir::OpConversionPattern< mlir::LLVM::MemsetOp > {
-        using source = mlir::LLVM::MemsetOp;
-        using base = mlir::OpConversionPattern< source >;
-        using base::base;
-        using adaptor_t = typename source::Adaptor;
-        logical_result matchAndRewrite(source op,
-                                       adaptor_t adaptor,
-                                       mlir::ConversionPatternRewriter &rewriter
-        ) const override {
-            rewriter.replaceOpWithNewOp< pt::AssignOp >(
-                    op,
-                    adaptor.getDst(),
-                    adaptor.getVal()
+                    tc->convertType(op.getType()),
+                    mlir::ValueRange{adaptor.getContainer(), adaptor.getValue()}
             );
             return mlir::success();
         }
@@ -213,8 +235,7 @@ namespace potato::conv::llvmtopt
         copy_op< mlir::LLVM::SRemOp >,
         copy_op< mlir::LLVM::FRemOp >,
         gep_insensitive,
-        memcpy_insensitive,
-        memset_insensitive,
+        insert_value,
         select_insensitive
     >;
 
@@ -256,6 +277,20 @@ namespace potato::conv::llvmtopt
         }
     };
 
+    struct zero_op : mlir::OpConversionPattern< mlir::LLVM::ZeroOp > {
+        using base = mlir::OpConversionPattern< mlir::LLVM::ZeroOp >;
+        using base::base;
+        using adaptor_t = typename mlir::LLVM::ZeroOp::Adaptor;
+        logical_result matchAndRewrite(mlir::LLVM::ZeroOp op,
+                                       adaptor_t adaptor,
+                                       mlir::ConversionPatternRewriter &rewriter
+        ) const override {
+            auto tc = this->getTypeConverter();
+            rewriter.replaceOpWithNewOp< pt::ConstantOp >(op, tc->convertType(op.getType()));
+            return mlir::success();
+        }
+    };
+
     struct val_constant_op : mlir::OpConversionPattern< mlir::LLVM::ConstantOp > {
         using base = mlir::OpConversionPattern< mlir::LLVM::ConstantOp >;
         using base::base;
@@ -282,9 +317,10 @@ namespace potato::conv::llvmtopt
 
     using constant_patterns = util::type_list<
         constant_op< mlir::LLVM::ConstantOp >,
-        constant_op< mlir::LLVM::ZeroOp >,
+        constant_op< mlir::LLVM::UndefOp >,
         constant_op< mlir::LLVM::ICmpOp >,
-        constant_op< mlir::LLVM::FCmpOp >
+        constant_op< mlir::LLVM::FCmpOp >,
+        zero_op
     >;
 
     struct global_op : mlir::OpConversionPattern< mlir::LLVM::GlobalOp > {
@@ -343,9 +379,27 @@ namespace potato::conv::llvmtopt
         }
     };
 
+    struct fix_addr_type_pattern : mlir::OpConversionPattern< pt::AddressOp > {
+        using base = mlir::OpConversionPattern< pt::AddressOp >;
+        using base::base;
+        using adaptor_t = typename pt::AddressOp::Adaptor;
+
+        logical_result matchAndRewrite(pt::AddressOp op,
+                                       adaptor_t adaptor,
+                                       mlir::ConversionPatternRewriter &rewriter
+        ) const override {
+            rewriter.replaceOpWithNewOp< pt::AddressOp >(
+                    op,
+                    this->getTypeConverter()->convertType(op.getResult().getType()),
+                    mlir::Value(),
+                    op.getSymbolAttr()
+            );
+            return mlir::success();
+        }
+    };
+
     using global_handling_patterns = util::type_list<
-        global_op,
-        address_of_op
+        fix_addr_type_pattern
     >;
 
     struct potato_target : public mlir::ConversionTarget {
@@ -379,6 +433,26 @@ namespace potato::conv::llvmtopt
         void runOnOperation() override {
             auto &mctx    = getContext();
             auto tc       = to_pt_type();
+            auto dummy_tc = mlir::LLVMTypeConverter(&mctx);
+
+            auto address_of_trg      = potato_target(mctx);
+            auto address_of_patterns = mlir::RewritePatternSet(&mctx);
+            add_patterns< util::type_list< address_of_op > >(address_of_patterns, dummy_tc);
+
+            address_of_trg.addDynamicallyLegalDialect< mlir::LLVM::LLVMDialect >(
+                    [&](auto *op){
+                        return !mlir::isa< mlir::LLVM::AddressOfOp > (op);
+            });
+
+            auto global_trg      = potato_target(mctx);
+            auto global_patterns = mlir::RewritePatternSet(&mctx);
+            add_patterns< util::type_list< global_op > >(global_patterns, dummy_tc);
+
+            global_trg.addDynamicallyLegalDialect< mlir::LLVM::LLVMDialect >(
+                    [&](auto *op){
+                        return !mlir::isa< mlir::LLVM::GlobalOp > (op);
+            });
+
             auto trg      = potato_target(mctx);
             auto patterns = mlir::RewritePatternSet(&mctx);
 
@@ -396,7 +470,21 @@ namespace potato::conv::llvmtopt
                                           mlir::LLVM::AssumeOp
                                         > (op);
             });
+
+            trg.addDynamicallyLegalOp< pt::AddressOp >([&](pt::AddressOp op) {
+                return tc.isLegal(op);
+            });
             trg.addLegalOp< mlir::UnrealizedConversionCastOp >();
+
+            if (failed(applyPartialConversion(getOperation(),
+                                       address_of_trg,
+                                       std::move(address_of_patterns))))
+                    return signalPassFailure();
+
+            if (failed(applyPartialConversion(getOperation(),
+                                       global_trg,
+                                       std::move(global_patterns))))
+                    return signalPassFailure();
 
             if (failed(applyPartialConversion(getOperation(),
                                        trg,
