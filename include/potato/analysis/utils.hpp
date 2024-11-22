@@ -13,6 +13,8 @@ POTATO_UNRELAX_WARNINGS
 
 #include "potato/util/common.hpp"
 
+#include <unordered_map>
+
 namespace potato::util {
     template< typename T >
     concept printable = requires(T a, llvm::raw_ostream &os) { a.print(os); };
@@ -20,7 +22,7 @@ namespace potato::util {
 
 namespace potato::analysis {
     template < typename value_t, template< typename >typename set_t >
-    using pt_map = llvm::DenseMap< value_t, set_t< value_t > >;
+    using pt_map = std::unordered_map< value_t, set_t< value_t > >;
 
     // Allows using DenseSet with above template without having to specify default args
     template< typename value_t >
