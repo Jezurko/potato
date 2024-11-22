@@ -49,6 +49,10 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
             }
 
             if (mlir::isa< pt::GlobalVarOp >(symbol)) {
+                if constexpr (pt_lattice::propagate_assign()) {
+                    auto def = this->template getOrCreate< pt_lattice >(symbol);
+                    def->addDependency(after->getPoint(), this);
+                }
                 changed |= after->join_var(op.getPtr(), pt_lattice::new_glob(symbol));
             }
         }
@@ -101,19 +105,29 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
         // this is necessary for e.g. dereference
         // TODO: consider moving this into a special method
         if constexpr (pt_lattice::propagate_assign()) {
-            auto lhs_def = op.getLhs().getDefiningOp();
-
-            // If we have written into a global, we need to notify all users
-            if (auto addr = mlir::dyn_cast< pt::AddressOp >(lhs_def)) {
-                auto symbol = symbol_table::lookupNearestSymbolFrom(op, addr.getSymbolAttr());
-                auto users  = symbol_table::getSymbolUses(symbol, symbol->getParentOp());
-                assert(users);
-                for (auto user : *users) {
-                    auto user_state = this->template getOrCreate< pt_lattice >(user.getUser());
-                    propagateIfChanged(user_state, changed);
+            for (const auto &lhs_member : lhs->get_set_ref()) {
+                if (lhs_member.is_global()) {
+                    auto glob = mlir::dyn_cast< pt::GlobalVarOp >(lhs_member.operation);
+                    auto glob_state = this->template getOrCreate< pt_lattice >(glob);
+                    propagateIfChanged(glob_state, changed);
                 }
-
+                if (lhs_member.is_alloca()) {
+                    auto alloca_state = this->template getOrCreate< pt_lattice >(lhs_member.operation);
+                    propagateIfChanged(alloca_state, changed);
+                }
             }
+            for (const auto &rhs_member : rhs->get_set_ref()) {
+                if (rhs_member.is_global()) {
+                    auto glob = mlir::dyn_cast< pt::GlobalVarOp >(rhs_member.operation);
+                    auto glob_state = this->template getOrCreate< pt_lattice >(glob);
+                    glob_state->addDependency(after->getPoint(), this);
+                }
+                if (rhs_member.is_alloca()) {
+                    auto alloca_state = this->template getOrCreate< pt_lattice >(rhs_member.operation);
+                    alloca_state->addDependency(after->getPoint(), this);
+                }
+            }
+
             auto lhs_state = this->template getOrCreate< pt_lattice >(op.getLhs().getDefiningOp());
             propagateIfChanged(lhs_state, changed);
         }
@@ -146,6 +160,20 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
             return changed;
         }
         changed |= after->copy_all_pts_into({op.getResult()}, rhs_pt);
+
+        if constexpr (pt_lattice::propagate_assign()) {
+            for (const auto &rhs_member : rhs_pt->get_set_ref()) {
+                if (rhs_member.is_global()) {
+                    auto glob = mlir::dyn_cast< pt::GlobalVarOp >(rhs_member.operation);
+                    auto glob_state = this->template getOrCreate< pt_lattice >(glob);
+                    glob_state->addDependency(after->getPoint(), this);
+                }
+                if (rhs_member.is_alloca()) {
+                    auto alloca_state = this->template getOrCreate< pt_lattice >(rhs_member.operation);
+                    alloca_state->addDependency(after->getPoint(), this);
+                }
+            }
+        }
 
         return changed;
     };
