@@ -104,7 +104,8 @@ change_result aa_lattice::copy_all_pts_into(elem_t to, const pointee_set *from) 
     }
 
     // make sure `to` is in the lattice
-    changed |= join_var(to, pointee_set());
+    if (to_join.empty())
+        changed |= join_var(to, pointee_set());
 
     for (auto *join : to_join) {
         changed |= join_var(to, join);
