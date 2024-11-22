@@ -255,6 +255,9 @@ namespace potato::analysis {
                     return alias_kind::MayAlias;
                 }
             }
+            if (lhs_trg.is_alloca()) {
+                return alias_kind::MayAlias;
+            }
             return alias_kind::MustAlias;
         };
     };
