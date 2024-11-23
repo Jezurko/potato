@@ -101,35 +101,8 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
 
         changed |= after->join_all_pointees_with(lhs, rhs);
 
-        // if we have written to a value, accessors of this value should know about the change
-        // this is necessary for e.g. dereference
-        // TODO: consider moving this into a special method
-        if constexpr (pt_lattice::propagate_assign()) {
-            for (const auto &lhs_member : lhs->get_set_ref()) {
-                if (lhs_member.is_global()) {
-                    auto glob = mlir::dyn_cast< pt::GlobalVarOp >(lhs_member.operation);
-                    auto glob_state = this->template getOrCreate< pt_lattice >(glob);
-                    propagateIfChanged(glob_state, changed);
-                }
-                if (lhs_member.is_alloca()) {
-                    auto alloca_state = this->template getOrCreate< pt_lattice >(lhs_member.operation);
-                    propagateIfChanged(alloca_state, changed);
-                }
-            }
-            for (const auto &rhs_member : rhs->get_set_ref()) {
-                if (rhs_member.is_global()) {
-                    auto glob = mlir::dyn_cast< pt::GlobalVarOp >(rhs_member.operation);
-                    auto glob_state = this->template getOrCreate< pt_lattice >(glob);
-                    glob_state->addDependency(after->getPoint(), this);
-                }
-                if (rhs_member.is_alloca()) {
-                    auto alloca_state = this->template getOrCreate< pt_lattice >(rhs_member.operation);
-                    alloca_state->addDependency(after->getPoint(), this);
-                }
-            }
-
-            auto lhs_state = this->template getOrCreate< pt_lattice >(op.getLhs().getDefiningOp());
-            propagateIfChanged(lhs_state, changed);
+        if (changed == change_result::Change) {
+            pt_lattice::propagate_members_changed(lhs, get_or_create(), propagate());
         }
 
         return changed;
@@ -161,19 +134,7 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
         }
         changed |= after->copy_all_pts_into({op.getResult()}, rhs_pt);
 
-        if constexpr (pt_lattice::propagate_assign()) {
-            for (const auto &rhs_member : rhs_pt->get_set_ref()) {
-                if (rhs_member.is_global()) {
-                    auto glob = mlir::dyn_cast< pt::GlobalVarOp >(rhs_member.operation);
-                    auto glob_state = this->template getOrCreate< pt_lattice >(glob);
-                    glob_state->addDependency(after->getPoint(), this);
-                }
-                if (rhs_member.is_alloca()) {
-                    auto alloca_state = this->template getOrCreate< pt_lattice >(rhs_member.operation);
-                    alloca_state->addDependency(after->getPoint(), this);
-                }
-            }
-        }
+        pt_lattice::depend_on_members(rhs_pt, add_dep(after->getPoint()));
 
         return changed;
     };

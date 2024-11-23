@@ -100,6 +100,23 @@ struct aa_lattice : mlir_dense_abstract_lattice {
     // for each p in from do pts(to) join_with pts(p)
     change_result copy_all_pts_into(elem_t to, const pointee_set *from);
 
+    static void propagate_members_changed(const pointee_set *set, auto get_or_create, auto propagate) {
+        for (const auto &member : set->get_set_ref()) {
+            if (member.is_global() || member.is_alloca()) {
+                auto glob_state = get_or_create(member.operation);
+                propagate(glob_state, change_result::Change);
+            }
+        }
+    }
+
+    static void depend_on_members(const pointee_set *set, auto add_dep) {
+        for (const auto &member : set->get_set_ref()) {
+            if (member.is_global() || member.is_alloca()) {
+                add_dep(member.operation);
+            }
+        }
+    }
+
     change_result resolve_fptr_call(
         mlir_value val,
         mlir::CallOpInterface call,
