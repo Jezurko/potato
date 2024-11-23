@@ -231,6 +231,8 @@ namespace potato::analysis {
 
         void print(llvm::raw_ostream &os) const override;
 
+        static void propagate_members_changed(const elem_t *, auto, auto) { return; }
+        static void depend_on_members(const elem_t *, auto) { return; }
         static void add_dependencies(mlir::Operation *op, mlir_dense_dfa< steensgaard > *analysis, ppoint point, auto get_or_create) { return; }
 
         constexpr static bool propagate_assign() { return false; }
