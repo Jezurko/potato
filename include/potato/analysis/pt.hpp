@@ -49,10 +49,6 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
             }
 
             if (mlir::isa< pt::GlobalVarOp >(symbol)) {
-                if constexpr (pt_lattice::propagate_assign()) {
-                    auto def = this->template getOrCreate< pt_lattice >(symbol);
-                    def->addDependency(after->getPoint(), this);
-                }
                 changed |= after->join_var(op.getPtr(), pt_lattice::new_glob(symbol));
             }
         }
