@@ -138,10 +138,11 @@ change_result steensgaard::join_var(const elem_t &ptr, const elem_t &new_trg) {
 
     auto ptr_trg = mapping().find(ptr_rep);
     if (ptr_trg == mapping().end()) {
-        mapping().insert({ptr_rep, new_trg_rep});
+        mapping().emplace(ptr_rep, new_trg_rep);
         return change_result::Change;
     }
-    if (ptr_trg->second.is_unknown()) {
+    auto ptr_trg_rep = sets().find(ptr_trg->second);
+    if (ptr_trg_rep.is_unknown()) {
         return change_result::NoChange;
     }
     if (new_trg_rep.is_unknown()) {
