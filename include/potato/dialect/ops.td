@@ -29,7 +29,7 @@ def Potato_AssignOp
   , Arguments<( ins Arg< AnyType, "", [MemWrite] >: $lhs,
                     Arg< AnyType, "", [MemRead] >:  $rhs )>
 {
-  let assemblyFormat = [{ attr-dict $lhs `=` $rhs `:` type(operands) }];
+  let assemblyFormat = [{ attr-dict `*` $lhs `=` $rhs `:` type(operands) }];
 }
 
 def Potato_DereferenceOp
