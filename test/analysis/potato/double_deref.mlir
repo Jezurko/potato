@@ -7,8 +7,8 @@
         %2 = pt.alloc : !pt.ptr
         %3 = pt.deref %1 : (!pt.ptr) -> !pt.ptr
         %4 = pt.deref %3 : (!pt.ptr) -> !pt.ptr
-        pt.assign %1 = %0 : !pt.ptr, !pt.ptr
-        pt.assign %0 = %2 : !pt.ptr, !pt.ptr
+        pt.assign * %1 = %0 : !pt.ptr, !pt.ptr
+        pt.assign * %0 = %2 : !pt.ptr, !pt.ptr
         func.return
     }
 } ): () -> ()

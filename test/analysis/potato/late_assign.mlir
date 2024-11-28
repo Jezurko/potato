@@ -5,7 +5,7 @@
         %0 = pt.alloc : !pt.ptr
         %1 = pt.alloc : !pt.ptr
         %2 = pt.deref %1 : (!pt.ptr) -> !pt.ptr
-        pt.assign %1 = %0 : !pt.ptr, !pt.ptr
+        pt.assign * %1 = %0 : !pt.ptr, !pt.ptr
         func.return
     }
 } ): () -> ()
