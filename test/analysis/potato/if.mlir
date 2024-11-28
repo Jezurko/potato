@@ -8,10 +8,10 @@
         %3 = pt.alloc : !pt.ptr
         llvm.cond_br %2, ^bb1, ^bb2
         ^bb1:
-            pt.assign %3 = %0 : !pt.ptr, !pt.ptr
+            pt.assign * %3 = %0 : !pt.ptr, !pt.ptr
             llvm.br ^bb3
         ^bb2:
-            pt.assign %3 = %1 : !pt.ptr, !pt.ptr
+            pt.assign * %3 = %1 : !pt.ptr, !pt.ptr
             llvm.br ^bb3
         ^bb3:
             func.return
