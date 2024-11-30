@@ -80,11 +80,163 @@ change_result steensgaard::copy_all_pts_into(elem_t &&to, const elem_t *from) {
     return make_union(to_trg_it->second, from_trg);
 }
 
+change_result steensgaard::visit_function_model(const function_model &model, fn_interface fn, elem_t res_dummy) {
+        auto changed = change_result::NoChange;
+        std::vector< mlir_value > copy_from;
+        std::vector< mlir_value > copy_to;
+        std::vector< mlir_value > assign_from;
+        std::vector< mlir_value > assign_to;
+        for (size_t i = 0; i < model.args.size(); i++) {
+            auto arg_changed = change_result::NoChange;
+            switch(model.args[i]) {
+                case arg_effect::none:
+                    break;
+                case arg_effect::alloc:
+                    arg_changed |= new_alloca(fn.getArgument(i));
+                    break;
+                case arg_effect::copy_src:
+                    copy_from.push_back(fn.getArgument(i));
+                    break;
+                case arg_effect::copy_trg:
+                    copy_to.push_back(fn.getArgument(i));
+                    break;
+                case arg_effect::assign_src:
+                    assign_from.push_back(fn.getArgument(i));
+                    break;
+                case arg_effect::assign_trg:
+                    assign_to.push_back(fn.getArgument(i));
+                    break;
+                case arg_effect::unknown:
+                    arg_changed |= join_var(fn.getArgument(i), new_top_set());
+            }
+            changed |= arg_changed;
+        }
+
+        if (fn.getNumResults() > 0) {
+            switch (model.ret) {
+                case ret_effect::none:
+                    break;
+                case ret_effect::alloc: {
+                    auto alloca = elem_t::make_alloca(fn.getOperation());
+                    changed |= join_var(res_dummy, alloca);
+                    break;
+                }
+                case ret_effect::copy_trg:
+                    for (const auto &src : copy_from) {
+                        if (auto src_pt = lookup(src); src_pt) {
+                            auto trg_changed = join_var(res_dummy, src_pt);
+                            changed |= trg_changed;
+                        }
+                    }
+                    break;
+                case ret_effect::assign_trg:
+                    if (auto trg_pt = lookup(res_dummy); trg_pt) {
+                        if (trg_pt->is_top()) {
+                            return set_all_unknown();
+                        }
+                        for (const auto &src : assign_from) {
+                            if (auto src_pt = lookup(src); src_pt) {
+                                auto trg_changed = join_all_pointees_with(trg_pt, src_pt);
+                                changed |= trg_changed;
+                            }
+                        }
+                    }
+                    break;
+                case ret_effect::unknown:
+                    changed |= join_var(res_dummy, new_top_set());
+                    break;
+            }
+        }
+        for (const auto &trg : copy_to) {
+            for (const auto &src : copy_from) {
+                if (auto src_pt = lookup(src); src_pt) {
+                    auto trg_changed = join_var(trg, src_pt);
+                    changed |= trg_changed;
+                }
+            }
+        }
+        for (const auto &trg : assign_to) {
+            if (auto trg_pt = lookup(trg); trg_pt) {
+                if (trg_pt->is_top()) {
+                    return set_all_unknown();
+                }
+                for (const auto &src : assign_from) {
+                    if (auto src_pt = lookup(src); src_pt) {
+                        auto trg_changed = join_all_pointees_with(trg_pt, src_pt);
+                        changed |= trg_changed;
+                    }
+                }
+            }
+        }
+        return changed;
+}
+
+fn_info *steensgaard::get_or_create_fn_info(elem_t &elem) {
+    if (elem.fn_details || !elem.is_func())
+        return elem.fn_details;
+
+    auto fn = mlir::cast< fn_interface >(elem.elem->operation);
+    auto args = fn.getArguments();
+    mlir_value ret = nullptr;
+
+    if (fn.isExternal()) {
+        if (auto model_it = info->models->find(fn.getName()); model_it != info->models->end()) {
+            auto res_dummy = new_dummy();
+            std::ignore = visit_function_model(model_it->second, fn, new_dummy());
+            info->fn_info_holder.push_back(std::make_unique< fn_info >(args, res_dummy));
+            elem.fn_details = info->fn_info_holder.back().get();
+            return elem.fn_details;
+        }
+        return nullptr;
+    }
+
+    elem_t *pt = nullptr;
+    if (fn.getNumResults() > 0) {
+        fn->walk([&](mlir_operation *op) {
+            if (op->hasTrait< mlir::OpTrait::ReturnLike >()) {
+                // merges also multiple returns of a function
+                // but we can assume that every function has a single return value for now
+                for (auto operand : op->getOperands()) {
+                    auto trg = lookup(operand);
+                    if (pt) {
+                        // FIXME: ignore
+                        std::ignore = make_union(*pt, *trg);
+                    } else {
+                        pt = trg;
+                    }
+                    if (!ret) {
+                        ret = operand;
+                    }
+                }
+
+            }
+        });
+    }
+    info->fn_info_holder.push_back(std::make_unique< fn_info >(args, *pt));
+    elem.fn_details = info->fn_info_holder.back().get();
+    return elem.fn_details;
+}
+
 change_result steensgaard::make_union(elem_t lhs, elem_t rhs) {
     auto lhs_root = sets().find(lhs);
     auto rhs_root = sets().find(rhs);
     if (lhs_root == rhs_root) {
         return change_result::NoChange;
+    }
+
+    auto change = change_result::NoChange;
+    if (lhs_root.is_func() || rhs_root.is_func()) {
+        auto lhs_info = get_or_create_fn_info(lhs_root);
+        auto rhs_info = get_or_create_fn_info(rhs_root);
+
+        // iff dummy without fn-info no joining
+        if (lhs_info && rhs_info) {
+            for (auto [new_arg, old_arg] : llvm::zip(lhs_info->operands, rhs_info->operands))
+                change |= make_union(*lookup(new_arg), *lookup(old_arg));
+
+            change |= make_union(*lookup(lhs_info->res), *lookup(rhs_info->res));
+        }
+
     }
 
     auto lhs_trg = mapping().find(lhs_root);
@@ -112,6 +264,7 @@ change_result steensgaard::make_union(elem_t lhs, elem_t rhs) {
         return change_result::Change;
     }
 
+    // TODO: check unknown handling
     if (lhs_trg->second.is_unknown()) {
         mapping()[rhs_root] = lhs_trg->second;
         return change_result::Change;
@@ -120,6 +273,7 @@ change_result steensgaard::make_union(elem_t lhs, elem_t rhs) {
     if (rhs_trg->second.is_unknown()) {
         mapping()[lhs_root] = rhs_trg->second;
     }
+
 
     // if both have outgoing edge, unify the targets and remove the redundant edge
     std::ignore = make_union(lhs_trg->second, rhs_trg->second);
@@ -142,6 +296,9 @@ change_result steensgaard::join_var(const elem_t &ptr, const elem_t &new_trg) {
         return change_result::Change;
     }
     auto ptr_trg_rep = sets().find(ptr_trg->second);
+    if (new_trg_rep == ptr_trg_rep) {
+        return change_result::NoChange;
+    }
     if (ptr_trg_rep.is_unknown()) {
         return change_result::NoChange;
     }
@@ -149,7 +306,7 @@ change_result steensgaard::join_var(const elem_t &ptr, const elem_t &new_trg) {
         mapping()[ptr_rep] = new_trg_rep;
         return change_result::Change;
     }
-    return make_union(ptr_trg->second, new_trg_rep);
+    return make_union(ptr_trg_rep, new_trg_rep);
 }
 
 change_result steensgaard::set_all_unknown() {
