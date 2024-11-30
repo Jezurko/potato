@@ -337,18 +337,15 @@ namespace potato::analysis::trad {
     }
 
     void llvm_andersen::setToEntryState(aa_lattice *lattice) {
-        if (lattice->pt_relation != relation) {
-            lattice->pt_relation = relation;
+        if (!lattice->initialized()) {
+            lattice->initialize_with(relation.get());
             propagateIfChanged(lattice, change_result::Change);
         }
     }
 
     mlir::LogicalResult llvm_andersen::initialize(mlir_operation *op) {
-        if (!relation) {
-            relation = std::make_shared< typename aa_lattice::relation_t >();
-        }
-        auto state = this->template getOrCreate< aa_lattice >(op);
-        state->pt_relation = relation;
+        auto state = this->getOrCreate< aa_lattice >(op);
+        state->initialize_with(relation.get());
         return base::initialize(op);
     }
 

@@ -380,14 +380,14 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
 
     void setToEntryState(pt_lattice *lattice) override {
         if (!lattice->initialized()) {
-            lattice->initialize_with(relation);
+            lattice->initialize_with(relation.get());
             propagateIfChanged(lattice, change_result::Change);
         }
     }
 
     mlir::LogicalResult initialize(mlir_operation *op) override {
         auto state = this->template getOrCreate< pt_lattice >(op);
-        state->initialize_with(relation);
+        state->initialize_with(relation.get());
         return base::initialize(op);
     }
 
@@ -397,18 +397,18 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
 
     pt_analysis(mlir::DataFlowSolver &solver)
         : base(solver),
-          relation(std::make_shared< typename pt_lattice::relation_t >()),
+          relation(std::make_unique< typename pt_lattice::relation_t >()),
           models(load_and_parse(pointsto_analysis_config))
         {}
 
     pt_analysis(mlir::DataFlowSolver &solver, std::string config)
         : base(solver),
-          relation(std::make_shared< typename pt_lattice::relation_t >()),
+          relation(std::make_unique< typename pt_lattice::relation_t >()),
           models(load_and_parse(config))
         {}
 
     private:
-    std::shared_ptr< typename pt_lattice::relation_t > relation;
+    std::unique_ptr< typename pt_lattice::relation_t > relation;
     function_models models;
 
 };

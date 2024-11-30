@@ -170,6 +170,7 @@ change_result steensgaard::merge(const steensgaard &rhs) {
     }
     if (info && rhs.info) {
         llvm::errs() << "Merging two different relations.\n";
+        assert(false);
         //TODO
     }
     if (rhs.info) {

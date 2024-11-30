@@ -14,10 +14,10 @@ struct aa_lattice : mlir_dense_abstract_lattice {
     using pointee_set = lattice_set< elem_t >;
     using relation_t = pt_map< elem_t, lattice_set >;
 
-    std::shared_ptr< pt_map< elem_t, lattice_set > > pt_relation;
+    pt_map< elem_t, lattice_set > *pt_relation = nullptr;
 
     bool initialized() const { return (bool) pt_relation; }
-    void initialize_with(std::shared_ptr< relation_t > &relation) { pt_relation = relation; }
+    void initialize_with(relation_t *relation) { pt_relation = relation; }
 
     const pointee_set *lookup(const elem_t &val) const;
     pointee_set *lookup(const elem_t &val);
