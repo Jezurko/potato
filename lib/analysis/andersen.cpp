@@ -2,26 +2,26 @@
 namespace potato::analysis {
 
 const aa_lattice::pointee_set *aa_lattice::lookup(const elem_t &val) const {
-    if (!pt_relation)
+    if (!info)
         return nullptr;
-    auto it = pt_relation->find(val);
-    if (it == pt_relation->end())
+    auto it = pt_relation().find(val);
+    if (it == pt_relation().end())
         return nullptr;
     return &it->second;
 }
 
 aa_lattice::pointee_set *aa_lattice::lookup(const elem_t &val) {
-    if (!pt_relation)
+    if (!info)
         return nullptr;
-    auto it = pt_relation->find(val);
-    if (it == pt_relation->end())
+    auto it = pt_relation().find(val);
+    if (it == pt_relation().end())
         return nullptr;
     return &it->second;
 }
 
 change_result aa_lattice::join_empty(mlir_value val) {
     auto set = pointee_set();
-    auto inserted = pt_relation->insert({{val}, set});
+    auto inserted = pt_relation().insert({{val}, set});
     if (inserted.second) {
         return change_result::Change;
     }
@@ -31,7 +31,7 @@ change_result aa_lattice::join_empty(mlir_value val) {
 change_result aa_lattice::new_alloca(mlir_value val) {
     auto set = pointee_set();
     set.insert(elem_t::make_alloca(val.getDefiningOp()));
-    auto [it, inserted] = pt_relation->insert({{val}, set});
+    auto [it, inserted] = pt_relation().insert({{val}, set});
     if (inserted)
         return change_result::Change;
     else
@@ -115,22 +115,22 @@ change_result aa_lattice::copy_all_pts_into(elem_t to, const pointee_set *from) 
 }
 
 change_result aa_lattice::merge(const aa_lattice &rhs) {
-    if (pt_relation && !rhs.pt_relation)
+    if (info && !rhs.info)
         return change_result::NoChange;
-    if (pt_relation && rhs.pt_relation == pt_relation) {
+    if (info && rhs.info == info) {
         return change_result::NoChange;
     }
-    if (pt_relation && rhs.pt_relation) {
+    if (info && rhs.info) {
         llvm::errs() << "Merging two different relations.\n";
         change_result res = change_result::NoChange;
-        for (const auto &[key, rhs_value] : *rhs.pt_relation) {
-            auto &lhs_value = (*pt_relation)[key];
+        for (const auto &[key, rhs_value] : rhs.pt_relation()) {
+            auto &lhs_value = pt_relation()[key];
             res |= lhs_value.join(rhs_value);
         }
         return res;
     }
-    if (rhs.pt_relation) {
-        pt_relation = rhs.pt_relation;
+    if (rhs.info) {
+        info = rhs.info;
         return change_result::Change;
     }
     assert(false);
@@ -138,14 +138,14 @@ change_result aa_lattice::merge(const aa_lattice &rhs) {
 }
 
 change_result aa_lattice::intersect(const aa_lattice &rhs) {
-    if (rhs.pt_relation == pt_relation) {
+    if (rhs.info == info) {
         return change_result::NoChange;
     }
     change_result res = change_result::NoChange;
-    for (const auto &[key, rhs_value] : *rhs.pt_relation) {
+    for (const auto &[key, rhs_value] : rhs.pt_relation()) {
         // non-existent entry would be considered top, so creating a new entry
         // and intersecting it will create the correct value
-        auto &lhs_value = (*pt_relation)[key];
+        auto &lhs_value = pt_relation()[key];
         res |= lhs_value.meet(rhs_value);
     }
     return res;
@@ -153,7 +153,7 @@ change_result aa_lattice::intersect(const aa_lattice &rhs) {
 
 void aa_lattice::print(llvm::raw_ostream &os) const {
     auto sep = "";
-    for (const auto &[key, vals] : *pt_relation) {
+    for (const auto &[key, vals] : pt_relation()) {
         os << sep << key << " -> " << vals;
         sep = "\n";
     }

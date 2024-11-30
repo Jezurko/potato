@@ -159,6 +159,7 @@ namespace potato::analysis {
         // targets can be any set members
 
         std::unordered_map< elem_t, elem_t > mapping;
+        function_models *models;
         bool all_unknown;
         size_t dummy_count = 0;
     };
@@ -166,8 +167,8 @@ namespace potato::analysis {
     struct steensgaard : mlir_dense_abstract_lattice {
         using mlir_dense_abstract_lattice::AbstractDenseLattice;
         using elem_t = stg_elem;
-        using relation_t = steensgaard_info< elem_t >;
-        relation_t *info = nullptr;
+        using info_t = steensgaard_info< elem_t >;
+        info_t *info = nullptr;
 
         private:
         inline auto &mapping() const { return info->mapping; }
@@ -176,7 +177,7 @@ namespace potato::analysis {
 
         public:
         bool initialized() const { return (bool) info; }
-        void initialize_with(relation_t *relation) { info = relation; }
+        void initialize_with(info_t *relation) { info = relation; }
 
         elem_t *lookup(const elem_t &val);
         // default constructor creates unknown
@@ -194,10 +195,10 @@ namespace potato::analysis {
         change_result resolve_fptr_call(
             mlir_value val,
             mlir::CallOpInterface call,
-            const function_models &/*models*/,
             auto /*get_or_create*/,
             auto /*add_dep*/,
-            auto /*propagate*/
+            auto /*propagate*/,
+            auto analysis
         ) {
             auto changed = change_result::NoChange;
             auto fptr_trg_rep = sets().find(*lookup(val));

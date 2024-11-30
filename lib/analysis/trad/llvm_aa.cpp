@@ -33,7 +33,7 @@ namespace potato::analysis::trad {
         const auto &value_pt = *value;
 
         if (addr_pt.is_top()) {
-            for (auto &[_, pt_set] : *after->pt_relation) {
+            for (auto &[_, pt_set] : after->pt_relation()) {
                 changed |= pt_set.join(value_pt);
             }
             return propagateIfChanged(after, changed);
