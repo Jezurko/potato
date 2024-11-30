@@ -167,7 +167,7 @@ namespace potato::analysis {
         using mlir_dense_abstract_lattice::AbstractDenseLattice;
         using elem_t = stg_elem;
         using relation_t = steensgaard_info< elem_t >;
-        std::shared_ptr< relation_t > info;
+        relation_t *info = nullptr;
 
         private:
         inline auto &mapping() const { return info->mapping; }
@@ -176,7 +176,7 @@ namespace potato::analysis {
 
         public:
         bool initialized() const { return (bool) info; }
-        void initialize_with(std::shared_ptr< relation_t > &relation) { info = relation; }
+        void initialize_with(relation_t *relation) { info = relation; }
 
         elem_t *lookup(const elem_t &val);
         // default constructor creates unknown

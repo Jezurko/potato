@@ -53,8 +53,13 @@ struct llvm_andersen : mlir::dataflow::DenseForwardDataFlowAnalysis< aa_lattice 
     void setToEntryState(aa_lattice *lattice) override;
     mlir::LogicalResult initialize(mlir_operation *op) override;
 
+    llvm_andersen(mlir::DataFlowSolver &solver)
+        : base(solver),
+          relation(std::make_unique< aa_lattice::relation_t >())
+        {}
+
     private:
-    std::shared_ptr< aa_lattice::relation_t > relation;
+    std::unique_ptr< aa_lattice::relation_t > relation;
 };
 
 void print_analysis_result(mlir::DataFlowSolver &solver, mlir_operation *op, llvm::raw_ostream &os);
