@@ -15,9 +15,12 @@ POTATO_UNRELAX_WARNINGS
 #include <unordered_set>
 
 namespace potato::analysis {
+
+    struct fn_info;
     struct stg_elem {
         std::optional< pt_element > elem;
         std::optional< size_t > dummy_id;
+        fn_info * fn_details = nullptr;
 
         stg_elem(mlir_value val)             : elem(pt_element(val)), dummy_id(std::nullopt) {}
         stg_elem(size_t id)                  : elem(std::nullopt), dummy_id(id) {}
@@ -55,6 +58,14 @@ namespace potato::analysis {
 
         void print(llvm::raw_ostream &os) const;
     };
+
+    struct fn_info {
+        value_range operands;
+
+        stg_elem res;
+        bool operator==(const fn_info &rhs) const = default;
+    };
+
 
     llvm::raw_ostream &operator<<(llvm::raw_ostream &os, const stg_elem &e);
 } // namespace potato::analysis
@@ -159,6 +170,7 @@ namespace potato::analysis {
         // targets can be any set members
 
         std::unordered_map< elem_t, elem_t > mapping;
+        std::vector< std::unique_ptr< fn_info > > fn_info_holder;
         function_models *models;
         bool all_unknown;
         size_t dummy_count = 0;
@@ -174,6 +186,7 @@ namespace potato::analysis {
         inline auto &mapping() const { return info->mapping; }
         inline auto &sets() const { return info->sets; }
         inline auto &all_unknown() const { return info->all_unknown; }
+        change_result visit_function_model(const function_model &model, fn_interface fn, elem_t res_dummy);
 
         public:
         bool initialized() const { return (bool) info; }
@@ -201,15 +214,31 @@ namespace potato::analysis {
             auto analysis
         ) {
             auto changed = change_result::NoChange;
-            auto fptr_trg_rep = sets().find(*lookup(val));
+            auto val_pt = lookup(val);
+            auto fptr_trg_rep = sets().find(*val_pt);
 
             if (fptr_trg_rep.is_unknown())
                 return set_all_unknown();
 
             if (fptr_trg_rep.is_dummy()) {
-                // store args and ret into dummy
+                if (!fptr_trg_rep.fn_details) {
+                    info->fn_info_holder.push_back(
+                        std::make_unique< fn_info >(call.getArgOperands(), call->getResult(0))
+                    );
+                    // we need to store to val_pt as the representant is a value that gets lost
+                    val_pt->fn_details = info->fn_info_holder.back().get();
+                    changed |= change_result::Change;
+                }
             } else {
                 assert(fptr_trg_rep.is_func());
+                auto fn_details = fptr_trg_rep.fn_details;
+                for (auto arg : fn_details->operands) {
+                    for (auto operand : call.getArgOperands()) {
+                        auto operand_pt = lookup(operand);
+                        changed |= join_var(arg, operand_pt);
+                    }
+                }
+                changed |= join_var(call->getResult(0), *lookup(fn_details->res));
             }
             assert(false);
             return changed;
@@ -217,6 +246,7 @@ namespace potato::analysis {
 
         change_result add_constant(mlir_value val) { return join_empty(val); }
 
+        fn_info *get_or_create_fn_info(elem_t &elemop);
         change_result make_union(elem_t lhs, elem_t rhs);
         change_result join_var(const elem_t &ptr, const elem_t &new_trg);
         change_result join_var(const elem_t &ptr, const elem_t *new_trg) {
