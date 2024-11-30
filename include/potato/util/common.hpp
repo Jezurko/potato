@@ -24,6 +24,9 @@ using change_result = mlir::ChangeResult;
 using mlir_loc = mlir::Location;
 using operand_range = mlir::OperandRange;
 using result_range = mlir::ResultRange;
+using value_range = mlir::ValueRange;
+
+using fn_interface = mlir::FunctionOpInterface;
 
 using logical_result = mlir::LogicalResult;
 
