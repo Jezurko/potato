@@ -55,11 +55,11 @@ struct llvm_andersen : mlir::dataflow::DenseForwardDataFlowAnalysis< aa_lattice 
 
     llvm_andersen(mlir::DataFlowSolver &solver)
         : base(solver),
-          relation(std::make_unique< aa_lattice::relation_t >())
+          relation(std::make_unique< aa_lattice::info_t >())
         {}
 
     private:
-    std::unique_ptr< aa_lattice::relation_t > relation;
+    std::unique_ptr< aa_lattice::info_t > relation;
 };
 
 void print_analysis_result(mlir::DataFlowSolver &solver, mlir_operation *op, llvm::raw_ostream &os);

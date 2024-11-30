@@ -364,7 +364,7 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
             }
             if (auto val = mlir::dyn_cast< mlir_value >(callable)) {
                 changed |= after->resolve_fptr_call(
-                    val, call, models, get_or_create(), add_dep(after->getPoint()), propagate()
+                    val, call, get_or_create(), add_dep(after->getPoint()), propagate(), this
                 );
             }
             propagateIfChanged(after, changed );
@@ -397,18 +397,22 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
 
     pt_analysis(mlir::DataFlowSolver &solver)
         : base(solver),
-          relation(std::make_unique< typename pt_lattice::relation_t >()),
+          relation(std::make_unique< typename pt_lattice::info_t >()),
           models(load_and_parse(pointsto_analysis_config))
-        {}
+        {
+            relation->models = &models;
+        }
 
     pt_analysis(mlir::DataFlowSolver &solver, std::string config)
         : base(solver),
-          relation(std::make_unique< typename pt_lattice::relation_t >()),
+          relation(std::make_unique< typename pt_lattice::info_t >()),
           models(load_and_parse(config))
-        {}
+        {
+            relation->models = &models;
+        }
 
     private:
-    std::unique_ptr< typename pt_lattice::relation_t > relation;
+    std::unique_ptr< typename pt_lattice::info_t > relation;
     function_models models;
 
 };

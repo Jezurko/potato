@@ -8,16 +8,24 @@
 #include <memory>
 
 namespace potato::analysis {
+
 struct aa_lattice : mlir_dense_abstract_lattice {
     using mlir_dense_abstract_lattice::AbstractDenseLattice;
     using elem_t = pt_element;
     using pointee_set = lattice_set< elem_t >;
     using relation_t = pt_map< elem_t, lattice_set >;
+    struct aa_info {
+        pt_map< elem_t, lattice_set > pt_relation;
+        function_models *models;
+    };
+    using info_t = aa_info;
 
-    pt_map< elem_t, lattice_set > *pt_relation = nullptr;
+    aa_info *info = nullptr;
 
-    bool initialized() const { return (bool) pt_relation; }
-    void initialize_with(relation_t *relation) { pt_relation = relation; }
+    bool initialized() const { return (bool)info; }
+    void initialize_with(info_t *new_info) { info = new_info; }
+
+    relation_t &pt_relation() const { return info->pt_relation; }
 
     const pointee_set *lookup(const elem_t &val) const;
     pointee_set *lookup(const elem_t &val);
@@ -33,13 +41,13 @@ struct aa_lattice : mlir_dense_abstract_lattice {
     change_result add_constant(mlir_value val) { return join_empty(val); }
     change_result new_alloca(mlir_value val);
     auto new_var(mlir_value var, const pointee_set& pt_set) {
-        return pt_relation->insert({{var}, pt_set});
+        return pt_relation().insert({{var}, pt_set});
     }
 
     auto new_var(mlir_value var, mlir_value pointee) {
         pointee_set set{};
-        auto pointee_it = pt_relation->find({pointee});
-        if (pointee_it == pt_relation->end()) {
+        auto pointee_it = pt_relation().find({pointee});
+        if (pointee_it == pt_relation().end()) {
             set.insert(elem_t::make_alloca(var.getDefiningOp()));
         } else {
             set.insert(pointee_it->first);
@@ -79,7 +87,7 @@ struct aa_lattice : mlir_dense_abstract_lattice {
 
     // TODO: remove
     change_result set_var(elem_t elem, const pointee_set &set) {
-        auto [var, inserted] = pt_relation->insert({elem, set});
+        auto [var, inserted] = pt_relation().insert({elem, set});
         if (inserted)
             return change_result::Change;
         if (var->second != set) {
@@ -120,10 +128,10 @@ struct aa_lattice : mlir_dense_abstract_lattice {
     change_result resolve_fptr_call(
         mlir_value val,
         mlir::CallOpInterface call,
-        const function_models &models,
         auto get_or_create,
         auto add_dep,
-        auto propagate
+        auto propagate,
+        auto analysis
     ) {
         auto changed = change_result::NoChange;
         auto fptr_pt = lookup(val);
@@ -137,8 +145,9 @@ struct aa_lattice : mlir_dense_abstract_lattice {
             assert(fun.is_func());
             auto fn = mlir::cast< mlir::FunctionOpInterface >(fun.operation);
             if (fn.isExternal()) {
-                // TODO: modelled function
-                assert(false);
+                if (auto model_it = info->models->find(fn.getName()); model_it != info->models->end()) {
+                    changed |= analysis->visit_function_model(this, model_it->second, call);
+                }
             } else {
                 // FIXME: this is almost copy paste from pt.hpp. Can we unify it?
                 auto &callee_entry = fn->getRegion(0).front();
@@ -173,7 +182,7 @@ struct aa_lattice : mlir_dense_abstract_lattice {
     // TODO: rework
     change_result set_all_unknown() {
         auto changed = change_result::NoChange;
-        for (auto &[_, pt_set] : *pt_relation) {
+        for (auto &[_, pt_set] : pt_relation()) {
             changed |= pt_set.set_top();
         }
         return changed;
