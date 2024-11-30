@@ -15,6 +15,8 @@ struct ScalarEnumerationTraits< potato::analysis::arg_effect >
         io.enumCase(value, "alloc", potato::analysis::arg_effect::alloc);
         io.enumCase(value, "copy_trg", potato::analysis::arg_effect::copy_trg);
         io.enumCase(value, "copy_src", potato::analysis::arg_effect::copy_src);
+        io.enumCase(value, "assign_trg", potato::analysis::arg_effect::copy_trg);
+        io.enumCase(value, "assign_src", potato::analysis::arg_effect::copy_src);
         io.enumCase(value, "unknown", potato::analysis::arg_effect::unknown);
     }
 };
@@ -26,6 +28,7 @@ struct ScalarEnumerationTraits< potato::analysis::ret_effect >
         io.enumCase(value, "none", potato::analysis::ret_effect::none);
         io.enumCase(value, "alloc", potato::analysis::ret_effect::alloc);
         io.enumCase(value, "copy_trg", potato::analysis::ret_effect::copy_trg);
+        io.enumCase(value, "assign_trg", potato::analysis::ret_effect::copy_trg);
         io.enumCase(value, "unknown", potato::analysis::ret_effect::unknown);
     }
 };
