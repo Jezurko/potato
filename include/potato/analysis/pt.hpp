@@ -174,13 +174,19 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
         auto changed = after->join(before);
 
         for (const auto &[i, successor] : llvm::enumerate(op->getSuccessors())) {
+            auto succ_changed = change_result::NoChange;
             for (const auto &[pred_op, succ_arg] :
                 llvm::zip_equal(op.getSuccessorOperands(i).getForwardedOperands(), successor->getArguments())) {
                     auto operand_pt = after->lookup(pred_op);
                     if (!operand_pt) {
                         continue;
                     }
-                    changed |= after->join_var(succ_arg, operand_pt);
+                    succ_changed |= after->join_var(succ_arg, operand_pt);
+            }
+            changed |= succ_changed;
+            if constexpr (pt_lattice::propagate_assign()) {
+                auto succ_lattice = this->template getOrCreate< pt_lattice >(successor);
+                propagateIfChanged(succ_lattice, succ_changed);
             }
         }
         propagateIfChanged(after, changed);
