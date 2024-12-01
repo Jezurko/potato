@@ -155,11 +155,19 @@ struct aa_lattice : mlir_dense_abstract_lattice {
                 auto &callee_entry = fn->getRegion(0).front();
                 auto callee_args   = callee_entry.getArguments();
 
+                mlir_value last_call_arg;
+                mlir_value last_callee_arg;
                 for (const auto &[callee_arg, caller_arg] :
-                     llvm::zip_equal(callee_args, call.getArgOperands()))
+                     llvm::zip_longest(callee_args, call.getArgOperands()))
                 {
-                    if (auto arg_pt = lookup(caller_arg))
-                        changed |= join_var(callee_arg, arg_pt);
+                    if (caller_arg) {
+                        last_call_arg = caller_arg.value();
+                    }
+                    if (callee_arg) {
+                        last_callee_arg = callee_arg.value();
+                    }
+                    if (auto arg_pt = lookup(last_call_arg))
+                        changed |= join_var(last_callee_arg, arg_pt);
                 }
                 propagate(get_or_create(&callee_entry), changed);
 
