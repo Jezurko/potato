@@ -223,8 +223,16 @@ namespace potato::analysis {
             if (fptr_trg_rep.is_dummy()) {
                 if (auto dummy_info = get_or_create_fn_info(fptr_trg_rep)) {
                     // join previous call with current call
-                    for (const auto &[prev, current] : llvm::zip(dummy_info->operands, call.getArgOperands())) {
-                        changed |= join_var(prev, *lookup(current));
+                    mlir_value last_operand;
+                    mlir_value last_arg;
+                    for (const auto &[prev, current] :
+                            llvm::zip_longest(dummy_info->operands, call.getArgOperands())) {
+                        if (prev)
+                            last_operand = prev.value();
+                        if (current)
+                            last_arg = current.value();
+
+                        changed |= join_var(last_operand, *lookup(last_arg));
                     }
                     if (has_res) {
                         changed |= join_var(call->getResult(0), dummy_info->res);
@@ -239,11 +247,23 @@ namespace potato::analysis {
                 }
             } else if (fptr_trg_rep.is_func()) {
                 auto fn_details = get_or_create_fn_info(fptr_trg_rep);
-                for (auto arg : fn_details->operands) {
-                    for (auto operand : call.getArgOperands()) {
-                        auto operand_pt = lookup(operand);
-                        changed |= join_var(arg, operand_pt);
+                if (!fn_details) {
+                   return changed;
+                }
+
+                mlir_value last_operand;
+                mlir_value last_arg;
+                for (const auto &[operand, arg] :
+                        llvm::zip_longest(fn_details->operands, call.getArgOperands()))
+                {
+                    if (arg) {
+                        last_arg = arg.value();
                     }
+                    if (operand) {
+                        last_operand = operand.value();
+                    }
+                    auto operand_pt = lookup(last_operand);
+                    changed |= join_var(last_arg, operand_pt);
                 }
                 if (call->getNumResults() > 0) {
                     changed |= join_var(call->getResult(0), fn_details->res);

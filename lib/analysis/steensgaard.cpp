@@ -239,8 +239,18 @@ change_result steensgaard::make_union(elem_t lhs, elem_t rhs) {
 
         // iff dummy without fn-info no joining
         if (lhs_info && rhs_info) {
-            for (auto [new_arg, old_arg] : llvm::zip(lhs_info->operands, rhs_info->operands))
-                change |= join_var(new_arg, *lookup(old_arg));
+            std::optional< mlir_value > last_lhs = std::nullopt;
+            std::optional< mlir_value > last_rhs = std::nullopt;
+
+            for (auto [new_arg, old_arg] : llvm::zip_longest(lhs_info->operands, rhs_info->operands)) {
+                if (new_arg) {
+                    last_lhs = new_arg;
+                }
+                if (old_arg) {
+                    last_rhs = old_arg;
+                }
+                change |= join_var(last_lhs.value(), *lookup(last_rhs.value()));
+            }
 
             change |= make_union(lhs_info->res, rhs_info->res);
         }

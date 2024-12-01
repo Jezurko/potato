@@ -230,11 +230,19 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
         auto &callee_entry = callee->getRegion(0).front();
         auto callee_args   = callee_entry.getArguments();
 
+        mlir_value last_call_arg;
+        mlir_value last_callee_arg;
         for (const auto &[callee_arg, caller_arg] :
-             llvm::zip_equal(callee_args, call.getArgOperands()))
+             llvm::zip_longest(callee_args, call.getArgOperands()))
         {
-            if (auto arg_pt = after->lookup(caller_arg))
-                changed |= after->join_var(callee_arg, arg_pt);
+            if (caller_arg) {
+                last_call_arg = caller_arg.value();
+            }
+            if (callee_arg) {
+                last_callee_arg = callee_arg.value();
+            }
+            if (auto arg_pt = after->lookup(last_call_arg))
+                changed |= after->join_var(last_callee_arg, arg_pt);
         }
         if constexpr(pt_lattice::propagate_call_arg_zip()) {
             propagateIfChanged(this->template getOrCreate< pt_lattice >(&callee_entry), changed);
@@ -364,11 +372,19 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
             auto &callee_entry = callee->getRegion(0).front();
             auto callee_args   = callee_entry.getArguments();
 
+            mlir_value last_call_arg;
+            mlir_value last_callee_arg;
             for (const auto &[callee_arg, caller_arg] :
-                 llvm::zip_equal(callee_args, call.getArgOperands()))
+                 llvm::zip_longest(callee_args, call.getArgOperands()))
             {
-                auto arg_pt = after->lookup(caller_arg);
-                changed |= after->join_var(callee_arg, arg_pt);
+                if (caller_arg) {
+                    last_call_arg = caller_arg.value();
+                }
+                if (callee_arg) {
+                    last_callee_arg = callee_arg.value();
+                }
+                if (auto arg_pt = after->lookup(last_call_arg))
+                    changed |= after->join_var(last_callee_arg, arg_pt);
             }
 
             return propagateIfChanged(after, changed);
