@@ -93,11 +93,37 @@ namespace potato::conv::llvmtopt
         }
     };
 
+    struct va_start : mlir::OpConversionPattern< mlir::LLVM::VaStartOp > {
+        using source = mlir::LLVM::VaStartOp ;
+        using base = mlir::OpConversionPattern< source >;
+        using base::base;
+        using adaptor_t = typename source::Adaptor;
+        logical_result matchAndRewrite(source op,
+                                       adaptor_t adaptor,
+                                       mlir::ConversionPatternRewriter &rewriter
+        ) const override {
+            auto paren_fn = op->getParentOfType< mlir::FunctionOpInterface >();
+            auto new_alloc = rewriter.create< pt::AllocOp >(op.getLoc(), this->getTypeConverter()->convertType(adaptor.getArgList().getType()));
+            rewriter.create< pt::AssignOp >(
+                op.getLoc(),
+                new_alloc,
+                paren_fn.getArgument(paren_fn.getNumArguments() - 1)
+            );
+            rewriter.replaceOpWithNewOp< pt::AssignOp >(
+                 op,
+                 adaptor.getArgList(),
+                 new_alloc
+            );
+            return mlir::success();
+        }
+    };
+
 
     using store_patterns = util::type_list<
         store_op,
         memcpy_insensitive,
-        memset_insensitive
+        memset_insensitive,
+        va_start
     >;
 
     struct load_op : mlir::OpConversionPattern< mlir::LLVM::LoadOp > {
@@ -467,7 +493,8 @@ namespace potato::conv::llvmtopt
                                           mlir::LLVM::ReturnOp,
                                           mlir::LLVM::NoAliasScopeDeclOp,
                                           mlir::LLVM::UnreachableOp,
-                                          mlir::LLVM::AssumeOp
+                                          mlir::LLVM::AssumeOp,
+                                          mlir::LLVM::VaEndOp
                                         > (op);
             });
 
