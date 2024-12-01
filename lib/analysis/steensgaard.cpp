@@ -172,10 +172,21 @@ change_result steensgaard::visit_function_model(const function_model &model, fn_
 }
 
 fn_info *steensgaard::get_or_create_fn_info(elem_t &elem) {
-    if (elem.fn_details || !elem.is_func())
-        return elem.fn_details;
+    mlir_operation *elem_op = elem.elem.has_value() ? elem.elem->operation : nullptr;
 
-    auto fn = mlir::cast< fn_interface >(elem.elem->operation);
+    auto fn_info_it = info->fn_infos.find(elem);
+    if (fn_info_it != info->fn_infos.end()) {
+        return &fn_info_it->second;
+    }
+
+    if (!elem.is_func() && !elem_op) {
+        return nullptr;
+    }
+
+    auto fn = mlir::dyn_cast< fn_interface >(elem_op);
+    if (!fn) {
+        return nullptr;
+    }
     auto args = fn.getArguments();
     mlir_value ret = nullptr;
 
@@ -183,9 +194,8 @@ fn_info *steensgaard::get_or_create_fn_info(elem_t &elem) {
         if (auto model_it = info->models->find(fn.getName()); model_it != info->models->end()) {
             auto res_dummy = new_dummy();
             std::ignore = visit_function_model(model_it->second, fn, new_dummy());
-            info->fn_info_holder.push_back(std::make_unique< fn_info >(args, res_dummy));
-            elem.fn_details = info->fn_info_holder.back().get();
-            return elem.fn_details;
+            auto inserted = info->fn_infos.emplace(elem, fn_info(args, res_dummy));
+            return &inserted.first->second;
         }
         return nullptr;
     }
@@ -212,9 +222,8 @@ fn_info *steensgaard::get_or_create_fn_info(elem_t &elem) {
             }
         });
     }
-    info->fn_info_holder.push_back(std::make_unique< fn_info >(args, *pt));
-    elem.fn_details = info->fn_info_holder.back().get();
-    return elem.fn_details;
+    auto inserted = info->fn_infos.emplace(elem, fn_info(args, pt ? *pt : new_dummy()));
+    return &inserted.first->second;
 }
 
 change_result steensgaard::make_union(elem_t lhs, elem_t rhs) {
