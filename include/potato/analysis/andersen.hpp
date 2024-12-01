@@ -142,8 +142,10 @@ struct aa_lattice : mlir_dense_abstract_lattice {
             return set_all_unknown();
 
         for (const auto &fun : fptr_pt->get_set_ref()) {
-            assert(fun.is_func());
-            auto fn = mlir::cast< mlir::FunctionOpInterface >(fun.operation);
+            if(!fun.is_func()) {
+                continue;
+            }
+            auto fn = mlir::dyn_cast< mlir::FunctionOpInterface >(fun.operation);
             if (fn.isExternal()) {
                 if (auto model_it = info->models->find(fn.getName()); model_it != info->models->end()) {
                     changed |= analysis->visit_function_model(this, model_it->second, call);
