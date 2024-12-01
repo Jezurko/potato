@@ -384,15 +384,9 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
 
         if (action == call_cf_action::ExternalCallee) {
             auto callable = call.getCallableForCallee();
-            if (auto symbol = mlir::dyn_cast< mlir::SymbolRefAttr >(callable)) {
-                if (auto model_it = models.find(symbol.getLeafReference()); model_it != models.end()) {
-                    changed |= visit_function_model(after, model_it->second, call);
-                }
-            }
-            if (auto val = mlir::dyn_cast< mlir_value >(callable)) {
-                changed |= after->resolve_fptr_call(
-                    val, call, get_or_create(), add_dep(after->getPoint()), propagate(), this
-                );
+            auto symbol = mlir::dyn_cast< mlir::SymbolRefAttr >(callable);
+            if (auto model_it = models.find(symbol.getLeafReference()); model_it != models.end()) {
+                changed |= visit_function_model(after, model_it->second, call);
             }
             propagateIfChanged(after, changed );
         }
@@ -409,6 +403,16 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
         if (!lattice->initialized()) {
             lattice->initialize_with(relation.get());
             propagateIfChanged(lattice, change_result::Change);
+        }
+        if (auto op = mlir::dyn_cast< mlir::Operation *>(lattice->getPoint())) {
+            if (auto call = mlir::dyn_cast< mlir::CallOpInterface >(op)) {
+                auto val = mlir::cast< mlir_value >(call.getCallableForCallee());
+                auto changed = change_result::NoChange;
+                changed |= lattice->resolve_fptr_call(
+                    val, call, get_or_create(), add_dep(lattice->getPoint()), propagate(), this
+                );
+                propagateIfChanged(lattice, changed);
+            }
         }
     }
 
