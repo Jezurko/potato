@@ -178,19 +178,11 @@ namespace potato::conv::llvmtopt
                                        mlir::ConversionPatternRewriter &rewriter
         ) const override {
             auto tc = this->getTypeConverter();
-            if (op->hasAttr(op.getInboundsAttrName())) {
-                rewriter.replaceOpWithNewOp< pt::CopyOp >(
+            rewriter.replaceOpWithNewOp< pt::CopyOp >(
                         op,
                         tc->convertType(op.getType()),
                         adaptor.getBase()
                 );
-                return mlir::success();
-            }
-            rewriter.replaceOpWithNewOp< pt::UnknownPtrOp >(
-                    op,
-                    tc->convertType(op.getType()),
-                    adaptor.getOperands()
-            );
             return mlir::success();
         }
     };
