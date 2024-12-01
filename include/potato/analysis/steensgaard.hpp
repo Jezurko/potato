@@ -209,11 +209,13 @@ namespace potato::analysis {
             auto /*get_or_create*/,
             auto /*add_dep*/,
             auto /*propagate*/,
-            auto analysis
+            auto /*analysis*/
         ) {
             auto changed = change_result::NoChange;
             auto val_pt = lookup(val);
             auto fptr_trg_rep = sets().find(*val_pt);
+
+            auto has_res = call->getNumResults() > 0;
 
             if (fptr_trg_rep.is_unknown())
                 return set_all_unknown();
@@ -224,13 +226,18 @@ namespace potato::analysis {
                     for (const auto &[prev, current] : llvm::zip(dummy_info->operands, call.getArgOperands())) {
                         changed |= join_var(prev, *lookup(current));
                     }
-                    changed |= join_var(dummy_info->res, *lookup(call->getResult(0)));
+                    if (has_res) {
+                        changed |= join_var(call->getResult(0), dummy_info->res);
+                    }
                 } else {
-                    info->fn_infos.emplace(fptr_trg_rep, fn_info(call.getArgOperands(), call->getResult(0)));
+                    auto res_dummy = new_dummy();
+                    info->fn_infos.emplace(fptr_trg_rep, fn_info(call.getArgOperands(), res_dummy));
+                    if (has_res) {
+                        changed |= join_var(call->getResult(0), res_dummy);
+                    }
                     changed |= change_result::Change;
                 }
-            } else {
-                assert(fptr_trg_rep.is_func());
+            } else if (fptr_trg_rep.is_func()) {
                 auto fn_details = get_or_create_fn_info(fptr_trg_rep);
                 for (auto arg : fn_details->operands) {
                     for (auto operand : call.getArgOperands()) {
@@ -238,9 +245,10 @@ namespace potato::analysis {
                         changed |= join_var(arg, operand_pt);
                     }
                 }
-                changed |= join_var(call->getResult(0), *lookup(fn_details->res));
+                if (call->getNumResults() > 0) {
+                    changed |= join_var(call->getResult(0), fn_details->res);
+                }
             }
-            assert(false);
             return changed;
         }
 

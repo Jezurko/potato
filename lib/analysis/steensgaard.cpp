@@ -218,7 +218,6 @@ fn_info *steensgaard::get_or_create_fn_info(elem_t &elem) {
                         ret = operand;
                     }
                 }
-
             }
         });
     }
@@ -241,11 +240,10 @@ change_result steensgaard::make_union(elem_t lhs, elem_t rhs) {
         // iff dummy without fn-info no joining
         if (lhs_info && rhs_info) {
             for (auto [new_arg, old_arg] : llvm::zip(lhs_info->operands, rhs_info->operands))
-                change |= make_union(*lookup(new_arg), *lookup(old_arg));
+                change |= join_var(new_arg, *lookup(old_arg));
 
-            change |= make_union(*lookup(lhs_info->res), *lookup(rhs_info->res));
+            change |= make_union(lhs_info->res, rhs_info->res);
         }
-
     }
 
     auto lhs_trg = mapping().find(lhs_root);
