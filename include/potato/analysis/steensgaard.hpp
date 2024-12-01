@@ -16,11 +16,9 @@ POTATO_UNRELAX_WARNINGS
 
 namespace potato::analysis {
 
-    struct fn_info;
     struct stg_elem {
         std::optional< pt_element > elem;
         std::optional< size_t > dummy_id;
-        fn_info * fn_details = nullptr;
 
         stg_elem(mlir_value val)             : elem(pt_element(val)), dummy_id(std::nullopt) {}
         stg_elem(size_t id)                  : elem(std::nullopt), dummy_id(id) {}
@@ -170,7 +168,7 @@ namespace potato::analysis {
         // targets can be any set members
 
         std::unordered_map< elem_t, elem_t > mapping;
-        std::vector< std::unique_ptr< fn_info > > fn_info_holder;
+        std::unordered_map< elem_t, fn_info > fn_infos;
         function_models *models;
         bool all_unknown;
         size_t dummy_count = 0;
@@ -221,17 +219,19 @@ namespace potato::analysis {
                 return set_all_unknown();
 
             if (fptr_trg_rep.is_dummy()) {
-                if (!fptr_trg_rep.fn_details) {
-                    info->fn_info_holder.push_back(
-                        std::make_unique< fn_info >(call.getArgOperands(), call->getResult(0))
-                    );
-                    // we need to store to val_pt as the representant is a value that gets lost
-                    val_pt->fn_details = info->fn_info_holder.back().get();
+                if (auto dummy_info = get_or_create_fn_info(fptr_trg_rep)) {
+                    // join previous call with current call
+                    for (const auto &[prev, current] : llvm::zip(dummy_info->operands, call.getArgOperands())) {
+                        changed |= join_var(prev, *lookup(current));
+                    }
+                    changed |= join_var(dummy_info->res, *lookup(call->getResult(0)));
+                } else {
+                    info->fn_infos.emplace(fptr_trg_rep, fn_info(call.getArgOperands(), call->getResult(0)));
                     changed |= change_result::Change;
                 }
             } else {
                 assert(fptr_trg_rep.is_func());
-                auto fn_details = fptr_trg_rep.fn_details;
+                auto fn_details = get_or_create_fn_info(fptr_trg_rep);
                 for (auto arg : fn_details->operands) {
                     for (auto operand : call.getArgOperands()) {
                         auto operand_pt = lookup(operand);
