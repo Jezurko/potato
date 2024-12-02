@@ -3,3 +3,17 @@
     return_effect: alloc
     arguments:
       - none
+
+- function: printf
+  model:
+    return_effect: none
+    arguments:
+      - none
+
+- function: memcpy
+  model:
+    return_effect: none
+    arguments:
+      - assign_trg
+      - deref_src
+      - none
