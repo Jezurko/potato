@@ -37,6 +37,12 @@ mlir::OpFoldResult CopyOp::fold(FoldAdaptor) {
                 return {};
             res = operand;
         }
+        if (mlir::isa< pt::UnknownPtrOp >(operand.getDefiningOp())) {
+            return operand;
+        }
+    }
+    if (!res && this->getNumOperands() > 0) {
+        res = getOperand(0);
     }
     if (auto operand = mlir::dyn_cast_if_present< mlir::Value >(res)) {
         operand.setLoc(mlir::FusedLoc::get(getContext(), {operand.getLoc(), this->getLoc()}));
