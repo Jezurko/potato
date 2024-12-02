@@ -90,6 +90,8 @@ change_result steensgaard::visit_function_model(const function_model &model, fn_
         std::vector< mlir_value > deref_from;
         std::vector< mlir_value > copy_to;
         std::vector< mlir_value > assign_to;
+        mlir_value realloc_ptr;
+        mlir_value realloc_res;
         for (size_t i = 0; i < model.args.size(); i++) {
             auto arg_changed = change_result::NoChange;
             switch(model.args[i]) {
@@ -97,6 +99,12 @@ change_result steensgaard::visit_function_model(const function_model &model, fn_
                     break;
                 case arg_effect::alloc:
                     arg_changed |= new_alloca(fn.getArgument(i));
+                    break;
+                case arg_effect::realloc_ptr:
+                    realloc_ptr = fn.getArgument(i);
+                    break;
+                case arg_effect::realloc_res:
+                    realloc_res = fn.getArgument(i);
                     break;
                 case arg_effect::src:
                     from.push_back(fn.getArgument(i));
@@ -123,6 +131,12 @@ change_result steensgaard::visit_function_model(const function_model &model, fn_
                 case ret_effect::alloc: {
                     auto alloca = elem_t::make_alloca(fn.getOperation());
                     changed |= join_var(res_dummy, alloca);
+                    break;
+                }
+                case ret_effect::realloc_res: {
+                    auto alloca = elem_t::make_alloca(fn.getOperation());
+                    changed |= join_var(res_dummy, alloca);
+                    changed |= join_var(realloc_res, lookup(realloc_ptr));
                     break;
                 }
                 case ret_effect::copy_trg:
