@@ -201,7 +201,8 @@ namespace potato::analysis {
             return sets().insert(val) ? change_result::Change : change_result::NoChange;
         }
         change_result join_all_pointees_with(elem_t *to, const elem_t *from);
-        change_result copy_all_pts_into(elem_t &&to, const elem_t *from);
+        change_result copy_all_pts_into(const elem_t &to, const elem_t *from);
+        change_result copy_all_pts_into(const elem_t *to, const elem_t *from);
 
         change_result resolve_fptr_call(
             mlir_value val,
