@@ -17,3 +17,10 @@
       - assign_trg
       - deref_src
       - none
+
+- function: realloc
+  model:
+    return_effect: realloc_res
+    arguments:
+      - realloc_ptr
+      - none

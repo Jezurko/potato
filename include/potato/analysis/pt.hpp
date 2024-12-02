@@ -278,6 +278,8 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
         std::vector< mlir_value > deref_from;
         std::vector< mlir_value > copy_to;
         std::vector< mlir_value > assign_to;
+        mlir_value realloc_ptr;
+        mlir_value realloc_res;
         for (size_t i = 0; i < model.args.size(); i++) {
             auto arg_changed = change_result::NoChange;
             switch(model.args[i]) {
@@ -285,6 +287,12 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
                     break;
                 case arg_effect::alloc:
                     arg_changed |= after->new_alloca(call->getOperand(i));
+                    break;
+                case arg_effect::realloc_ptr:
+                    realloc_ptr = call->getOperand(i);
+                    break;
+                case arg_effect::realloc_res:
+                    realloc_res = call->getOperand(i);
                     break;
                 case arg_effect::src:
                     from.push_back(call->getOperand(i));
@@ -318,6 +326,9 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
                 case ret_effect::alloc:
                     changed |= after->new_alloca(res);
                     break;
+                case ret_effect::realloc_res:
+                    realloc_res = res;
+                    break;
                 case ret_effect::copy_trg:
                     copy_to.push_back(res);
                     break;
@@ -329,6 +340,12 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
                     break;
             }
         }
+
+        if (realloc_res) {
+            changed |= after->new_alloca(realloc_res);
+            changed |= after->join_var(realloc_res, after->lookup(realloc_ptr));
+        }
+
         for (const auto &trg : copy_to) {
             for (const auto &src : from) {
                 if (auto src_pt = after->lookup(src); src_pt) {
