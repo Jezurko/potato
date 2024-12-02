@@ -114,6 +114,14 @@ change_result aa_lattice::copy_all_pts_into(elem_t to, const pointee_set *from) 
     return changed;
 }
 
+change_result aa_lattice::copy_all_pts_into(const pointee_set *to, const pointee_set *from) {
+    auto changed = change_result::NoChange;
+    for (auto member : to->get_set_ref()) {
+        changed |= copy_all_pts_into(member, from);
+    }
+    return changed;
+}
+
 change_result aa_lattice::merge(const aa_lattice &rhs) {
     if (info && !rhs.info)
         return change_result::NoChange;

@@ -13,7 +13,7 @@ POTATO_UNRELAX_WARNINGS
 #include <vector>
 
 namespace potato::analysis {
-    enum class arg_effect { none, alloc, copy_src, copy_trg, assign_src, assign_trg, unknown };
+    enum class arg_effect { none, alloc, src, deref_src, copy_trg, assign_trg, unknown };
     enum class ret_effect { none, alloc, copy_trg, assign_trg, unknown};
 
     struct function_model {

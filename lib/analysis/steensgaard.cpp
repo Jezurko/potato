@@ -51,7 +51,7 @@ change_result steensgaard::join_all_pointees_with(elem_t *to, const elem_t *from
     return make_union(to_trg_it->second, *from);
 }
 
-change_result steensgaard::copy_all_pts_into(elem_t &&to, const elem_t *from) {
+change_result steensgaard::copy_all_pts_into(const elem_t &to, const elem_t *from) {
     auto from_rep = sets().find(*from);
     auto to_rep = sets().find(to);
     auto to_trg_it = mapping().find(to_rep);
@@ -80,11 +80,15 @@ change_result steensgaard::copy_all_pts_into(elem_t &&to, const elem_t *from) {
     return make_union(to_trg_it->second, from_trg);
 }
 
+change_result steensgaard::copy_all_pts_into(const elem_t *to, const elem_t *from) {
+    return copy_all_pts_into(*to, from);
+}
+
 change_result steensgaard::visit_function_model(const function_model &model, fn_interface fn, elem_t res_dummy) {
         auto changed = change_result::NoChange;
-        std::vector< mlir_value > copy_from;
+        std::vector< mlir_value > from;
+        std::vector< mlir_value > deref_from;
         std::vector< mlir_value > copy_to;
-        std::vector< mlir_value > assign_from;
         std::vector< mlir_value > assign_to;
         for (size_t i = 0; i < model.args.size(); i++) {
             auto arg_changed = change_result::NoChange;
@@ -94,14 +98,14 @@ change_result steensgaard::visit_function_model(const function_model &model, fn_
                 case arg_effect::alloc:
                     arg_changed |= new_alloca(fn.getArgument(i));
                     break;
-                case arg_effect::copy_src:
-                    copy_from.push_back(fn.getArgument(i));
+                case arg_effect::src:
+                    from.push_back(fn.getArgument(i));
                     break;
                 case arg_effect::copy_trg:
                     copy_to.push_back(fn.getArgument(i));
                     break;
-                case arg_effect::assign_src:
-                    assign_from.push_back(fn.getArgument(i));
+                case arg_effect::deref_src:
+                    deref_from.push_back(fn.getArgument(i));
                     break;
                 case arg_effect::assign_trg:
                     assign_to.push_back(fn.getArgument(i));
@@ -122,9 +126,15 @@ change_result steensgaard::visit_function_model(const function_model &model, fn_
                     break;
                 }
                 case ret_effect::copy_trg:
-                    for (const auto &src : copy_from) {
+                    for (const auto &src : from) {
                         if (auto src_pt = lookup(src); src_pt) {
                             auto trg_changed = join_var(res_dummy, src_pt);
+                            changed |= trg_changed;
+                        }
+                    }
+                    for (const auto &src : deref_from) {
+                        if (auto src_pt = lookup(src); src_pt) {
+                            auto trg_changed = copy_all_pts_into(res_dummy, src_pt);
                             changed |= trg_changed;
                         }
                     }
@@ -134,12 +144,18 @@ change_result steensgaard::visit_function_model(const function_model &model, fn_
                         if (trg_pt->is_top()) {
                             return set_all_unknown();
                         }
-                        for (const auto &src : assign_from) {
+                        for (const auto &src : from) {
                             if (auto src_pt = lookup(src); src_pt) {
                                 auto trg_changed = join_all_pointees_with(trg_pt, src_pt);
                                 changed |= trg_changed;
                             }
                         }
+                    for (const auto &src : deref_from) {
+                        if (auto src_pt = lookup(src); src_pt) {
+                            auto trg_changed = copy_all_pts_into(*trg_pt, src_pt);
+                            changed |= trg_changed;
+                        }
+                    }
                     }
                     break;
                 case ret_effect::unknown:
@@ -148,10 +164,16 @@ change_result steensgaard::visit_function_model(const function_model &model, fn_
             }
         }
         for (const auto &trg : copy_to) {
-            for (const auto &src : copy_from) {
+            for (const auto &src : from) {
                 if (auto src_pt = lookup(src); src_pt) {
                     auto trg_changed = join_var(trg, src_pt);
                     changed |= trg_changed;
+                }
+            }
+            for (const auto &src : deref_from) {
+                if (auto src_pt = lookup(src); src_pt) {
+                    auto trg_elem = elem_t(trg);
+                    changed |= copy_all_pts_into(trg_elem, src_pt);
                 }
             }
         }
@@ -160,7 +182,13 @@ change_result steensgaard::visit_function_model(const function_model &model, fn_
                 if (trg_pt->is_top()) {
                     return set_all_unknown();
                 }
-                for (const auto &src : assign_from) {
+                for (const auto &src : from) {
+                    if (auto src_pt = lookup(src); src_pt) {
+                        auto trg_changed = join_all_pointees_with(trg_pt, src_pt);
+                        changed |= trg_changed;
+                    }
+                }
+                for (const auto &src : deref_from) {
                     if (auto src_pt = lookup(src); src_pt) {
                         auto trg_changed = join_all_pointees_with(trg_pt, src_pt);
                         changed |= trg_changed;

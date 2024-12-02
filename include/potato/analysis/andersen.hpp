@@ -107,6 +107,7 @@ struct aa_lattice : mlir_dense_abstract_lattice {
     change_result join_all_pointees_with(pointee_set *to, const pointee_set *from);
     // for each p in from do pts(to) join_with pts(p)
     change_result copy_all_pts_into(elem_t to, const pointee_set *from);
+    change_result copy_all_pts_into(const pointee_set *to, const pointee_set *from);
 
     static void propagate_members_changed(const pointee_set *set, auto get_or_create, auto propagate) {
         for (const auto &member : set->get_set_ref()) {

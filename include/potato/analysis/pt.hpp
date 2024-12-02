@@ -274,9 +274,9 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
 
     change_result visit_function_model(pt_lattice *after, const function_model &model, mlir::CallOpInterface call) {
         auto changed = change_result::NoChange;
-        std::vector< mlir_value > copy_from;
+        std::vector< mlir_value > from;
+        std::vector< mlir_value > deref_from;
         std::vector< mlir_value > copy_to;
-        std::vector< mlir_value > assign_from;
         std::vector< mlir_value > assign_to;
         for (size_t i = 0; i < model.args.size(); i++) {
             auto arg_changed = change_result::NoChange;
@@ -286,14 +286,14 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
                 case arg_effect::alloc:
                     arg_changed |= after->new_alloca(call->getOperand(i));
                     break;
-                case arg_effect::copy_src:
-                    copy_from.push_back(call->getOperand(i));
+                case arg_effect::src:
+                    from.push_back(call->getOperand(i));
                     break;
                 case arg_effect::copy_trg:
                     copy_to.push_back(call->getOperand(i));
                     break;
-                case arg_effect::assign_src:
-                    assign_from.push_back(call->getOperand(i));
+                case arg_effect::deref_src:
+                    deref_from.push_back(call->getOperand(i));
                     break;
                 case arg_effect::assign_trg:
                     assign_to.push_back(call->getOperand(i));
@@ -330,7 +330,7 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
             }
         }
         for (const auto &trg : copy_to) {
-            for (const auto &src : copy_from) {
+            for (const auto &src : from) {
                 if (auto src_pt = after->lookup(src); src_pt) {
                     auto trg_changed = after->join_var(trg, src_pt);
                     if constexpr (pt_lattice::propagate_assign()) {
@@ -344,15 +344,30 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
                     changed |= trg_changed;
                 }
             }
+            for (const auto &src : deref_from) {
+                if (auto src_pt = after->lookup(src); src_pt) {
+                    changed |= after->copy_all_pts_into(trg, src_pt);
+                    pt_lattice::depend_on_members(src_pt, add_dep(after->getPoint()));
+                }
+            }
         }
         for (const auto &trg : assign_to) {
             if (auto trg_pt = after->lookup(trg); trg_pt) {
                 if (trg_pt->is_top()) {
                     return after->set_all_unknown();
                 }
-                for (const auto &src : assign_from) {
+                for (const auto &src : from) {
                     if (auto src_pt = after->lookup(src); src_pt) {
                         auto trg_changed = after->join_all_pointees_with(trg_pt, src_pt);
+                        if (trg_changed == change_result::Change) {
+                            pt_lattice::propagate_members_changed(trg_pt, get_or_create(), propagate());
+                        }
+                        changed |= trg_changed;
+                    }
+                }
+                for (const auto &src : deref_from) {
+                    if (auto src_pt = after->lookup(src); src_pt) {
+                        auto trg_changed = after->copy_all_pts_into(trg_pt, src_pt);
                         if (trg_changed == change_result::Change) {
                             pt_lattice::propagate_members_changed(trg_pt, get_or_create(), propagate());
                         }
