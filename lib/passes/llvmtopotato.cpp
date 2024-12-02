@@ -66,10 +66,15 @@ namespace potato::conv::llvmtopt
                                        adaptor_t adaptor,
                                        mlir::ConversionPatternRewriter &rewriter
         ) const override {
+            auto src_deref = rewriter.create< pt::DereferenceOp >(
+                    op.getLoc(),
+                    this->getTypeConverter()->convertType(adaptor.getSrc().getType()),
+                    adaptor.getSrc()
+            );
             rewriter.replaceOpWithNewOp< pt::AssignOp >(
                     op,
                     adaptor.getDst(),
-                    adaptor.getSrc()
+                    src_deref
             );
             return mlir::success();
         }
