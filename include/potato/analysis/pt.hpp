@@ -454,20 +454,20 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
     //                                          ctxed_lattice *after) override;
 
     void setToEntryState(pt_lattice *lattice) override {
+        auto changed = change_result::NoChange;
         if (!lattice->initialized()) {
             lattice->initialize_with(relation.get());
-            propagateIfChanged(lattice, change_result::Change);
+            changed |= change_result::Change;
         }
         if (auto op = mlir::dyn_cast< mlir::Operation *>(lattice->getPoint())) {
             if (auto call = mlir::dyn_cast< mlir::CallOpInterface >(op)) {
                 auto val = mlir::cast< mlir_value >(call.getCallableForCallee());
-                auto changed = change_result::NoChange;
                 changed |= lattice->resolve_fptr_call(
                     val, call, get_or_create(), add_dep(lattice->getPoint()), propagate(), this
                 );
-                propagateIfChanged(lattice, changed);
             }
         }
+        propagateIfChanged(lattice, changed);
     }
 
     mlir::LogicalResult initialize(mlir_operation *op) override {
