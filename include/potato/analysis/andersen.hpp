@@ -112,8 +112,12 @@ struct aa_lattice : mlir_dense_abstract_lattice {
     static void propagate_members_changed(const pointee_set *set, auto get_or_create, auto propagate) {
         for (const auto &member : set->get_set_ref()) {
             if (member.is_global() || member.is_alloca()) {
-                auto glob_state = get_or_create(member.operation);
-                propagate(glob_state, change_result::Change);
+                auto state = get_or_create(member.operation);
+                propagate(state, change_result::Change);
+            }
+            if (member.is_var()) {
+                auto state = get_or_create(member.val.getDefiningOp());
+                propagate(state, change_result::Change);
             }
         }
     }
@@ -122,6 +126,9 @@ struct aa_lattice : mlir_dense_abstract_lattice {
         for (const auto &member : set->get_set_ref()) {
             if (member.is_global() || member.is_alloca()) {
                 add_dep(member.operation);
+            }
+            if (member.is_var()) {
+                add_dep(member.val.getDefiningOp());
             }
         }
     }
