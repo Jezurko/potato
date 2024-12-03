@@ -10,7 +10,6 @@ POTATO_UNRELAX_WARNINGS
 #include "potato/analysis/utils.hpp"
 #include "potato/util/common.hpp"
 
-#include <memory>
 #include <unordered_map>
 #include <unordered_set>
 

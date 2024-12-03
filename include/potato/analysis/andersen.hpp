@@ -5,8 +5,6 @@
 #include "potato/analysis/utils.hpp"
 #include "potato/util/common.hpp"
 
-#include <memory>
-
 namespace potato::analysis {
 
 struct aa_lattice : mlir_dense_abstract_lattice {
