@@ -191,7 +191,7 @@ struct aa_lattice : mlir_dense_abstract_lattice {
                         }
                     };
 
-                fn->walk(handle_return);
+                fn.getFunctionBody().walk(handle_return);
             }
         }
         return changed;
