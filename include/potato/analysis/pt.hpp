@@ -460,6 +460,7 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
             changed |= change_result::Change;
         }
         if (auto op = mlir::dyn_cast< mlir::Operation *>(lattice->getPoint())) {
+            pt_lattice::add_dependencies(op, this, lattice->getPoint(), get_or_create());
             if (auto call = mlir::dyn_cast< mlir::CallOpInterface >(op)) {
                 auto val = mlir::cast< mlir_value >(call.getCallableForCallee());
                 changed |= lattice->resolve_fptr_call(
