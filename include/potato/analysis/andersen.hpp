@@ -37,6 +37,7 @@ struct aa_lattice : mlir_dense_abstract_lattice {
     change_result join_empty(mlir_value val);
 
     change_result add_constant(mlir_value val) { return join_empty(val); }
+    change_result new_alloca(mlir_value val, mlir_operation *alloc);
     change_result new_alloca(mlir_value val);
     auto new_var(mlir_value var, const pointee_set& pt_set) {
         return pt_relation().insert({{var}, pt_set});

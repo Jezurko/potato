@@ -28,14 +28,18 @@ change_result aa_lattice::join_empty(mlir_value val) {
     return change_result::NoChange;
 }
 
-change_result aa_lattice::new_alloca(mlir_value val) {
+change_result aa_lattice::new_alloca(mlir_value val, mlir_operation *alloc) {
     auto set = pointee_set();
-    set.insert(elem_t::make_alloca(val.getDefiningOp()));
+    set.insert(elem_t::make_alloca(alloc));
     auto [it, inserted] = pt_relation().insert({{val}, set});
     if (inserted)
         return change_result::Change;
     else
         return join_var(val, set);
+
+}
+change_result aa_lattice::new_alloca(mlir_value val) {
+    return new_alloca(val, val.getDefiningOp());
 }
 
 change_result aa_lattice::join_var(mlir_value val, mlir_value trg) {

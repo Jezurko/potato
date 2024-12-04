@@ -195,6 +195,7 @@ namespace potato::analysis {
         elem_t new_dummy();
         static elem_t new_func(mlir_operation *op) { return elem_t::make_func(op); }
         static elem_t new_glob(mlir_operation *op) { return elem_t::make_glob(op); }
+        change_result new_alloca(mlir_value val, mlir_operation *op);
         change_result new_alloca(mlir_value val);
         change_result join_empty(mlir_value val) {
             return sets().insert(val) ? change_result::Change : change_result::NoChange;
