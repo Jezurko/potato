@@ -57,8 +57,9 @@ namespace potato::conv::llvmtopt
         }
     };
 
-    struct memcpy_insensitive : mlir::OpConversionPattern< mlir::LLVM::MemcpyOp > {
-        using source = mlir::LLVM::MemcpyOp;
+    template< typename op_t >
+    struct memcpy_insensitive : mlir::OpConversionPattern< op_t > {
+        using source = op_t;
         using base = mlir::OpConversionPattern< source >;
         using base::base;
         using adaptor_t = typename source::Adaptor;
@@ -126,7 +127,8 @@ namespace potato::conv::llvmtopt
 
     using store_patterns = util::type_list<
         store_op,
-        memcpy_insensitive,
+        memcpy_insensitive< mlir::LLVM::MemcpyOp >,
+        memcpy_insensitive< mlir::LLVM::MemmoveOp >,
         memset_insensitive,
         va_start
     >;
@@ -150,8 +152,28 @@ namespace potato::conv::llvmtopt
         }
     };
 
+    struct extract_value_op : mlir::OpConversionPattern< mlir::LLVM::ExtractValueOp > {
+        using base = mlir::OpConversionPattern< mlir::LLVM::ExtractValueOp >;
+        using base::base;
+        using adaptor_t = typename mlir::LLVM::ExtractValueOp::Adaptor;
+
+        logical_result matchAndRewrite(mlir::LLVM::ExtractValueOp op,
+                                       adaptor_t adaptor,
+                                       mlir::ConversionPatternRewriter &rewriter
+        ) const override {
+            auto tc = this->getTypeConverter();
+            rewriter.replaceOpWithNewOp< pt::CopyOp >(
+                    op,
+                    tc->convertType(op.getRes().getType()),
+                    adaptor.getContainer()
+            );
+            return mlir::success();
+        }
+    };
+
     using load_patterns = util::type_list<
-        load_op
+        load_op,
+        extract_value_op
     >;
 
     template< typename source >
@@ -187,6 +209,26 @@ namespace potato::conv::llvmtopt
                         op,
                         tc->convertType(op.getType()),
                         adaptor.getBase()
+                );
+            return mlir::success();
+        }
+    };
+
+    template< typename op_t >
+    struct shift_op : mlir::OpConversionPattern< op_t > {
+        using source = op_t;
+        using base = mlir::OpConversionPattern< source >;
+        using base::base;
+        using adaptor_t = typename source::Adaptor;
+        logical_result matchAndRewrite(source op,
+                                       adaptor_t adaptor,
+                                       mlir::ConversionPatternRewriter &rewriter
+        ) const override {
+            auto tc = this->getTypeConverter();
+            rewriter.replaceOpWithNewOp< pt::CopyOp >(
+                        op,
+                        tc->convertType(op.getType()),
+                        adaptor.getLhs()
                 );
             return mlir::success();
         }
@@ -232,14 +274,20 @@ namespace potato::conv::llvmtopt
 
     using copy_patterns = util::type_list<
         copy_op< mlir::LLVM::AddOp >,
+        copy_op< mlir::LLVM::SAddWithOverflowOp >,
+        copy_op< mlir::LLVM::UAddWithOverflowOp >,
         copy_op< mlir::LLVM::FAddOp >,
         copy_op< mlir::LLVM::FMulAddOp >,
         copy_op< mlir::LLVM::FNegOp >,
         copy_op< mlir::LLVM::SubOp >,
+        copy_op< mlir::LLVM::SSubWithOverflowOp >,
+        copy_op< mlir::LLVM::USubWithOverflowOp >,
         copy_op< mlir::LLVM::FSubOp >,
         copy_op< mlir::LLVM::MulOp >,
         copy_op< mlir::LLVM::FMulOp >,
         copy_op< mlir::LLVM::MulOp >,
+        copy_op< mlir::LLVM::SMulWithOverflowOp >,
+        copy_op< mlir::LLVM::UMulWithOverflowOp >,
         copy_op< mlir::LLVM::FMulOp >,
         copy_op< mlir::LLVM::FPToSIOp >,
         copy_op< mlir::LLVM::FPToUIOp >,
@@ -257,6 +305,12 @@ namespace potato::conv::llvmtopt
         copy_op< mlir::LLVM::URemOp >,
         copy_op< mlir::LLVM::SRemOp >,
         copy_op< mlir::LLVM::FRemOp >,
+        copy_op< mlir::LLVM::AndOp >,
+        copy_op< mlir::LLVM::OrOp >,
+        copy_op< mlir::LLVM::XOrOp >,
+        shift_op< mlir::LLVM::LShrOp >,
+        shift_op< mlir::LLVM::AShrOp >,
+        shift_op< mlir::LLVM::ShlOp >,
         gep_insensitive,
         insert_value,
         select_insensitive
@@ -343,6 +397,7 @@ namespace potato::conv::llvmtopt
         constant_op< mlir::LLVM::UndefOp >,
         constant_op< mlir::LLVM::ICmpOp >,
         constant_op< mlir::LLVM::FCmpOp >,
+        constant_op< mlir::LLVM::IsConstantOp >,
         zero_op
     >;
 
