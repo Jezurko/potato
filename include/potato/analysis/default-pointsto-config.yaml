@@ -4,6 +4,31 @@
     arguments:
       - none
 
+- function: safe_malloc
+  model:
+    return_effect: alloc
+    arguments:
+      - none
+
+- function: calloc
+  model:
+    return_effect: alloc
+    arguments:
+      - none
+
+- function: safe_calloc
+  model:
+    return_effect: alloc
+    arguments:
+      - none
+
+- function: realloc
+  model:
+    return_effect: realloc_res
+    arguments:
+      - realloc_ptr
+      - none
+
 - function: printf
   model:
     return_effect: none
@@ -18,9 +43,226 @@
       - deref_src
       - none
 
-- function: realloc
+- function: bindtextdomain
+  model:
+    return_effect: static_alloc
+    arguments:
+      - none
+      - none
+
+- function: bind_textdomain_codeset
+  model:
+    return_effect: static_alloc
+    arguments:
+      - none
+      - none
+
+- function: cap_get_file
+  model:
+    return_effect: alloc
+    arguments:
+      - none
+
+- function: cap_to_text
+  model:
+    return_effect: alloc
+    arguments:
+      - none
+
+- function: __ctype_b_loc
+  model:
+    return_effect: static_alloc
+    arguments:
+
+- function: dcgettext
+  model:
+    return_effect: static_alloc
+    arguments:
+      - none
+      - none
+      - none
+
+- function: __errno_location
+  model:
+    return_effect: static_alloc
+    arguments:
+
+- function: getcwd
   model:
     return_effect: realloc_res
     arguments:
       - realloc_ptr
       - none
+
+- function: getenv
+  model:
+    return_effect: alloc
+    arguments:
+      - none
+
+- function: getgrgid
+  model:
+    return_effect: static_alloc
+    arguments:
+      - none
+
+- function: getgrnam
+  model:
+    return_effect: static_alloc
+    arguments:
+      - none
+
+- function: getpwnam
+  model:
+    return_effect: static_alloc
+    arguments:
+      - none
+
+- function: getpwuid
+  model:
+    return_effect: static_alloc
+    arguments:
+      - none
+
+- function: gettext
+  model:
+    return_effect: static_alloc
+    arguments:
+      - none
+
+- function: gmtime_r
+  model:
+    return_effect: copy_trg
+    arguments:
+      - none
+      - src
+
+- function: localeconv
+  model:
+    return_effect: static_alloc
+    arguments:
+
+- function: localtime_r
+  model:
+    return_effect: copy_trg
+    arguments:
+      - none
+      - src
+
+- function: nl_langinfo
+  model:
+      return_effect: alloc
+      arguments:
+        - none
+
+- function: opendir
+  model:
+      return_effect: alloc
+      arguments:
+        - none
+
+- function: rawmemchr
+  model:
+      return_effect: copy_trg
+      arguments:
+        - src
+        - none
+
+- function: readdir
+  model:
+      return_effect: alloc
+      arguments:
+        - none
+
+- function: setlocale
+  model:
+      return_effect: static_alloc
+      arguments:
+        - none
+        - none
+
+- function: strcpy
+  model:
+    return_effect: none
+    arguments:
+      - assign_trg
+      - deref_src
+
+- function: strchr
+  model:
+    return_effect: copy_trg
+    arguments:
+      - src
+      - none
+
+- function: strerror
+  model:
+    return_effect: alloc
+    arguments:
+      - none
+
+- function: strerror_r
+  model:
+    return_effect: copy_trg
+    arguments:
+      - none
+      - src
+      - none
+
+- function: strncpy
+  model:
+    return_effect: none
+    arguments:
+      - assign_trg
+      - deref_src
+      - none
+
+- function: strrchr
+  model:
+    return_effect: copy_trg
+    arguments:
+      - src
+      - none
+
+- function: strtoumax
+  model:
+    return_effect: none
+    arguments:
+      - copy_trg
+      - src
+      - none
+
+- function: __isoc23_strtoumax
+  model:
+    return_effect: none
+    arguments:
+      - copy_trg
+      - src
+      - none
+
+- function: strtoimax
+  model:
+    return_effect: none
+    arguments:
+      - copy_trg
+      - src
+      - none
+
+- function: textdomain
+  model:
+    return_effect: alloc
+    arguments:
+      - none
+
+# no effect:
+# abort
+# __assert_fail
+# cap_free
+# clock_gettime
+# clock_settime
+# closedir
+# __ctype_get_mb_cur_max
+# dirfd
+#
+# unresolved:
+# atexit
