@@ -288,6 +288,12 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
                 case arg_effect::alloc:
                     arg_changed |= after->new_alloca(call->getOperand(i));
                     break;
+                case arg_effect::static_alloc: {
+                    auto symbol = call.resolveCallable();
+                    assert(symbol);
+                    arg_changed |= after->new_alloca(call->getOperand(i), symbol);
+                    break;
+                }
                 case arg_effect::realloc_ptr:
                     realloc_ptr = call->getOperand(i);
                     break;
@@ -326,6 +332,12 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
                 case ret_effect::alloc:
                     changed |= after->new_alloca(res);
                     break;
+                case ret_effect::static_alloc: {
+                    auto symbol = call.resolveCallable();
+                    assert(symbol);
+                    changed |= after->new_alloca(res, symbol);
+                    break;
+                }
                 case ret_effect::realloc_res:
                     realloc_res = res;
                     break;

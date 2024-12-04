@@ -36,9 +36,13 @@ steensgaard::elem_t steensgaard::new_dummy() {
     return dummy;
 }
 
-change_result steensgaard::new_alloca(mlir_value val) {
-    auto alloca = elem_t::make_alloca(val.getDefiningOp());
+change_result steensgaard::new_alloca(mlir_value val, mlir_operation *op) {
+    auto alloca = elem_t::make_alloca(op);
     return join_var(val, alloca);
+}
+
+change_result steensgaard::new_alloca(mlir_value val) {
+    return new_alloca(val, val.getDefiningOp());
 }
 
 change_result steensgaard::join_all_pointees_with(elem_t *to, const elem_t *from) {
@@ -98,7 +102,8 @@ change_result steensgaard::visit_function_model(const function_model &model, fn_
                 case arg_effect::none:
                     break;
                 case arg_effect::alloc:
-                    arg_changed |= new_alloca(fn.getArgument(i));
+                case arg_effect::static_alloc:
+                    arg_changed |= new_alloca(fn.getArgument(i), fn.getOperation());
                     break;
                 case arg_effect::realloc_ptr:
                     realloc_ptr = fn.getArgument(i);
@@ -128,7 +133,8 @@ change_result steensgaard::visit_function_model(const function_model &model, fn_
             switch (model.ret) {
                 case ret_effect::none:
                     break;
-                case ret_effect::alloc: {
+                case ret_effect::alloc:
+                case ret_effect::static_alloc: {
                     auto alloca = elem_t::make_alloca(fn.getOperation());
                     changed |= join_var(res_dummy, alloca);
                     break;
