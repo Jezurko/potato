@@ -23,10 +23,10 @@ namespace potato::analysis {
 
     struct named_function_model {
         std::string name;
-        function_model model;
+        llvm::SmallVector< function_model, 2 > models;
     };
 
-    using function_models = llvm::StringMap< function_model >;
+    using function_models = llvm::StringMap< llvm::SmallVector< function_model, 2 > >;
 
     function_models load_and_parse(string_ref config);
 } // namespace potato::analysis

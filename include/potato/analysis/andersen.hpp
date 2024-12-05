@@ -155,7 +155,9 @@ struct aa_lattice : mlir_dense_abstract_lattice {
             auto fn = mlir::dyn_cast< mlir::FunctionOpInterface >(fun.operation);
             if (fn.isExternal()) {
                 if (auto model_it = info->models->find(fn.getName()); model_it != info->models->end()) {
-                    changed |= analysis->visit_function_model(this, model_it->second, call);
+                    for (const auto &model : model_it->second) {
+                        changed |= analysis->visit_function_model(this, model, call);
+                    }
                 }
             } else {
                 // FIXME: this is almost copy paste from pt.hpp. Can we unify it?

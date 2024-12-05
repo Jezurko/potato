@@ -1,6 +1,7 @@
 #include "potato/analysis/function_models.hpp"
 
 LLVM_YAML_IS_SEQUENCE_VECTOR(potato::analysis::arg_effect);
+LLVM_YAML_IS_SEQUENCE_VECTOR(potato::analysis::function_model);
 LLVM_YAML_IS_SEQUENCE_VECTOR(potato::analysis::named_function_model);
 
 using llvm::yaml::IO;
@@ -51,7 +52,7 @@ template <>
 struct MappingTraits< potato::analysis::named_function_model > {
     static void mapping(IO &io, potato::analysis::named_function_model &model) {
         io.mapRequired("function", model.name);
-        io.mapRequired("model", model.model);
+        io.mapRequired("model", model.models);
     }
 };
 
@@ -75,7 +76,7 @@ namespace potato::analysis {
         }
 
         for (auto &&named : functions) {
-            models.insert_or_assign(std::move(named.name), std::move(named.model));
+            models.insert_or_assign(std::move(named.name), std::move(named.models));
         }
         return models;
     }

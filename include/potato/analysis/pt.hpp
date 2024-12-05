@@ -452,7 +452,11 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
             auto callable = call.getCallableForCallee();
             auto symbol = mlir::dyn_cast< mlir::SymbolRefAttr >(callable);
             if (auto model_it = models.find(symbol.getLeafReference()); model_it != models.end()) {
-                changed |= visit_function_model(after, model_it->second, call);
+                for (const auto &model : model_it->second) {
+                    changed |= visit_function_model(after, model, call);
+                }
+            } else {
+                llvm::errs() << symbol.getLeafReference() << "\n";
             }
             propagateIfChanged(after, changed );
         }

@@ -241,7 +241,9 @@ fn_info *steensgaard::get_or_create_fn_info(elem_t &elem) {
     if (fn.isExternal()) {
         if (auto model_it = info->models->find(fn.getName()); model_it != info->models->end()) {
             auto res_dummy = new_dummy();
-            std::ignore = visit_function_model(model_it->second, fn, new_dummy());
+            for (const auto &model : model_it->second) {
+                std::ignore = visit_function_model(model, fn, new_dummy());
+            }
             auto inserted = info->fn_infos.emplace(elem, fn_info(args, res_dummy));
             return &inserted.first->second;
         }
