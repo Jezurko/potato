@@ -336,26 +336,25 @@ change_result steensgaard::make_union(elem_t lhs, elem_t rhs) {
         return change_result::Change;
     }
 
-    // TODO: check unknown handling
-    if (lhs_trg->second.is_unknown()) {
+    if (sets().find(lhs_trg->second).is_unknown()) {
         mapping()[rhs_root] = lhs_trg->second;
-        return change_result::Change;
     }
 
-    if (rhs_trg->second.is_unknown()) {
+    if (sets().find(rhs_trg->second).is_unknown()) {
         mapping()[lhs_root] = rhs_trg->second;
     }
 
-
     // if both have outgoing edge, unify the targets and remove the redundant edge
     std::ignore = make_union(lhs_trg->second, rhs_trg->second);
+    make_fn_union();
+
     if (new_root == lhs_root) {
         mapping().erase(rhs_trg);
     } else {
         mapping().erase(lhs_trg);
     }
 
-    return change_result::Change;
+    return change;
 }
 
 change_result steensgaard::join_var(const elem_t &ptr, const elem_t &new_trg) {
