@@ -57,7 +57,7 @@ namespace potato::analysis {
     };
 
     struct fn_info {
-        value_range operands;
+        std::vector< stg_elem > operands;
 
         stg_elem res;
         bool operator==(const fn_info &rhs) const = default;
@@ -183,7 +183,9 @@ namespace potato::analysis {
         inline auto &mapping() const { return info->mapping; }
         inline auto &sets() const { return info->sets; }
         inline auto &all_unknown() const { return info->all_unknown; }
-        change_result visit_function_model(const function_model &model, fn_interface fn, elem_t res_dummy);
+        change_result visit_function_model(
+                const function_model &model, fn_interface fn, elem_t res_dummy, const std::vector< elem_t > &args
+        );
 
         public:
         bool initialized() const { return (bool) info; }
@@ -224,7 +226,7 @@ namespace potato::analysis {
             if (fptr_trg_rep.is_dummy()) {
                 if (auto dummy_info = get_or_create_fn_info(fptr_trg_rep)) {
                     // join previous call with current call
-                    mlir_value last_operand;
+                    stg_elem last_operand;
                     mlir_value last_arg;
                     for (const auto &[prev, current] :
                             llvm::zip_longest(dummy_info->operands, call.getArgOperands())) {
@@ -240,7 +242,11 @@ namespace potato::analysis {
                     }
                 } else {
                     auto res_dummy = new_dummy();
-                    info->fn_infos.emplace(fptr_trg_rep, fn_info(call.getArgOperands(), res_dummy));
+                    std::vector< elem_t > args{};
+                    for (const auto &operand : call.getArgOperands()) {
+                        args.push_back(operand);
+                    }
+                    info->fn_infos.emplace(fptr_trg_rep, fn_info(args, res_dummy));
                     if (has_res) {
                         changed |= join_var(call->getResult(0), res_dummy);
                     }
@@ -252,7 +258,7 @@ namespace potato::analysis {
                    return changed;
                 }
 
-                mlir_value last_operand;
+                stg_elem last_operand;
                 mlir_value last_arg;
                 for (const auto &[operand, arg] :
                         llvm::zip_longest(fn_details->operands, call.getArgOperands()))

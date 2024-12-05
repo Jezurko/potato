@@ -88,14 +88,14 @@ change_result steensgaard::copy_all_pts_into(const elem_t *to, const elem_t *fro
     return copy_all_pts_into(*to, from);
 }
 
-change_result steensgaard::visit_function_model(const function_model &model, fn_interface fn, elem_t res_dummy) {
+change_result steensgaard::visit_function_model(const function_model &model, fn_interface fn, elem_t res_dummy, const std::vector< elem_t > &args) {
         auto changed = change_result::NoChange;
-        std::vector< mlir_value > from;
-        std::vector< mlir_value > deref_from;
-        std::vector< mlir_value > copy_to;
-        std::vector< mlir_value > assign_to;
-        mlir_value realloc_ptr;
-        mlir_value realloc_res;
+        std::vector< stg_elem > from;
+        std::vector< stg_elem > deref_from;
+        std::vector< stg_elem > copy_to;
+        std::vector< stg_elem > assign_to;
+        stg_elem realloc_ptr;
+        stg_elem realloc_res;
         for (size_t i = 0; i < model.args.size(); i++) {
             auto arg_changed = change_result::NoChange;
             switch(model.args[i]) {
@@ -103,28 +103,28 @@ change_result steensgaard::visit_function_model(const function_model &model, fn_
                     break;
                 case arg_effect::alloc:
                 case arg_effect::static_alloc:
-                    arg_changed |= new_alloca(fn.getArgument(i), fn.getOperation());
+                    arg_changed |= join_var(args[i], elem_t::make_alloca(fn.getOperation()));
                     break;
                 case arg_effect::realloc_ptr:
-                    realloc_ptr = fn.getArgument(i);
+                    realloc_ptr = args[i];
                     break;
                 case arg_effect::realloc_res:
-                    realloc_res = fn.getArgument(i);
+                    realloc_res = args[i];
                     break;
                 case arg_effect::src:
-                    from.push_back(fn.getArgument(i));
+                    from.push_back(args[i]);
                     break;
                 case arg_effect::copy_trg:
-                    copy_to.push_back(fn.getArgument(i));
+                    copy_to.push_back(args[i]);
                     break;
                 case arg_effect::deref_src:
-                    deref_from.push_back(fn.getArgument(i));
+                    deref_from.push_back(args[i]);
                     break;
                 case arg_effect::assign_trg:
-                    assign_to.push_back(fn.getArgument(i));
+                    assign_to.push_back(args[i]);
                     break;
                 case arg_effect::unknown:
-                    arg_changed |= join_var(fn.getArgument(i), new_top_set());
+                    arg_changed |= join_var(args[i], new_top_set());
             }
             changed |= arg_changed;
         }
@@ -135,8 +135,7 @@ change_result steensgaard::visit_function_model(const function_model &model, fn_
                     break;
                 case ret_effect::alloc:
                 case ret_effect::static_alloc: {
-                    auto alloca = elem_t::make_alloca(fn.getOperation());
-                    changed |= join_var(res_dummy, alloca);
+                    changed |= join_var(res_dummy, elem_t::make_alloca(fn.getOperation()));
                     break;
                 }
                 case ret_effect::realloc_res: {
@@ -227,7 +226,7 @@ fn_info *steensgaard::get_or_create_fn_info(elem_t &elem) {
         return &fn_info_it->second;
     }
 
-    if (!elem.is_func() && !elem_op) {
+    if (!elem.is_func() && !(elem.is_dummy() && elem_op)) {
         return nullptr;
     }
 
@@ -235,16 +234,19 @@ fn_info *steensgaard::get_or_create_fn_info(elem_t &elem) {
     if (!fn) {
         return nullptr;
     }
-    auto args = fn.getArguments();
     mlir_value ret = nullptr;
 
     if (fn.isExternal()) {
         if (auto model_it = info->models->find(fn.getName()); model_it != info->models->end()) {
             auto res_dummy = new_dummy();
-            for (const auto &model : model_it->second) {
-                std::ignore = visit_function_model(model, fn, new_dummy());
+            std::vector< elem_t > arg_dummies{};
+            for (unsigned int i = 0; i < fn.getNumArguments(); i++) {
+                arg_dummies.push_back(new_dummy());
             }
-            auto inserted = info->fn_infos.emplace(elem, fn_info(args, res_dummy));
+            for (const auto &model : model_it->second) {
+                std::ignore = visit_function_model(model, fn, res_dummy, arg_dummies);
+            }
+            auto inserted = info->fn_infos.emplace(elem, fn_info(std::move(arg_dummies), res_dummy));
             return &inserted.first->second;
         }
         return nullptr;
@@ -271,6 +273,10 @@ fn_info *steensgaard::get_or_create_fn_info(elem_t &elem) {
             }
         });
     }
+    std::vector< elem_t > args{};
+    for (const auto &arg : fn.getArguments()) {
+        args.push_back(arg);
+    }
     auto inserted = info->fn_infos.emplace(elem, fn_info(args, pt ? *pt : new_dummy()));
     return &inserted.first->second;
 }
@@ -289,19 +295,18 @@ change_result steensgaard::make_union(elem_t lhs, elem_t rhs) {
 
         // iff dummy without fn-info no joining
         if (lhs_info && rhs_info) {
-            std::optional< mlir_value > last_lhs = std::nullopt;
-            std::optional< mlir_value > last_rhs = std::nullopt;
+            stg_elem last_lhs{};
+            stg_elem last_rhs{};
 
             for (auto [new_arg, old_arg] : llvm::zip_longest(lhs_info->operands, rhs_info->operands)) {
                 if (new_arg) {
-                    last_lhs = new_arg;
+                    last_lhs = new_arg.value();
                 }
                 if (old_arg) {
-                    last_rhs = old_arg;
+                    last_rhs = old_arg.value();
                 }
-                change |= join_var(last_lhs.value(), *lookup(last_rhs.value()));
+                change |= join_var(last_lhs, *lookup(last_rhs));
             }
-
             change |= make_union(lhs_info->res, rhs_info->res);
         }
     }
