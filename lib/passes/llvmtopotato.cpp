@@ -308,6 +308,7 @@ namespace potato::conv::llvmtopt
         copy_op< mlir::LLVM::AndOp >,
         copy_op< mlir::LLVM::OrOp >,
         copy_op< mlir::LLVM::XOrOp >,
+        copy_op< mlir::LLVM::BitcastOp >,
         shift_op< mlir::LLVM::LShrOp >,
         shift_op< mlir::LLVM::AShrOp >,
         shift_op< mlir::LLVM::ShlOp >,
