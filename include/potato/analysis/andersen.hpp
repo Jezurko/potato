@@ -15,6 +15,7 @@ struct aa_lattice : mlir_dense_abstract_lattice {
     struct aa_info {
         pt_map< elem_t, lattice_set > pt_relation;
         function_models *models;
+        bool all_unknown;
     };
     using info_t = aa_info;
 
@@ -145,8 +146,9 @@ struct aa_lattice : mlir_dense_abstract_lattice {
         if (!fptr_pt)
             return changed;
 
-        if (fptr_pt->is_top())
+        if (fptr_pt->is_top()) {
             return set_all_unknown();
+        }
 
         for (const auto &fun : fptr_pt->get_set_ref()) {
             if(!fun.is_func()) {
@@ -191,20 +193,17 @@ struct aa_lattice : mlir_dense_abstract_lattice {
                             }
                         }
                     };
-
-                fn.getFunctionBody().walk(handle_return);
+                if (call->getNumResults() > 0)
+                    fn.getFunctionBody().walk(handle_return);
             }
         }
         return changed;
     }
 
-    // TODO: rework
     change_result set_all_unknown() {
-        auto changed = change_result::NoChange;
-        for (auto &[_, pt_set] : pt_relation()) {
-            changed |= pt_set.set_top();
-        }
-        return changed;
+        if (!info->all_unknown)
+            info->all_unknown = true;
+        return change_result::Change;
     }
 
     change_result merge(const aa_lattice &rhs);
@@ -217,6 +216,8 @@ struct aa_lattice : mlir_dense_abstract_lattice {
     change_result meet(const mlir_dense_abstract_lattice &rhs) override {
         return this->intersect(*static_cast< const aa_lattice *>(&rhs));
     };
+
+    bool is_all_unknown() const { return info->all_unknown; }
 
     void print(llvm::raw_ostream &os) const override;
 
@@ -241,6 +242,9 @@ struct aa_lattice : mlir_dense_abstract_lattice {
     constexpr static bool propagate_call_arg_zip() { return true; }
 
     alias_res alias(auto lhs, auto rhs) const {
+        if (info->all_unknown) {
+            return alias_res(alias_kind::MayAlias);
+        }
         const auto lhs_pt = lookup(lhs);
         const auto rhs_pt = lookup(rhs);
         // If we do not know at least one of the arguments we can not deduce any aliasing information
