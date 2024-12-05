@@ -20,6 +20,10 @@ namespace potato::test {
     template< typename analysis_lattice >
     void check_aliases(mlir::DataFlowSolver &solver, mlir_operation *root) {
         auto lattice = util::get_analysis< analysis_lattice >(solver, root);
+        if (lattice->is_all_unknown()) {
+            llvm::errs() << "Test pass got all unknonw!\n";
+            assert(false);
+        }
         root->walk([&](mlir::CallOpInterface call) {
             auto fn = mlir::dyn_cast_if_present< mlir::FunctionOpInterface >(call.resolveCallable());
             if (!fn) {
