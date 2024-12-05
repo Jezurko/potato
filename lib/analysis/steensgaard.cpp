@@ -289,34 +289,38 @@ change_result steensgaard::make_union(elem_t lhs, elem_t rhs) {
     }
 
     auto change = change_result::NoChange;
-    if (lhs_root.is_func() || rhs_root.is_func()) {
-        auto lhs_info = get_or_create_fn_info(lhs_root);
-        auto rhs_info = get_or_create_fn_info(rhs_root);
-
-        // iff dummy without fn-info no joining
-        if (lhs_info && rhs_info) {
-            stg_elem last_lhs{};
-            stg_elem last_rhs{};
-
-            for (auto [new_arg, old_arg] : llvm::zip_longest(lhs_info->operands, rhs_info->operands)) {
-                if (new_arg) {
-                    last_lhs = new_arg.value();
-                }
-                if (old_arg) {
-                    last_rhs = old_arg.value();
-                }
-                change |= join_var(last_lhs, *lookup(last_rhs));
-            }
-            change |= make_union(lhs_info->res, rhs_info->res);
-        }
-    }
 
     auto lhs_trg = mapping().find(lhs_root);
     auto rhs_trg = mapping().find(rhs_root);
 
     auto new_root = sets().set_union(lhs, rhs);
 
+    auto make_fn_union = [&]() {
+        if (lhs_root.is_func() || rhs_root.is_func()) {
+            auto lhs_info = get_or_create_fn_info(lhs_root);
+            auto rhs_info = get_or_create_fn_info(rhs_root);
+
+            // iff dummy without fn-info no joining
+            if (lhs_info && rhs_info) {
+                stg_elem last_lhs{};
+                stg_elem last_rhs{};
+
+                for (auto [new_arg, old_arg] : llvm::zip_longest(lhs_info->operands, rhs_info->operands)) {
+                    if (new_arg) {
+                        last_lhs = new_arg.value();
+                    }
+                    if (old_arg) {
+                        last_rhs = old_arg.value();
+                    }
+                    change |= join_var(sets().find(last_lhs), *lookup(last_rhs));
+                }
+                change |= make_union(lhs_info->res, rhs_info->res);
+            }
+        }
+    };
+
     if (lhs_trg == mapping().end() && rhs_trg == mapping().end()) {
+        make_fn_union();
         return change_result::Change;
     }
 
