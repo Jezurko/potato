@@ -73,7 +73,6 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
                 return changed;
             }
         }
-        changed |= after->join_var(pt_lattice::new_glob(op.getOperation()), pt_lattice::new_top_set());
         return changed;
     }
 
