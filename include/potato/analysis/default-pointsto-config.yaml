@@ -387,8 +387,16 @@
   model:
     - return_effect: none
       arguments:
-        - copy_trg
         - src
+        - assign_trg
+        - none
+
+- function: __isoc23_strtoimax
+  model:
+    - return_effect: none
+      arguments:
+        - src
+        - assign_trg
         - none
 
 - function: textdomain
