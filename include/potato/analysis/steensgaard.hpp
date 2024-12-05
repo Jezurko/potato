@@ -124,6 +124,23 @@ namespace potato::analysis {
                 size_t &x_rank = rank[x_root];
                 size_t &y_rank = rank[y_root];
 
+                if (x_root.is_unknown()) {
+                    parents[y_root] = x_root;
+                    children[x_root].insert(y_root);
+                    if (y_rank >= x_rank) {
+                        x_rank = y_rank + 1;
+                    }
+                    return x_root;
+                }
+                if (y_root.is_unknown()) {
+                    parents[x_root] = y_root;
+                    children[y_root].insert(x_root);
+                    if (x_rank >= y_rank) {
+                        y_rank = x_rank + 1;
+                    }
+                    return y_root;
+                }
+
                 if (x_root.is_dummy() || y_root.is_func()) {
                     parents[x_root] = y_root;
                     children[y_root].insert(x_root);
@@ -295,6 +312,8 @@ namespace potato::analysis {
             return this->merge(*static_cast< const steensgaard *>(&rhs));
         };
 
+        bool is_all_unknown() const { return info->all_unknown; }
+
         void print(llvm::raw_ostream &os) const override;
 
         static void propagate_members_changed(const elem_t *, auto, auto) { return; }
@@ -305,6 +324,9 @@ namespace potato::analysis {
         constexpr static bool propagate_call_arg_zip() { return false; }
 
         alias_res alias(auto lhs, auto rhs) {
+            if (info->all_unknown) {
+                return alias_kind::MayAlias;
+            }
             auto lhs_trg = sets().find(*lookup(lhs));
             auto rhs_trg = sets().find(*lookup(rhs));
             if (lhs_trg.is_dummy() || rhs_trg.is_dummy()) {
