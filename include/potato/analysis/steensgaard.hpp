@@ -124,7 +124,7 @@ namespace potato::analysis {
                 size_t &x_rank = rank[x_root];
                 size_t &y_rank = rank[y_root];
 
-                if (x_root.is_dummy()) {
+                if (x_root.is_dummy() || y_root.is_func()) {
                     parents[x_root] = y_root;
                     children[y_root].insert(x_root);
                     if (x_rank >= y_rank) {
@@ -132,7 +132,7 @@ namespace potato::analysis {
                     }
                     return y_root;
                 }
-                if (y_root.is_dummy()) {
+                if (y_root.is_dummy() || x_root.is_func()) {
                     parents[y_root] = x_root;
                     children[x_root].insert(y_root);
                     if (y_rank >= x_rank) {
