@@ -184,7 +184,7 @@ struct aa_lattice : mlir_dense_abstract_lattice {
 
                 auto handle_return = [&](mlir_operation *op) {
                         if (op->hasTrait< mlir::OpTrait::ReturnLike >()) {
-                            for (size_t i = 0; i < call->getNumResults(); i++) {
+                            for (size_t i = 0; i < op->getNumOperands(); i++) {
                                 auto res_arg = op->getOperand(i);
                                 if (auto res_pt = lookup(res_arg)) {
                                     changed |= join_var(call->getResult(i), res_pt);
