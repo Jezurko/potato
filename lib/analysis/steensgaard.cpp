@@ -45,6 +45,13 @@ change_result steensgaard::new_alloca(mlir_value val) {
     return new_alloca(val, val.getDefiningOp());
 }
 
+void steensgaard::add_argc(mlir_value value, mlir_operation *op) {
+    auto str = elem_t::make_alloca(op);
+    auto str_ptr = elem_t::make_alloca(op, value);
+    std::ignore = join_var(str_ptr, str);
+    std::ignore = join_var(value, str_ptr);
+}
+
 change_result steensgaard::join_all_pointees_with(elem_t *to, const elem_t *from) {
     auto to_rep = sets().find(*to);
     auto to_trg_it = mapping().find(to_rep);
