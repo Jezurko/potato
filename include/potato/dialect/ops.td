@@ -15,7 +15,7 @@ def Potato_AddressOp
 }
 
 def Potato_CopyOp
-  : Potato_Op< "copy" >
+  : Potato_Op< "copy", [NoMemoryEffect] >
   , Arguments<( ins Variadic< AnyType >: $srcs )>
   , Results<( outs AnyType:$res )>
 {
@@ -66,7 +66,6 @@ def Potato_GlobalVarOp
 
 def Potato_UnknownPtrOp
   : Potato_Op< "unknown.ptr" >
-  , Arguments<( ins Variadic< AnyType >:$srcs )>
   , Results<( outs AnyType:$res )>
 {
   let summary = "Op that creates a pointer pointing anywhere.";
@@ -76,7 +75,7 @@ def Potato_UnknownPtrOp
       or when they are not interested in some of the computed information and would prefer faster convergence.
     }];
 
-  let assemblyFormat = [{ attr-dict $srcs `:` functional-type(operands, results) }];
+  let assemblyFormat = [{ attr-dict `:` type(results) }];
 }
 
 def Potato_ValuedConstantOp
