@@ -30,7 +30,7 @@ mlir::OpFoldResult ValuedConstantOp::fold(FoldAdaptor adaptor) {
 mlir::OpFoldResult CopyOp::fold(FoldAdaptor) {
     mlir::OpFoldResult res{};
     for (auto operand : getOperands()) {
-        if (!(operand.getDefiningOp()->hasTrait< mlir::OpTrait::ConstantLike >())) {
+        if (!(mlir::isa< pt::ConstantOp >(operand.getDefiningOp()))) {
             // Copy op is joining results of multiple non-constant operations,
             // conservatively bail out to not lose any information
             if (res)
