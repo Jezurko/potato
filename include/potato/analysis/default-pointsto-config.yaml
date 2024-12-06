@@ -175,10 +175,38 @@
     - return_effect: alloc
       arguments:
 
+- function: dlopen
+  model:
+    - return_effect: alloc
+      arguments:
+        - none
+        - none
+
+- function: dlsym
+  model:
+    - return_effect: unknown
+      arguments:
+        - none
+        - none
+
 - function: __errno_location
   model:
     - return_effect: static_alloc
       arguments:
+
+- function: fdopen
+  model:
+    - return_effect: alloc
+      arguments:
+        - none
+        - none
+
+- function: fopen
+  model:
+    - return_effect: alloc
+      arguments:
+        - none
+        - none
 
 - function: getcwd
   model:
@@ -242,6 +270,14 @@
         - none
         - src
 
+- function: ngettext
+  model:
+    - return_effect: alloc
+      arguments:
+        - none
+        - none
+        - none
+
 - function: nl_langinfo
   model:
       - return_effect: alloc
@@ -286,6 +322,17 @@
     - return_effect: alloc
       arguments:
         - none
+        - none
+
+- function: stpcpy
+  model:
+    - return_effect: none
+      arguments:
+        - assign_trg
+        - deref_src
+    - return_effect: copy_trg
+      arguments:
+        - src
         - none
 
 - function: strcpy
@@ -342,6 +389,13 @@
         - src
         - assign_trg
         - none
+
+- function: strtold
+  model:
+    - return_effect: none
+      arguments:
+        - src
+        - assign_trg
 
 - function: __isoc23_strtol
   model:
