@@ -216,6 +216,7 @@ namespace potato::analysis {
         static elem_t new_glob(mlir_operation *op) { return elem_t::make_glob(op); }
         change_result new_alloca(mlir_value val, mlir_operation *op);
         change_result new_alloca(mlir_value val);
+        void add_argc(mlir_value val, mlir_operation *op);
         change_result join_empty(mlir_value val) {
             return sets().insert(val) ? change_result::Change : change_result::NoChange;
         }

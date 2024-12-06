@@ -36,10 +36,17 @@ change_result aa_lattice::new_alloca(mlir_value val, mlir_operation *alloc) {
         return change_result::Change;
     else
         return join_var(val, set);
-
 }
+
 change_result aa_lattice::new_alloca(mlir_value val) {
     return new_alloca(val, val.getDefiningOp());
+}
+
+void aa_lattice::add_argc(mlir_value value, mlir_operation *op) {
+    auto str = elem_t::make_alloca(op);
+    auto str_ptr = elem_t::make_alloca(op, value);
+    std::ignore = join_var(str_ptr, str);
+    std::ignore = join_var(value, str_ptr);
 }
 
 change_result aa_lattice::join_var(mlir_value val, mlir_value trg) {

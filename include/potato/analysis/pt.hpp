@@ -490,6 +490,11 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
     mlir::LogicalResult initialize(mlir_operation *op) override {
         auto state = this->template getOrCreate< pt_lattice >(op);
         state->initialize_with(relation.get());
+        if (auto fun = mlir::dyn_cast< mlir::FunctionOpInterface >(op)) {
+            if (fun.getNumArguments() == 2 && fun.getName() == "main") {
+                state->add_argc(fun.getArguments()[1], op);
+            }
+        }
         return base::initialize(op);
     }
 
