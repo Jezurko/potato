@@ -327,7 +327,7 @@ namespace potato::conv::llvmtopt
                                        mlir::ConversionPatternRewriter &rewriter
         ) const override {
             auto tc = this->getTypeConverter();
-            rewriter.replaceOpWithNewOp< pt::UnknownPtrOp >(op, tc->convertType(op.getType()), mlir::ValueRange());
+            rewriter.replaceOpWithNewOp< pt::UnknownPtrOp >(op, tc->convertType(op.getType()));
             return mlir::success();
         }
     };
@@ -347,7 +347,7 @@ namespace potato::conv::llvmtopt
         ) const override {
             auto tc = this->getTypeConverter();
             if (mlir::isa< mlir::LLVM::LLVMPointerType >(op.getType())) {
-                rewriter.replaceOpWithNewOp< pt::UnknownPtrOp >(op, tc->convertType(op.getType()), mlir::ValueRange());
+                rewriter.replaceOpWithNewOp< pt::UnknownPtrOp >(op, tc->convertType(op.getType()));
             } else {
                 rewriter.replaceOpWithNewOp< pt::ConstantOp >(op, tc->convertType(op.getType()));
             }
@@ -423,15 +423,26 @@ namespace potato::conv::llvmtopt
             if (auto val_attr = op.getValue()) {
                auto guard = mlir::OpBuilder::InsertionGuard(rewriter);
                rewriter.setInsertionPointToStart(&glob_init.emplaceBlock());
-               // TODO: init pointers to unknown
-               auto constant = rewriter.create< pt::ConstantOp >(
-                    op.getLoc(),
-                    this->getTypeConverter()->convertType(op.getGlobalType())
-               );
+               auto constant = [&]() {
+                auto tc = this->getTypeConverter();
+                if (mlir::isa< mlir::LLVM::LLVMPointerType >(op.getType())) {
+                    if (auto symbol = mlir::dyn_cast< mlir::FlatSymbolRefAttr >(val_attr.value())) {
+                        return rewriter.create< pt::AddressOp >(
+                                op.getLoc(),
+                                tc->convertType(op.getGlobalType()),
+                                mlir_value(),
+                                symbol
+                        ).getResult();
+                    }
+                    return rewriter.create< pt::UnknownPtrOp >(op.getLoc(), tc->convertType(op.getGlobalType())).getResult();
+                } else {
+                    return rewriter.create< pt::ConstantOp >(op.getLoc(), tc->convertType(op.getGlobalType())).getResult();
+                }
+               }();
                auto cast = rewriter.create< mlir::UnrealizedConversionCastOp >(
                    op.getLoc(),
                    op.getGlobalType(),
-                   constant.getResult()
+                   constant
                );
                rewriter.create< mlir::LLVM::ReturnOp >(op.getLoc(), cast.getOutputs());
             }
@@ -459,29 +470,6 @@ namespace potato::conv::llvmtopt
         }
     };
 
-    struct fix_addr_type_pattern : mlir::OpConversionPattern< pt::AddressOp > {
-        using base = mlir::OpConversionPattern< pt::AddressOp >;
-        using base::base;
-        using adaptor_t = typename pt::AddressOp::Adaptor;
-
-        logical_result matchAndRewrite(pt::AddressOp op,
-                                       adaptor_t adaptor,
-                                       mlir::ConversionPatternRewriter &rewriter
-        ) const override {
-            rewriter.replaceOpWithNewOp< pt::AddressOp >(
-                    op,
-                    this->getTypeConverter()->convertType(op.getResult().getType()),
-                    mlir::Value(),
-                    op.getSymbolAttr()
-            );
-            return mlir::success();
-        }
-    };
-
-    using global_handling_patterns = util::type_list<
-        fix_addr_type_pattern
-    >;
-
     struct potato_target : public mlir::ConversionTarget {
         potato_target(mlir::MLIRContext &ctx) : ConversionTarget(ctx) {
             addLegalDialect< pt::PotatoDialect >();
@@ -494,8 +482,7 @@ namespace potato::conv::llvmtopt
         copy_patterns,
         store_patterns,
         load_patterns,
-        unknown_patterns,
-        global_handling_patterns
+        unknown_patterns
     >;
 
     struct LLVMIRToPoTAToPass : LLVMIRToPoTAToBase< LLVMIRToPoTAToPass >
@@ -515,15 +502,6 @@ namespace potato::conv::llvmtopt
             auto tc       = to_pt_type();
             auto dummy_tc = mlir::LLVMTypeConverter(&mctx);
 
-            auto address_of_trg      = potato_target(mctx);
-            auto address_of_patterns = mlir::RewritePatternSet(&mctx);
-            add_patterns< util::type_list< address_of_op > >(address_of_patterns, dummy_tc);
-
-            address_of_trg.addDynamicallyLegalDialect< mlir::LLVM::LLVMDialect >(
-                    [&](auto *op){
-                        return !mlir::isa< mlir::LLVM::AddressOfOp > (op);
-            });
-
             auto global_trg      = potato_target(mctx);
             auto global_patterns = mlir::RewritePatternSet(&mctx);
             add_patterns< util::type_list< global_op > >(global_patterns, dummy_tc);
@@ -537,6 +515,7 @@ namespace potato::conv::llvmtopt
             auto patterns = mlir::RewritePatternSet(&mctx);
 
             add_patterns< pattern_list >(patterns, tc);
+            add_patterns< util::type_list< address_of_op > >(patterns, tc);
 
             trg.addDynamicallyLegalDialect< mlir::LLVM::LLVMDialect >(
                     [&](auto *op){
@@ -552,15 +531,7 @@ namespace potato::conv::llvmtopt
                                         > (op);
             });
 
-            trg.addDynamicallyLegalOp< pt::AddressOp >([&](pt::AddressOp op) {
-                return tc.isLegal(op);
-            });
             trg.addLegalOp< mlir::UnrealizedConversionCastOp >();
-
-            if (failed(applyPartialConversion(getOperation(),
-                                       address_of_trg,
-                                       std::move(address_of_patterns))))
-                    return signalPassFailure();
 
             if (failed(applyPartialConversion(getOperation(),
                                        global_trg,
