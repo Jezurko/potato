@@ -13,10 +13,14 @@ void pt_element::print(llvm::raw_ostream &os) const {
         case elem_kind::var:
             os << "var: " << val;
         break;
-        case elem_kind::func:
-        case elem_kind::global:
+        case elem_kind::func: {
+                auto symbol = mlir::cast< mlir::SymbolOpInterface >(operation);
+                os << symbol.getName();
+            break;
+        }
+        case elem_kind::named_var:
             auto symbol = mlir::cast< mlir::SymbolOpInterface >(operation);
-            os << symbol.getName();
+            os << symbol.getName() << "at" << symbol->getLoc();
         break;
     }
 }

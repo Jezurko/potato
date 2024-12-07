@@ -119,7 +119,7 @@ namespace potato::analysis::trad {
             changed |= after->join_var(op.getResult(), aa_lattice::new_func(symbol));
         }
         if (mlir::isa< mllvm::GlobalOp >(symbol)) {
-            changed |= after->join_var(op.getResult(), aa_lattice::new_glob(symbol));
+            changed |= after->join_var(op.getResult(), aa_lattice::new_named_var(symbol));
         }
         propagateIfChanged(after, changed);
     }
@@ -144,13 +144,13 @@ namespace potato::analysis::trad {
                 for (auto ret_arg : ret_op->getOperands()) {
                     auto *arg_pt = ret_state->lookup(ret_arg);
                     if (arg_pt) {
-                        changed |= after->join_var(aa_lattice::new_glob(op.getOperation()), *arg_pt);
+                        changed |= after->join_var(aa_lattice::new_named_var(op.getOperation()), *arg_pt);
                     }
                 }
                 return propagateIfChanged(after, changed);
             }
         }
-        changed |= after->join_var(aa_lattice::new_glob(op.getOperation()), aa_lattice::new_top_set());
+        changed |= after->join_var(aa_lattice::new_named_var(op.getOperation()), aa_lattice::new_top_set());
         propagateIfChanged(after, changed);
     }
 

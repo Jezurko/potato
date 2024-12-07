@@ -456,7 +456,7 @@ namespace potato::conv::llvmtopt
             adaptor_t adaptor,
             mlir::ConversionPatternRewriter &rewriter
         ) const override {
-            auto global = rewriter.replaceOpWithNewOp< pt::GlobalVarOp >(op, op.getName(), false);
+            auto global = rewriter.replaceOpWithNewOp< pt::NamedVarOp >(op, op.getName(), false);
             auto &orig_init = adaptor.getInitializer();
             auto &glob_init = global.getInit();
             if (!orig_init.empty()) {

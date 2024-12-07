@@ -48,14 +48,14 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
                 changed |= after->join_var(op.getPtr(), pt_lattice::new_func(symbol));
             }
 
-            if (mlir::isa< pt::GlobalVarOp >(symbol)) {
-                changed |= after->join_var(op.getPtr(), pt_lattice::new_glob(symbol));
+            if (mlir::isa< pt::NamedVarOp >(symbol)) {
+                changed |= after->join_var(op.getPtr(), pt_lattice::new_named_var(symbol));
             }
         }
         return changed;
     };
 
-    change_result visit_pt_op(pt::GlobalVarOp &op, const pt_lattice &before, pt_lattice *after) {
+    change_result visit_pt_op(pt::NamedVarOp &op, const pt_lattice &before, pt_lattice *after) {
         auto changed = after->join(before);
         auto &init = op.getInit();
         if (!init.empty()) {
@@ -67,7 +67,7 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
                 for (auto ret_arg : ret_op->getOperands()) {
                     auto arg_pt = ret_state->lookup(ret_arg);
                     if (arg_pt) {
-                        changed |= after->join_var(pt_lattice::new_glob(op.getOperation()), arg_pt);
+                        changed |= after->join_var(pt_lattice::new_named_var(op.getOperation()), arg_pt);
                     }
                 }
                 return changed;
@@ -220,7 +220,7 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
                    pt::ConstantOp,
                    pt::CopyOp,
                    pt::DereferenceOp,
-                   pt::GlobalVarOp,
+                   pt::NamedVarOp,
                    pt::UnknownPtrOp >
             ([&](auto &pt_op) { auto changed = visit_pt_op(pt_op, before, after); propagateIfChanged(after, changed); })
             .template Case< mlir::UnrealizedConversionCastOp >(

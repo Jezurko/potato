@@ -56,8 +56,8 @@ def Potato_ConstantOp
   let assemblyFormat = [{ attr-dict `:` type($result)}];
 }
 
-def Potato_GlobalVarOp
-  : Potato_Op< "global", [IsolatedFromAbove, Symbol] >
+def Potato_NamedVarOp
+  : Potato_Op< "named_var", [IsolatedFromAbove, Symbol] >
   , Arguments<( ins SymbolNameAttr:$sym_name, BoolAttr:$local )>
 {
   let regions = (region AnyRegion:$init);

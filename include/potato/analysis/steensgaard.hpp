@@ -30,8 +30,8 @@ namespace potato::analysis {
             return stg_elem(pt_element::elem_kind::func, {}, op);
         }
 
-        static stg_elem make_glob(mlir_operation *op) {
-            return stg_elem(pt_element::elem_kind::global, {}, op);
+        static stg_elem make_named_var(mlir_operation *op) {
+            return stg_elem(pt_element::elem_kind::named_var, {}, op);
         }
 
         static stg_elem make_alloca(mlir_operation *op, mlir_value val = {}) {
@@ -51,7 +51,7 @@ namespace potato::analysis {
         inline bool is_alloca() const { return elem && elem->is_alloca(); }
         inline bool is_var() const { return elem && elem->is_var(); }
         inline bool is_func() const { return elem && elem->is_func(); }
-        inline bool is_global() const { return elem && elem->is_global(); }
+        inline bool is_named_var() const { return elem && elem->is_named_var(); }
 
         void print(llvm::raw_ostream &os) const;
     };
@@ -213,7 +213,7 @@ namespace potato::analysis {
         static elem_t new_top_set() { return elem_t(); }
         elem_t new_dummy();
         static elem_t new_func(mlir_operation *op) { return elem_t::make_func(op); }
-        static elem_t new_glob(mlir_operation *op) { return elem_t::make_glob(op); }
+        static elem_t new_named_var(mlir_operation *op) { return elem_t::make_named_var(op); }
         change_result new_alloca(mlir_value val, mlir_operation *op);
         change_result new_alloca(mlir_value val);
         void add_argc(mlir_value val, mlir_operation *op);
