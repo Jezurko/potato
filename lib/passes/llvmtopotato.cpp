@@ -57,6 +57,38 @@ namespace potato::conv::llvmtopt
         }
     };
 
+    struct cmpxchg_op : mlir::OpConversionPattern< mlir::LLVM::AtomicCmpXchgOp > {
+        using base = mlir::OpConversionPattern< mlir::LLVM::AtomicCmpXchgOp >;
+        using base::base;
+        using adaptor_t = typename mlir::LLVM::AtomicCmpXchgOp::Adaptor;
+
+        logical_result matchAndRewrite(mlir::LLVM::AtomicCmpXchgOp op,
+                                       adaptor_t adaptor,
+                                       mlir::ConversionPatternRewriter &rewriter
+        ) const override {
+            auto tc = this->getTypeConverter();
+            rewriter.replaceOpWithNewOp< pt::DereferenceOp >(op, tc->convertType(op.getRes().getType()), adaptor.getPtr());
+            rewriter.create< pt::AssignOp >(op.getLoc(), adaptor.getPtr(), adaptor.getVal());
+            return mlir::success();
+        }
+    };
+
+    struct atomic_rmw : mlir::OpConversionPattern< mlir::LLVM::AtomicRMWOp > {
+        using base = mlir::OpConversionPattern< mlir::LLVM::AtomicRMWOp >;
+        using base::base;
+        using adaptor_t = typename mlir::LLVM::AtomicRMWOp::Adaptor;
+
+        logical_result matchAndRewrite(mlir::LLVM::AtomicRMWOp op,
+                                       adaptor_t adaptor,
+                                       mlir::ConversionPatternRewriter &rewriter
+        ) const override {
+            auto tc = this->getTypeConverter();
+            rewriter.replaceOpWithNewOp< pt::DereferenceOp >(op, tc->convertType(op.getRes().getType()), adaptor.getPtr());
+            rewriter.create< pt::AssignOp >(op.getLoc(), adaptor.getPtr(), adaptor.getVal());
+            return mlir::success();
+        }
+    };
+
     template< typename op_t >
     struct memcpy_insensitive : mlir::OpConversionPattern< op_t > {
         using source = op_t;
@@ -152,12 +184,13 @@ namespace potato::conv::llvmtopt
         }
     };
 
-    struct extract_value_op : mlir::OpConversionPattern< mlir::LLVM::ExtractValueOp > {
-        using base = mlir::OpConversionPattern< mlir::LLVM::ExtractValueOp >;
+    template< typename op_t >
+    struct extract_op : mlir::OpConversionPattern< op_t > {
+        using base = mlir::OpConversionPattern< op_t >;
         using base::base;
-        using adaptor_t = typename mlir::LLVM::ExtractValueOp::Adaptor;
+        using adaptor_t = typename op_t::Adaptor;
 
-        logical_result matchAndRewrite(mlir::LLVM::ExtractValueOp op,
+        logical_result matchAndRewrite(op_t op,
                                        adaptor_t adaptor,
                                        mlir::ConversionPatternRewriter &rewriter
         ) const override {
@@ -165,7 +198,7 @@ namespace potato::conv::llvmtopt
             rewriter.replaceOpWithNewOp< pt::CopyOp >(
                     op,
                     tc->convertType(op.getRes().getType()),
-                    adaptor.getContainer()
+                    adaptor.getOperands()[0]
             );
             return mlir::success();
         }
@@ -173,7 +206,9 @@ namespace potato::conv::llvmtopt
 
     using load_patterns = util::type_list<
         load_op,
-        extract_value_op
+        // TODO: these do not load from memory, move them
+        extract_op< mlir::LLVM::ExtractValueOp >,
+        extract_op< mlir::LLVM::ExtractElementOp >
     >;
 
     template< typename source >
@@ -234,8 +269,9 @@ namespace potato::conv::llvmtopt
         }
     };
 
-    struct insert_value : mlir::OpConversionPattern< mlir::LLVM::InsertValueOp > {
-        using source = mlir::LLVM::InsertValueOp;
+    template< typename op_t >
+    struct insert_op : mlir::OpConversionPattern< op_t > {
+        using source = op_t;
         using base = mlir::OpConversionPattern< source >;
         using base::base;
         using adaptor_t = typename source::Adaptor;
@@ -247,7 +283,7 @@ namespace potato::conv::llvmtopt
             rewriter.replaceOpWithNewOp< pt::CopyOp >(
                     op,
                     tc->convertType(op.getType()),
-                    mlir::ValueRange{adaptor.getContainer(), adaptor.getValue()}
+                    mlir::ValueRange{adaptor.getOperands()[0], adaptor.getValue()}
             );
             return mlir::success();
         }
@@ -299,6 +335,7 @@ namespace potato::conv::llvmtopt
         copy_op< mlir::LLVM::TruncOp >,
         copy_op< mlir::LLVM::PtrToIntOp >,
         copy_op< mlir::LLVM::BitcastOp >,
+        copy_op< mlir::LLVM::AddrSpaceCastOp >,
         copy_op< mlir::LLVM::ZExtOp >,
         copy_op< mlir::LLVM::SExtOp >,
         copy_op< mlir::LLVM::FAbsOp >,
@@ -309,11 +346,17 @@ namespace potato::conv::llvmtopt
         copy_op< mlir::LLVM::OrOp >,
         copy_op< mlir::LLVM::XOrOp >,
         copy_op< mlir::LLVM::BitcastOp >,
+        copy_op< mlir::LLVM::FPExtOp >,
+        copy_op< mlir::LLVM::FPToSIOp >,
+        copy_op< mlir::LLVM::FPToUIOp >,
+        copy_op< mlir::LLVM::FPTruncOp >,
+        copy_op< mlir::LLVM::FreezeOp >,
         shift_op< mlir::LLVM::LShrOp >,
         shift_op< mlir::LLVM::AShrOp >,
         shift_op< mlir::LLVM::ShlOp >,
         gep_insensitive,
-        insert_value,
+        insert_op< mlir::LLVM::InsertValueOp >,
+        insert_op< mlir::LLVM::InsertElementOp >,
         select_insensitive
     >;
 
@@ -527,7 +570,8 @@ namespace potato::conv::llvmtopt
                                           mlir::LLVM::NoAliasScopeDeclOp,
                                           mlir::LLVM::UnreachableOp,
                                           mlir::LLVM::AssumeOp,
-                                          mlir::LLVM::VaEndOp
+                                          mlir::LLVM::VaEndOp,
+                                          mlir::LLVM::FenceOp
                                         > (op);
             });
 
