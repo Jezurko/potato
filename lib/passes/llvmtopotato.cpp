@@ -473,7 +473,6 @@ namespace potato::conv::llvmtopt
                         return rewriter.create< pt::AddressOp >(
                                 op.getLoc(),
                                 tc->convertType(op.getGlobalType()),
-                                mlir_value(),
                                 symbol
                         ).getResult();
                     }
@@ -506,7 +505,6 @@ namespace potato::conv::llvmtopt
             rewriter.replaceOpWithNewOp< pt::AddressOp >(
                     op,
                     this->getTypeConverter()->convertType(op.getRes().getType()),
-                    mlir::Value(),
                     op.getGlobalNameAttr()
             );
             return mlir::success();
