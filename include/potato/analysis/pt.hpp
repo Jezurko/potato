@@ -31,27 +31,21 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
 
     change_result visit_pt_op(pt::AddressOp &op, const pt_lattice &before, pt_lattice *after) {
         auto changed = after->join(before);
-        auto val = op.getVal();
+        auto symbol_ref = op.getSymbol();
 
-        if (val) {
-            changed |= after->join_var(op.getPtr(), op.getVal());
-        } else {
-            auto symbol_ref = op.getSymbol();
-            assert(symbol_ref && "Address of op without value or proper attribute.");
+        auto symbol = symbol_table::lookupNearestSymbolFrom(
+            op.getOperation(),
+            op.getSymbolAttr()
+        );
 
-            auto symbol = symbol_table::lookupNearestSymbolFrom(
-                op.getOperation(),
-                op.getSymbolAttr()
-            );
-
-            if (mlir::isa< mlir::FunctionOpInterface >(symbol)) {
-                changed |= after->join_var(op.getPtr(), pt_lattice::new_func(symbol));
-            }
-
-            if (mlir::isa< pt::NamedVarOp >(symbol)) {
-                changed |= after->join_var(op.getPtr(), pt_lattice::new_named_var(symbol));
-            }
+        if (mlir::isa< mlir::FunctionOpInterface >(symbol)) {
+            changed |= after->join_var(op.getPtr(), pt_lattice::new_func(symbol));
         }
+
+        if (mlir::isa< pt::NamedVarOp >(symbol)) {
+            changed |= after->join_var(op.getPtr(), pt_lattice::new_named_var(symbol));
+        }
+
         return changed;
     };
 
