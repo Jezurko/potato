@@ -31,7 +31,7 @@ struct aa_lattice : mlir_dense_abstract_lattice {
     pointee_set *lookup(const mlir_value &val) { return lookup(elem_t(val)); }
 
     static elem_t new_func(mlir_operation *op) { return elem_t::make_func(op); }
-    static elem_t new_glob(mlir_operation *op) { return elem_t::make_glob(op); }
+    static elem_t new_named_var(mlir_operation *op) { return elem_t::make_named_var(op); }
     static pointee_set new_pointee_set() { return pointee_set(); }
     static pointee_set new_top_set() { return pointee_set::make_top(); }
 
@@ -112,7 +112,7 @@ struct aa_lattice : mlir_dense_abstract_lattice {
 
     static void propagate_members_changed(const pointee_set *set, auto get_or_create, auto propagate) {
         for (const auto &member : set->get_set_ref()) {
-            if (member.is_global() || member.is_alloca()) {
+            if (member.is_named_var() || member.is_alloca()) {
                 auto state = get_or_create(member.operation);
                 propagate(state, change_result::Change);
             }
@@ -125,7 +125,7 @@ struct aa_lattice : mlir_dense_abstract_lattice {
 
     static void depend_on_members(const pointee_set *set, auto add_dep) {
         for (const auto &member : set->get_set_ref()) {
-            if (member.is_global() || member.is_alloca()) {
+            if (member.is_named_var() || member.is_alloca()) {
                 add_dep(member.operation);
             }
             if (member.is_var()) {

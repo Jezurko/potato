@@ -34,7 +34,7 @@ namespace potato::analysis {
             alloca,
             var,
             func,
-            global
+            named_var
         } kind;
         mlir_value val;
         mlir_operation *operation;
@@ -47,8 +47,8 @@ namespace potato::analysis {
             return pt_element(elem_kind::func, {}, op);
         }
 
-        static pt_element make_glob(mlir_operation *op) {
-            return pt_element(elem_kind::global, {}, op);
+        static pt_element make_named_var(mlir_operation *op) {
+            return pt_element(elem_kind::named_var, {}, op);
         }
 
         static pt_element make_alloca(mlir_operation *op, mlir_value val = {}) {
@@ -62,7 +62,7 @@ namespace potato::analysis {
         bool is_alloca() const { return kind == elem_kind::alloca; }
         bool is_var() const { return kind == elem_kind::var; }
         bool is_func() const { return kind == elem_kind::func; }
-        bool is_global() const { return kind == elem_kind::global; }
+        bool is_named_var() const { return kind == elem_kind::named_var; }
 
         bool operator==(const pt_element &rhs) const = default;
 
