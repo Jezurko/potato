@@ -333,6 +333,9 @@ namespace potato::analysis {
             if (lhs_trg.is_dummy() || rhs_trg.is_dummy()) {
                 return alias_kind::NoAlias;
             }
+            if (lhs_trg.is_top() || rhs_trg.is_top()) {
+                return alias_kind::MayAlias;
+            }
             if (lhs_trg != rhs_trg) {
                 return alias_kind::NoAlias;
             }
