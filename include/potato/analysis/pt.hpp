@@ -31,7 +31,6 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
 
     change_result visit_pt_op(pt::AddressOp &op, const pt_lattice &before, pt_lattice *after) {
         auto changed = after->join(before);
-        auto symbol_ref = op.getSymbol();
 
         auto symbol = symbol_table::lookupNearestSymbolFrom(
             op.getOperation(),
