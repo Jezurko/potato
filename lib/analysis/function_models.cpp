@@ -15,6 +15,7 @@ struct ScalarEnumerationTraits< potato::analysis::arg_effect >
         io.enumCase(value, "none", potato::analysis::arg_effect::none);
         io.enumCase(value, "alloc", potato::analysis::arg_effect::alloc);
         io.enumCase(value, "static_alloc", potato::analysis::arg_effect::static_alloc);
+        io.enumCase(value, "deref_alloc", potato::analysis::arg_effect::static_alloc);
         io.enumCase(value, "realloc_ptr", potato::analysis::arg_effect::realloc_ptr);
         io.enumCase(value, "realloc_res", potato::analysis::arg_effect::realloc_res);
         io.enumCase(value, "copy_trg", potato::analysis::arg_effect::copy_trg);

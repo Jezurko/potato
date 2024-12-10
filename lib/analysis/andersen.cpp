@@ -42,6 +42,17 @@ change_result aa_lattice::new_alloca(mlir_value val) {
     return new_alloca(val, val.getDefiningOp());
 }
 
+change_result aa_lattice::deref_alloca(mlir_value val, mlir_operation *op) {
+    if (auto pt = lookup(val)) {
+        auto set = pointee_set();
+        auto deref_alloc = elem_t::make_alloca(op, val);
+        set.insert(deref_alloc);
+        return join_all_pointees_with(pt, &set);
+    }
+    return change_result::NoChange;
+
+}
+
 void aa_lattice::add_argc(mlir_value value, mlir_operation *op) {
     auto str = elem_t::make_alloca(op);
     auto str_ptr = elem_t::make_alloca(op, value);

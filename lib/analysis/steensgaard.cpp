@@ -45,6 +45,12 @@ change_result steensgaard::new_alloca(mlir_value val) {
     return new_alloca(val, val.getDefiningOp());
 }
 
+change_result steensgaard::deref_alloca(mlir_value val, mlir_operation *op) {
+    auto deref_alloc = elem_t::make_alloca(op, val);
+    auto pt = lookup(val);
+    return join_all_pointees_with(pt, &deref_alloc);
+}
+
 void steensgaard::add_argc(mlir_value value, mlir_operation *op) {
     auto str = elem_t::make_alloca(op);
     auto str_ptr = elem_t::make_alloca(op, value);
@@ -112,6 +118,11 @@ change_result steensgaard::visit_function_model(const function_model &model, fn_
                 case arg_effect::static_alloc:
                     arg_changed |= join_var(args[i], elem_t::make_alloca(fn.getOperation()));
                     break;
+                case arg_effect::deref_alloc: {
+                    auto pt = lookup(args[i]);
+                    arg_changed |= join_var(*pt, elem_t::make_alloca(fn.getOperation()));
+                    break;
+                }
                 case arg_effect::realloc_ptr:
                     realloc_ptr = args[i];
                     break;
