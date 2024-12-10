@@ -351,6 +351,7 @@ namespace potato::conv::llvmtopt
         copy_op< mlir::LLVM::FPToUIOp >,
         copy_op< mlir::LLVM::FPTruncOp >,
         copy_op< mlir::LLVM::FreezeOp >,
+        copy_op< mlir::LLVM::AbsOp >,
         shift_op< mlir::LLVM::LShrOp >,
         shift_op< mlir::LLVM::AShrOp >,
         shift_op< mlir::LLVM::ShlOp >,
