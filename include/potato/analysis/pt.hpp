@@ -287,6 +287,17 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
                     arg_changed |= after->new_alloca(call->getOperand(i), symbol);
                     break;
                 }
+                case arg_effect::deref_alloc: {
+                    arg_changed |= after->deref_alloca(call->getOperand(i), call);
+                    if (arg_changed == change_result::Change) {
+                        pt_lattice::propagate_members_changed(
+                                after->lookup(call->getOperand(i)),
+                                get_or_create(),
+                                propagate()
+                        );
+                    }
+                    break;
+                }
                 case arg_effect::realloc_ptr:
                     realloc_ptr = call->getOperand(i);
                     break;
@@ -296,11 +307,11 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
                 case arg_effect::src:
                     from.push_back(call->getOperand(i));
                     break;
-                case arg_effect::copy_trg:
-                    copy_to.push_back(call->getOperand(i));
-                    break;
                 case arg_effect::deref_src:
                     deref_from.push_back(call->getOperand(i));
+                    break;
+                case arg_effect::copy_trg:
+                    copy_to.push_back(call->getOperand(i));
                     break;
                 case arg_effect::assign_trg:
                     assign_to.push_back(call->getOperand(i));

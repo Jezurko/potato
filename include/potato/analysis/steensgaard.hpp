@@ -216,6 +216,7 @@ namespace potato::analysis {
         static elem_t new_named_var(mlir_operation *op) { return elem_t::make_named_var(op); }
         change_result new_alloca(mlir_value val, mlir_operation *op);
         change_result new_alloca(mlir_value val);
+        change_result deref_alloca(mlir_value val, mlir_operation *op);
         void add_argc(mlir_value val, mlir_operation *op);
         change_result join_empty(mlir_value val) {
             return sets().insert(val) ? change_result::Change : change_result::NoChange;
