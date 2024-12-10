@@ -1,8 +1,8 @@
-#include "potato/passes/analysis.hpp"
-#include "potato/util/test.hpp"
-#include "potato/util/warnings.hpp"
 #include "potato/analysis/andersen.hpp"
 #include "potato/analysis/pt.hpp"
+#include "potato/passes/analysis.hpp"
+#include "potato/util/warnings.hpp"
+#include "potato/util/common.hpp"
 
 POTATO_RELAX_WARNINGS
 #include <mlir/Analysis/DataFlowFramework.h>
@@ -16,7 +16,7 @@ POTATO_UNRELAX_WARNINGS
 
 namespace potato::pt
 {
-    struct PointsToPass : PointsToPassBase< PointsToPass >
+    struct AABenchPass : AABenchPassBase< AABenchPass >
     {
         void runOnOperation() override
         {
@@ -32,20 +32,16 @@ namespace potato::pt
 
             if (failed(solver.initializeAndRun(root)))
                 signalPassFailure();
-
-            if (print_lattice)
-                analysis::print_analysis_result(solver, root, llvm::outs());
-            test::check_aliases< analysis::aa_lattice >(solver, root);
-            //if (print_stats)
-            //    analysis::print_analysis_stats(solver, root, llvm::outs());
-            //if (print_func_stats)
-            //    analysis::print_analysis_func_stats(solver, root, llvm::outs());
+            auto analysis = util::get_analysis< analysis::aa_lattice >(solver, root);
+            if (analysis->is_all_unknown()) {
+                signalPassFailure();
+            }
         }
     };
 
-    std::unique_ptr< mlir::Pass > createPointsToPass()
+    std::unique_ptr< mlir::Pass > createAABenchPass()
     {
-        return std::make_unique< PointsToPass >();
+        return std::make_unique< AABenchPass >();
     }
 } // namespace potato::pt
 
