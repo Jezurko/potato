@@ -13,7 +13,9 @@ POTATO_UNRELAX_WARNINGS
 namespace potato::pt {
 
     std::unique_ptr< mlir::Pass > createPointsToPass();
+    std::unique_ptr< mlir::Pass > createAABenchPass();
     std::unique_ptr< mlir::Pass > createSteensgaardPointsToPass();
+    std::unique_ptr< mlir::Pass > createSteensBenchPass();
     std::unique_ptr< mlir::Pass > createLLVMPointsToPass();
 
     #define GEN_PASS_REGISTRATION
