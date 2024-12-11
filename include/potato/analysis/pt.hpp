@@ -458,8 +458,6 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
                 for (const auto &model : model_it->second) {
                     changed |= visit_function_model(after, model, call);
                 }
-            } else {
-                llvm::errs() << symbol.getLeafReference() << "\n";
             }
             propagateIfChanged(after, changed );
         }
