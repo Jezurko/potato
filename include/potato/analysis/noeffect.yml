@@ -1,0 +1,1177 @@
+# no effect:
+- function: abort
+  model:
+    - return_effect: none
+      arguments:
+
+- function: access
+  model:
+    - return_effect: none
+      arguments:
+
+- function: alarm
+  model:
+    - return_effect: none
+      arguments:
+
+- function: atoi
+  model:
+    - return_effect: none
+      arguments:
+
+- function: __assert_fail
+  model:
+    - return_effect: none
+      arguments:
+
+- function: atexit
+  model:
+    - return_effect: none
+      arguments:
+
+- function: cap_free
+  model:
+    - return_effect: none
+      arguments:
+
+- function: cfgetispeed
+  model:
+    - return_effect: none
+      arguments:
+
+- function: cfgetospeed
+  model:
+    - return_effect: none
+      arguments:
+
+- function: cfsetispeed
+  model:
+    - return_effect: none
+      arguments:
+
+- function: cfsetospeed
+  model:
+    - return_effect: none
+      arguments:
+
+- function: chdir
+  model:
+    - return_effect: none
+      arguments:
+
+- function: chmod
+  model:
+    - return_effect: none
+      arguments:
+
+- function: chown
+  model:
+    - return_effect: none
+      arguments:
+
+- function: chroot
+  model:
+    - return_effect: none
+      arguments:
+
+- function: clearerr
+  model:
+    - return_effect: none
+      arguments:
+
+- function: clearerr_unlocked
+  model:
+    - return_effect: none
+      arguments:
+
+- function: clock
+  model:
+    - return_effect: none
+      arguments:
+
+- function: clock_getres
+  model:
+    - return_effect: none
+      arguments:
+
+- function: clock_gettime
+  model:
+    - return_effect: none
+      arguments:
+
+- function: clock_settime
+  model:
+    - return_effect: none
+      arguments:
+
+- function: close
+  model:
+    - return_effect: none
+      arguments:
+
+- function: closedir
+  model:
+    - return_effect: none
+      arguments:
+
+- function: copy_file_range
+  model:
+    - return_effect: none
+      arguments:
+
+- function: __ctype_get_mb_cur_max
+  model:
+    - return_effect: none
+      arguments:
+
+- function: dirfd
+  model:
+    - return_effect: none
+      arguments:
+
+- function: dup
+  model:
+    - return_effect: none
+      arguments:
+
+- function: dup2
+  model:
+    - return_effect: none
+      arguments:
+
+- function: endgrent
+  model:
+    - return_effect: none
+      arguments:
+
+- function: endpwent
+  model:
+    - return_effect: none
+      arguments:
+
+- function: endutxent
+  model:
+    - return_effect: none
+      arguments:
+
+- function: euidaccess
+  model:
+    - return_effect: none
+      arguments:
+
+- function: execl
+  model:
+    - return_effect: none
+      arguments:
+
+- function: execlp
+  model:
+    - return_effect: none
+      arguments:
+
+- function: execvp
+  model:
+    - return_effect: none
+      arguments:
+
+- function: exit
+  model:
+    - return_effect: none
+      arguments:
+
+- function: _exit
+  model:
+    - return_effect: none
+      arguments:
+
+- function: explicit_bzero
+  model:
+    - return_effect: none
+      arguments:
+
+- function: faccessat
+  model:
+    - return_effect: none
+      arguments:
+
+- function: fallocate
+  model:
+    - return_effect: none
+      arguments:
+
+- function: fchdir
+  model:
+    - return_effect: none
+      arguments:
+
+- function: fchmod
+  model:
+    - return_effect: none
+      arguments:
+
+- function: fchmodat
+  model:
+    - return_effect: none
+      arguments:
+
+- function: fchown
+  model:
+    - return_effect: none
+      arguments:
+
+- function: fchownat
+  model:
+    - return_effect: none
+      arguments:
+
+- function: fclose
+  model:
+    - return_effect: none
+      arguments:
+
+- function: fcntl
+  model:
+    - return_effect: none
+      arguments:
+
+- function: fdatasync
+  model:
+    - return_effect: none
+      arguments:
+
+- function: feof
+  model:
+    - return_effect: none
+      arguments:
+
+- function: feof_unlocked
+  model:
+    - return_effect: none
+      arguments:
+
+- function: ferror
+  model:
+    - return_effect: none
+      arguments:
+
+- function: ferror_unlocked
+  model:
+    - return_effect: none
+      arguments:
+
+- function: fflush
+  model:
+    - return_effect: none
+      arguments:
+
+- function: fflush_unlocked
+  model:
+    - return_effect: none
+      arguments:
+
+- function: fgetc
+  model:
+    - return_effect: none
+      arguments:
+
+- function: fileno
+  model:
+    - return_effect: none
+      arguments:
+
+- function: __fpending
+  model:
+    - return_effect: none
+      arguments:
+
+- function: fprintf
+  model:
+    - return_effect: none
+      arguments:
+
+- function: fputs
+  model:
+    - return_effect: none
+      arguments:
+
+- function: fputs_unlocked
+  model:
+    - return_effect: none
+      arguments:
+
+- function: fnmatch
+  model:
+    - return_effect: none
+      arguments:
+
+- function: fork
+  model:
+    - return_effect: none
+      arguments:
+
+- function: fpathconf
+  model:
+    - return_effect: none
+      arguments:
+
+- function: fpurge
+  model:
+    - return_effect: none
+      arguments:
+
+- function: __fpurge
+  model:
+    - return_effect: none
+      arguments:
+
+- function: fputc
+  model:
+    - return_effect: none
+      arguments:
+
+- function: fputc_unlocked
+  model:
+    - return_effect: none
+      arguments:
+
+- function: fread
+  model:
+    - return_effect: none
+      arguments:
+
+- function: fread_unlocked
+  model:
+    - return_effect: none
+      arguments:
+
+- function: __freading
+  model:
+    - return_effect: none
+      arguments:
+
+- function: free
+  model:
+    - return_effect: none
+      arguments:
+
+- function: freeaddrinfo
+  model:
+    - return_effect: none
+      arguments:
+
+- function: fseeko
+  model:
+    - return_effect: none
+      arguments:
+
+- function: fstat
+  model:
+    - return_effect: none
+      arguments:
+
+- function: fstatat
+  model:
+    - return_effect: none
+      arguments:
+
+- function: fstatfs
+  model:
+    - return_effect: none
+      arguments:
+
+- function: fsync
+  model:
+    - return_effect: none
+      arguments:
+
+- function: ftruncate
+  model:
+    - return_effect: none
+      arguments:
+
+- function: futimens
+  model:
+    - return_effect: none
+      arguments:
+
+- function: fwrite
+  model:
+    - return_effect: none
+      arguments:
+
+- function: fwrite_unlocked
+  model:
+    - return_effect: none
+      arguments:
+
+- function: gethostname
+  model:
+    - return_effect: none
+      arguments:
+
+- function: getopt_long
+  model:
+    - return_effect: none
+      arguments:
+
+- function: getc
+  model:
+    - return_effect: none
+      arguments:
+
+- function: getc_unlocked
+  model:
+    - return_effect: none
+      arguments:
+
+- function: getegid
+  model:
+    - return_effect: none
+      arguments:
+
+- function: geteuid
+  model:
+    - return_effect: none
+      arguments:
+
+- function: getgid
+  model:
+    - return_effect: none
+      arguments:
+
+- function: getgrouplist
+  model:
+    - return_effect: none
+      arguments:
+
+- function: getgroups
+  model:
+    - return_effect: none
+      arguments:
+
+- function: gethostid
+  model:
+    - return_effect: none
+      arguments:
+
+- function: getloadavg
+  model:
+    - return_effect: none
+      arguments:
+
+- function: getpagesize
+  model:
+    - return_effect: none
+      arguments:
+
+- function: getpriority
+  model:
+    - return_effect: none
+      arguments:
+
+- function: getrandom
+  model:
+    - return_effect: none
+      arguments:
+
+- function: gettimeofday
+  model:
+    - return_effect: none
+      arguments:
+
+- function: getuid
+  model:
+    - return_effect: none
+      arguments:
+
+- function: getxattr
+  model:
+    - return_effect: none
+      arguments:
+
+- function: gnu_dev_major
+  model:
+    - return_effect: none
+      arguments:
+
+- function: gnu_dev_makedev
+  model:
+    - return_effect: none
+      arguments:
+
+- function: gnu_dev_minor
+  model:
+    - return_effect: none
+      arguments:
+
+- function: endpwent
+  model:
+    - return_effect: none
+      arguments:
+
+- function: inotify_add_watch
+  model:
+    - return_effect: none
+      arguments:
+
+- function: inotify_init
+  model:
+    - return_effect: none
+      arguments:
+
+- function: inotify_rm_watch
+  model:
+    - return_effect: none
+      arguments:
+
+- function: ioctl
+  model:
+    - return_effect: none
+      arguments:
+
+- function: isatty
+  model:
+    - return_effect: none
+      arguments:
+
+- function: iswblank
+  model:
+    - return_effect: none
+      arguments:
+
+- function: iswcntrl
+  model:
+    - return_effect: none
+      arguments:
+
+- function: iswprint
+  model:
+    - return_effect: none
+      arguments:
+
+- function: kill
+  model:
+    - return_effect: none
+      arguments:
+
+- function: lchmod
+  model:
+    - return_effect: none
+      arguments:
+
+- function: lchown
+  model:
+    - return_effect: none
+      arguments:
+
+- function: lgetxattr
+  model:
+    - return_effect: none
+      arguments:
+- function: __libc_current_sigrtmax
+  model:
+    - return_effect: none
+      arguments:
+
+- function: __libc_current_sigrtmin
+  model:
+    - return_effect: none
+      arguments:
+
+- function: link
+  model:
+    - return_effect: none
+      arguments:
+
+- function: linkat
+  model:
+    - return_effect: none
+      arguments:
+
+- function: listxattr
+  model:
+    - return_effect: none
+      arguments:
+
+- function: llistxattr
+  model:
+    - return_effect: none
+      arguments:
+
+- function: longjmp
+  model:
+    - return_effect: none
+      arguments:
+
+- function: lseek
+  model:
+    - return_effect: none
+      arguments:
+
+- function: lstat
+  model:
+    - return_effect: none
+      arguments:
+
+- function: mbrtoc32
+  model:
+    - return_effect: none
+      arguments:
+
+- function: mbrtowc
+  model:
+    - return_effect: none
+      arguments:
+
+- function: mbsinit
+  model:
+    - return_effect: none
+      arguments:
+
+- function: memcmp
+  model:
+    - return_effect: none
+      arguments:
+
+- function: mkdir
+  model:
+    - return_effect: none
+      arguments:
+
+- function: mkdirat
+  model:
+    - return_effect: none
+      arguments:
+
+- function: mkfifo
+  model:
+    - return_effect: none
+      arguments:
+
+- function: mkfifoat
+  model:
+    - return_effect: none
+      arguments:
+
+- function: mknod
+  model:
+    - return_effect: none
+      arguments:
+
+- function: mknodat
+  model:
+    - return_effect: none
+      arguments:
+
+- function: mkostemp
+  model:
+    - return_effect: none
+      arguments:
+
+- function: mkstemp
+  model:
+    - return_effect: none
+      arguments:
+
+- function: mkostemps
+  model:
+    - return_effect: none
+      arguments:
+
+- function: mkstemps
+  model:
+    - return_effect: none
+      arguments:
+
+- function: mknodat
+  model:
+    - return_effect: none
+      arguments:
+
+- function: mktime
+  model:
+    - return_effect: none
+      arguments:
+
+- function: nanosleep
+  model:
+    - return_effect: none
+      arguments:
+
+- function: ntohl
+  model:
+    - return_effect: none
+      arguments:
+
+- function: open
+  model:
+    - return_effect: none
+      arguments:
+
+- function: openat
+  model:
+    - return_effect: none
+      arguments:
+
+- function: pathconf
+  model:
+    - return_effect: none
+      arguments:
+
+- function: pause
+  model:
+    - return_effect: none
+      arguments:
+
+- function: pipe
+  model:
+    - return_effect: none
+      arguments:
+
+- function: poll
+  model:
+    - return_effect: none
+      arguments:
+
+- function: posix_fadvise
+  model:
+    - return_effect: none
+      arguments:
+
+- function: prctl
+  model:
+    - return_effect: none
+      arguments:
+
+- function: putchar_unlocked
+  model:
+    - return_effect: none
+      arguments:
+
+- function: putc_unlocked
+  model:
+    - return_effect: none
+      arguments:
+
+- function: putenv
+  model:
+    - return_effect: none
+      arguments:
+
+- function: puts
+  model:
+    - return_effect: none
+      arguments:
+
+- function: qsort
+  model:
+    - return_effect: none
+      arguments:
+
+- function: qsort_r
+  model:
+    - return_effect: none
+      arguments:
+
+- function: raise
+  model:
+    - return_effect: none
+      arguments:
+
+- function: read
+  model:
+    - return_effect: none
+      arguments:
+
+- function: readlink
+  model:
+    - return_effect: none
+      arguments:
+
+- function: readlinkat
+  model:
+    - return_effect: none
+      arguments:
+
+- function: regfree
+  model:
+    - return_effect: none
+      arguments:
+
+- function: re_match
+  model:
+    - return_effect: none
+      arguments:
+
+- function: re_search
+  model:
+    - return_effect: none
+      arguments:
+
+- function: remove
+  model:
+    - return_effect: none
+      arguments:
+
+- function: renameat
+  model:
+    - return_effect: none
+      arguments:
+
+- function: renameat2
+  model:
+    - return_effect: none
+      arguments:
+
+- function: rewinddir
+  model:
+    - return_effect: none
+      arguments:
+
+- function: rmdir
+  model:
+    - return_effect: none
+      arguments:
+
+- function: rpmatch
+  model:
+    - return_effect: none
+      arguments:
+
+- function: __sched_cpucount
+  model:
+    - return_effect: none
+      arguments:
+
+- function: __sched_cpufree
+  model:
+    - return_effect: none
+      arguments:
+
+- function: sched_getaffinity
+  model:
+    - return_effect: none
+      arguments:
+
+- function: setenv
+  model:
+    - return_effect: none
+      arguments:
+
+- function: setgid
+  model:
+    - return_effect: none
+      arguments:
+
+- function: setgrent
+  model:
+    - return_effect: none
+      arguments:
+
+- function: setgroups
+  model:
+    - return_effect: none
+      arguments:
+
+- function: setpgid
+  model:
+    - return_effect: none
+      arguments:
+
+- function: setpriority
+  model:
+    - return_effect: none
+      arguments:
+
+- function: setpuid
+  model:
+    - return_effect: none
+      arguments:
+
+
+- function: settimeofday
+  model:
+    - return_effect: none
+      arguments:
+
+
+- function: setjmp
+  model:
+    - return_effect: none
+      arguments:
+
+- function: _setjmp
+  model:
+    - return_effect: none
+      arguments:
+
+- function: setuid
+  model:
+    - return_effect: none
+      arguments:
+
+- function: setutxent
+  model:
+    - return_effect: none
+      arguments:
+
+- function: setvbuf
+  model:
+    - return_effect: none
+      arguments:
+
+- function: sigaction
+  model:
+    - return_effect: none
+      arguments:
+
+- function: sigaddset
+  model:
+    - return_effect: none
+      arguments:
+
+- function: sigdelset
+  model:
+    - return_effect: none
+      arguments:
+
+- function: sigemptyset
+  model:
+    - return_effect: none
+      arguments:
+
+- function: sigfillset
+  model:
+    - return_effect: none
+      arguments:
+
+- function: sigismember
+  model:
+    - return_effect: none
+      arguments:
+
+- function: sigprocmask
+  model:
+    - return_effect: none
+      arguments:
+
+- function: sigsuspend
+  model:
+    - return_effect: none
+      arguments:
+
+- function: sprintf
+  model:
+    - return_effect: none
+      arguments:
+
+- function: snprintf
+  model:
+    - return_effect: none
+      arguments:
+
+- function: stat
+  model:
+    - return_effect: none
+      arguments:
+
+- function: statx
+  model:
+    - return_effect: none
+      arguments:
+
+- function: strcmp
+  model:
+    - return_effect: none
+      arguments:
+
+- function: strcoll
+  model:
+    - return_effect: none
+      arguments:
+
+- function: strftime
+  model:
+    - return_effect: none
+      arguments:
+
+- function: strlen
+  model:
+    - return_effect: none
+      arguments:
+
+- function: strncmp
+  model:
+    - return_effect: none
+      arguments:
+
+- function: strnlen
+  model:
+    - return_effect: none
+      arguments:
+
+- function: strcspn
+  model:
+    - return_effect: none
+      arguments:
+
+- function: strspn
+  model:
+    - return_effect: none
+      arguments:
+
+- function: symlink
+  model:
+    - return_effect: none
+      arguments:
+
+- function: symlinkat
+  model:
+    - return_effect: none
+      arguments:
+
+- function: sync
+  model:
+    - return_effect: none
+      arguments:
+
+- function: syncfs
+  model:
+    - return_effect: none
+      arguments:
+
+- function: sysconf
+  model:
+    - return_effect: none
+      arguments:
+
+- function: sysinfo
+  model:
+    - return_effect: none
+      arguments:
+
+- function: tcgetattr
+  model:
+    - return_effect: none
+      arguments:
+
+- function: tcsetattr
+  model:
+    - return_effect: none
+      arguments:
+
+- function: tcgetpgrp
+  model:
+    - return_effect: none
+      arguments:
+
+- function: timegm
+  model:
+    - return_effect: none
+      arguments:
+
+- function: timer_create
+  model:
+    - return_effect: none
+      arguments:
+
+- function: timer_delete
+  model:
+    - return_effect: none
+      arguments:
+
+- function: timer_settime
+  model:
+    - return_effect: none
+      arguments:
+
+- function: timespec_get
+  model:
+    - return_effect: none
+      arguments:
+
+- function: tolower
+  model:
+    - return_effect: none
+      arguments:
+
+- function: toupper
+  model:
+    - return_effect: none
+      arguments:
+
+- function: tzset
+  model:
+    - return_effect: none
+      arguments:
+
+- function: umask
+  model:
+    - return_effect: none
+      arguments:
+
+- function: uname
+  model:
+    - return_effect: none
+      arguments:
+
+- function: ungetc
+  model:
+    - return_effect: none
+      arguments:
+
+- function: unlink
+  model:
+    - return_effect: none
+      arguments:
+
+- function: unlinkat
+  model:
+    - return_effect: none
+      arguments:
+
+- function: unsetenv
+  model:
+    - return_effect: none
+      arguments:
+
+- function: utimensat
+  model:
+    - return_effect: none
+      arguments:
+
+- function: utmpname
+  model:
+    - return_effect: none
+      arguments:
+
+- function: utmpxname
+  model:
+    - return_effect: none
+      arguments:
+
+- function: vfprintf
+  model:
+    - return_effect: none
+      arguments:
+
+- function: vprintf
+  model:
+    - return_effect: none
+      arguments:
+
+- function: waitpid
+  model:
+    - return_effect: none
+      arguments:
+
+- function: write
+  model:
+    - return_effect: none
+      arguments:
+
+- function: wcwidth
+  model:
+    - return_effect: none
+      arguments:
+
