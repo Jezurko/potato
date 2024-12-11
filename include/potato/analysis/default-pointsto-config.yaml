@@ -528,6 +528,11 @@
         - assign_trg
         - deref_src
         - none
+    - return_effect: copy_trg
+      arguments:
+        - src
+        - none
+        - none
 
 - function: strpbrk
   model:
