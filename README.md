@@ -14,79 +14,39 @@ You can see the poster in a [trip report](https://blog.trailofbits.com/2024/06/2
 The [poster](https://blog.trailofbits.com/wp-content/uploads/2024/06/image3.png) is not entirely up to date, but still might provide useful insight into the core concepts and goals.
 
 # Showcase
-Let's take a simple LLVM IR program:
-```
-builtin.module {
-    %one = llvm.mlir.constant(1 : index) : i64
-    %a1 = llvm.alloca %one x i32 : (i64) -> !llvm.ptr<i32>
-    %i = llvm.ptrtoint %a1 : !llvm.ptr<i32> to i64
-    %one1 = llvm.mlir.constant(1 : index) : i64
-    %off = llvm.add %i, %one1 : i64
-    %a2 = llvm.inttoptr %off : i64 to !llvm.ptr<i32>
-    %x = llvm.load %a2 : !llvm.ptr<i32>
-}
-```
-This program can be converted to the PoTATo dialect by invoking the included LLVM IR conversion pass:
-```
-$ potato-opt --llvm-ir-to-potato <source-file>
-builtin.module { 
-    %one = pt.constant : i64
-    %a = pt.alloc : !llvm.ptr<i32>
-    %i = pt.copy %a : (!llvm.ptr<i32>) -> i64
-    %off = pt.copy %i, %one : (i64, i64) -> i64
-    %a2 = pt.copy %i : (i64) -> !llvm.ptr<i32>
-    %x = pt.deref %a2 : (!llvm.ptr<i32>) -> i32
-}
-```
-Now on this IR we can run the analysis (there is a demo pass `--points-to-pass` that can be used to see what the analysis result would look like) or we can run the MLIR canonicalization pass reducing the IR
-```
-potato-opt --llvm-ir-to-potato --canonicalize <source-file>
-module {
-  %0 = pt.alloc : !pt.ptr loc(#loc6)
-  %1 = pt.deref %0 : (!pt.ptr) -> !pt.ptr loc(#loc5)
-} loc(#loc)
-#loc = loc("examples/canonicalization.mlir":1:1)
-#loc1 = loc("examples/canonicalization.mlir":3:11)
-#loc2 = loc("examples/canonicalization.mlir":4:10)
-#loc3 = loc("examples/canonicalization.mlir":6:12)
-#loc4 = loc("examples/canonicalization.mlir":7:11)
-#loc5 = loc("examples/canonicalization.mlir":8:10)
-#loc6 = loc(fused[#loc1, #loc2, #loc3, #loc4])
-```
-obtaining a shorter IR without operations that do not affect the points-to state.
-We have also included the location debug information in this output to make it more apparent how the information can link back to the original IR.
-Now we can invoke the analysis itself:
-```
-$ potato-opt --llvm-ir-to-potato --canonicalize --points-to-pass <source-file>
-State in: loc(fused["examples/canonicalization.mlir":3:11, "examples/canonicalization.mlir":4:10, "examples/canonicalization.mlir":6:12, "examples/canonicalization.mlir":7:11])
-  var0: %0 = pt.alloc : !pt.ptr -> {mem_loc0: <<NULL VALUE>>}
-State in: loc("examples/canonicalization.mlir":8:10)
-  var0: %0 = pt.alloc : !pt.ptr -> {mem_loc0: <<NULL VALUE>>}
-  var1: %1 = pt.deref %0 : (!pt.ptr) -> !pt.ptr -> {}
-module {
-  %0 = pt.alloc : !pt.ptr
-  %1 = pt.deref %0 : (!pt.ptr) -> !pt.ptr
-}
-```
-The `--poitns-to-pass` runs the analysis and prints the lattice for every location in the reduce IR.
+TODO: update to the current status of PoTATo
 
 # Building
-For building you need to provide the path to you local LLVM 18 install. For most Linux users it will be `/usr/lib/llvm-18`. Then run the cmake commands:
+We test building of PoTATo using `clang-18` and `lld`. We recommend this setup for the best experience.
+The prerequisities for building our tool can be installed by the following command (for Ubuntu):
 ```
+apt-get install build-essential cmake ninja-build libstdc++-12-dev llvm-19 libmlir-19 libmlir-19-dev mlir-19-tools libclang-19-dev lld
+
+```
+A guide for installing LLVM package on debian based distributions can be found [here](https://apt.llvm.org).
+
+For building you need to provide the path to you local LLVM 19 install. For most Linux users it will be `/usr/lib/llvm-19`. Then run the cmake commands:
+```
+CC=clang
+CXX=clang++
 cmake --preset debug /
 -DCMAKE_PREFIX_PATH=<path/to/llvm>
 
 cmake --build --preset debug
 ```
+Please not, that clang of version <18 is not tested and might not work.
 There is also a `release` preset available (can be selected by replacing `debug` with `release`).
+
+The binary `potato-opt` is located in `build/bin/`.
 
 # Usage
 At the moment there is a standalone, `mlir-opt` based, binary.
 The relevant options of the tool at the moment are:
 ```
---points-to-pass    -   Run the points to analysis.
---llvm-ir-to-potato -   LLVM IR to PoTATo dialect converison
---canonicalize      -   Canonicalize operations
+--points-to-pass                               -   Run the points-to analysis pass with the Andersen's analysis.
+--steensgaard-points-to-pass                   -   Run the points-to analysis pass with the Steensgaard's analysis.
+--llvm-ir-to-potato                            -   LLVM IR to PoTATo dialect converison
+--canonicalize="region-simplify=disabled"      -   Canonicalize operations
 ```
 For more options please refer to the `--help` option.
 
