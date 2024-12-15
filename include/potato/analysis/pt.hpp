@@ -242,7 +242,7 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
             if (auto arg_pt = after->lookup(last_call_arg))
                 changed |= after->join_var(last_callee_arg, arg_pt);
         }
-        if constexpr(pt_lattice::propagate_call_arg_zip()) {
+        if constexpr (pt_lattice::propagate_call_arg_zip()) {
             propagateIfChanged(this->template getOrCreate< pt_lattice >(&callee_entry), changed);
         }
 
