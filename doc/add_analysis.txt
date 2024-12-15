@@ -1,0 +1,116 @@
+It is possible to extend PoTATo by adding a custom analysis implementation.
+The implementation comes as a class that holds the computed the information
+and a class that that extends the mlir::dataflow:AbstractDenseAnalysis class.
+The former class should hold a pointer to the first class, which will be
+initialized by our analysis engine.
+
+Using the custom implementation with the engine should be as easy as
+specifying the template argument to the `pt_analysis` class found in
+`include/potato/analysis/pt.hpp`
+
+In the description we will use types elem_t to represent a member of a
+points-to set and set_t to represent a points-to set.
+
+Apart from the methods required by the
+mlir::dataflow::AbstractDenseAnalysis class, we also require a set of methods
+and class members that make it possible to perform the analysis:
+
+The `info_t` type, which will is a typedef for the information holding
+structure.
+
+Th `bool initialized()` function, which should respond whether this analysis
+state holds a pointer to the information.
+
+The `void initialize_with(inf_t *)` function, which should store the
+pointer to the struct of the analysis, making it modifiable by the analysis
+state.
+
+The `mlir::ChangeResult set_all_unknown(void)} function that sets the computed result of the whole anlaysis as unknown.
+
+The `bool is_all_unknown(void)` function should return bool whether the whole sate of the analysis was set to unknown.
+
+The `elem_t new_alloca(mlir::Operation *)} function which should create a representant for the allocation operation.
+
+The `elem_t new_alloca(mlir::Operation *, mlir::Value)` function which should create a
+representant for the allocation operation, further specified by an MLIR value.
+
+The `texttt{elem_t new_named_var(mlir::Operation *)` function which creates a
+new representant for a named variable.
+
+The `elem_t new_func(mlir::Operation *)` which creates a representant for a
+function.
+
+The `elem_t add_constant(mlir::Value)` which should handle the creation of a
+points-to set for constant. This points-to set should be empty.
+
+The `pt_set new_top_set()` which should create points-to se initialized to an
+unknown value.
+
+The `return_t lookup(elem_t)` which should lookup the points-to set for the
+element passed as an argument. The return value should be convertible to bool.
+False represents that the set does not exists.
+Usually, this is implemented as a pointer to the stored set
+
+The `void add_argc(mlir::Value, mlir::Operation*)` that should initialize the
+points-to set of the first argument to how argc is represented. The operation
+argument is the function with the name `main`.
+
+The `mlir::ChangeResult join_var(mlir::Value, mlir::Value)` function, which
+should add the second value to the points-to set of the second value.
+
+The `mlir::ChangeResult join_var(mlir::Value, arg_t)` function.
+The second argument should match with the return value of `lookup`.
+The semantics is that the points-to set of the first argument is joind with
+the second argument.
+
+The `mlir::ChangeResult copy_all_pts_into(elem_t to, pt_set* from)`
+function, which should for each p in pts(from) join pts(to) with pts(p)
+
+The `mlir::ChangeResult copy_all_pts_into(pt_set* to, pt_set* from)` function
+which should perform the same operation for each memeber of `to`.
+
+The `mlir::ChangeResult join_all_pointtees_with(pt_set* to, pt_set* from)` function
+which should for each p in to take pts(p) and join it with from.
+
+The `mlir::ChangeResult resolve_fptr_call(mlir::Value, mlir::CallOpInterface,
+get_or_create, add_dep, propagate, analysis)`.
+A function for resolving function pointer calls.
+The get_or_create callback allows access to the private getOrCreate method of the
+anlaysis.
+The add_dep callback allows access to the private addDependency method of the
+analysis.
+The propagate callback allows access to the private propagateIfChange method of the
+analysis.
+The analysis argument allows to access the analysis framework itself.
+
+The following set of funciton is related to propagating information about
+changes to the analysis state. This part of the API should be revisited and
+reduced in the future.
+
+The `static void propagate_members_changed(const pointee_set *set,
+callback get_or_create, callback propagate)` function which should use the callbacks to inform
+the analysis states about the change. This is part of the analysis to allow
+customization of whether a state should be informed of the change based on the
+implemented algorithm.
+
+The `static void depend_on_members(const pointee_set *set,
+callback add_dep)` function which should use the callback to add dependencies
+on the current state. This is part of the analysis to allow customization of
+whether a state should be dependent based on the
+implemented algorithm.
+
+The `constexpr static bool propagate_assign()` function which sets whether the
+analysis engine informs users of an assign about the change of a value.
+
+The `constexpr static bool propagate_call_arg_zip()` function which sets
+whether the analysis engine informs the start of the function about change in
+arguments points-to sets.
+
+The following functions come from the parent class
+`mlir::dataflow::AbstractDenseLattice`parent class `:
+
+The `mlir::ChangeResult join(mlir::dataflow::AbstractDenseLattice *)`
+performing a join of two atached representations. In our implementatin this
+should usually perform a copy of the `info_t` pointer from the argument.
+
+The `void print(llvm::raw_ostream\&)` function for printing of the structure.
