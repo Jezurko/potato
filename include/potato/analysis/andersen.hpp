@@ -232,7 +232,7 @@ struct aa_lattice : mlir_dense_abstract_lattice {
         for (auto arg : op->getOperands()) {
             aa_lattice *arg_state;
             if (auto def_op = arg.getDefiningOp()) {
-                arg_state = get_or_create(arg.getDefiningOp());
+                arg_state = get_or_create(def_op);
             } else {
                 arg_state = get_or_create(arg.getParentBlock());
             }
