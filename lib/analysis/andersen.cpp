@@ -60,6 +60,45 @@ void aa_lattice::add_argc(mlir_value value, mlir_operation *op) {
     std::ignore = join_var(value, str_ptr);
 }
 
+change_result aa_lattice::set_var(mlir_value val, const pointee_set &set) {
+    auto [var, inserted] = new_var(val, set);
+    if (inserted) {
+        return change_result::Change;
+    }
+    auto &var_pt_set = var->second;
+    if (var_pt_set != set) {
+        var_pt_set = set;
+        return change_result::Change;
+    }
+    return change_result::NoChange;
+}
+
+change_result aa_lattice::set_var(mlir_value val, mlir_value pointee) {
+    auto [var, inserted] = new_var(val, pointee);
+    if (inserted)
+        return change_result::Change;
+    auto &var_pt_set = var->second;
+    auto [pointee_var, _] = new_var(pointee, new_pointee_set());
+    auto cmp_set = new_pointee_set();
+    cmp_set.insert(pointee_var->first);
+    if (var_pt_set != cmp_set) {
+        var_pt_set = cmp_set;
+        return change_result::Change;
+    }
+    return change_result::NoChange;
+}
+
+change_result aa_lattice::set_var(elem_t elem, const pointee_set &set) {
+    auto [var, inserted] = pt_relation().insert({elem, set});
+    if (inserted)
+        return change_result::Change;
+    if (var->second != set) {
+        var->second = set;
+        return change_result::Change;
+    }
+    return change_result::NoChange;
+}
+
 change_result aa_lattice::join_var(mlir_value val, mlir_value trg) {
     auto val_pt  = lookup(val);
     if (!val_pt) {
