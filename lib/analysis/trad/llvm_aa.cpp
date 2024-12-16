@@ -219,7 +219,7 @@ namespace potato::analysis::trad {
         for (auto arg : op->getOperands()) {
             aa_lattice *arg_state;
             if (auto def_op = arg.getDefiningOp()) {
-                arg_state = getOrCreate< aa_lattice >(arg.getDefiningOp());
+                arg_state = getOrCreate< aa_lattice >(def_op);
             } else {
                 arg_state = getOrCreate< aa_lattice >(arg.getParentBlock());
             }
@@ -326,9 +326,9 @@ namespace potato::analysis::trad {
             // Try to check for "known" functions
             // Try to resolve function pointer calls? (does it happen here?)
             // Make the set of known functions a customization point?
-            for (auto operand : call.getArgOperands()) {
-                //TODO: propagate TOP
-            }
+            //for (auto operand : call.getArgOperands()) {
+            //    //TODO: propagate TOP
+            //}
             for (auto result : call->getResults()) {
                 changed |= after->join_var(result, aa_lattice::new_top_set());
             }
