@@ -138,8 +138,13 @@ namespace potato::analysis::trad {
         if (!init.empty()) {
             auto *ret_op = &init.back().back();
             if (ret_op->hasTrait< mlir::OpTrait::ReturnLike >()) {
-                auto ret_state = this->template getOrCreate< aa_lattice >(ret_op);
-                ret_state->addDependency(after->getPoint(), this);
+                auto ret_state = this->template getOrCreate< aa_lattice >(getProgramPointAfter(ret_op));
+                if (auto ppoint = mlir::dyn_cast< mlir::ProgramPoint * >(after->getAnchor()))
+                    ret_state->addDependency(ppoint, this);
+                else {
+                    llvm::errs() << "Unknown anchor type: " << after->getAnchor() << "\n";
+                    assert(false);
+                }
                 propagateIfChanged(ret_state, ret_state->join(before));
                 for (auto ret_arg : ret_op->getOperands()) {
                     auto *arg_pt = ret_state->lookup(ret_arg);
@@ -214,19 +219,25 @@ namespace potato::analysis::trad {
         return returns;
     }
 
-    void llvm_andersen::visitOperation(mlir::Operation *op, const aa_lattice &before, aa_lattice *after) {
+    logical_result llvm_andersen::visitOperation(mlir::Operation *op, const aa_lattice &before, aa_lattice *after) {
         // Add dependencies to propagate changes
         for (auto arg : op->getOperands()) {
             aa_lattice *arg_state;
             if (auto def_op = arg.getDefiningOp()) {
-                arg_state = getOrCreate< aa_lattice >(def_op);
+                arg_state = getOrCreate< aa_lattice >(getProgramPointAfter(def_op));
             } else {
-                arg_state = getOrCreate< aa_lattice >(arg.getParentBlock());
+                arg_state = getOrCreate< aa_lattice >(getProgramPointBefore(arg.getParentBlock()));
             }
-            arg_state->addDependency(after->getPoint(), this);
+            if (auto ppoint = mlir::dyn_cast< mlir::ProgramPoint * >(after->getAnchor()))
+                arg_state->addDependency(ppoint, this);
+            else {
+                // TODO resolve better
+                llvm::errs() << "Unknown anchor type: " << after->getAnchor() << "\n";
+                assert(false);
+            }
         }
 
-        return llvm::TypeSwitch< mlir::Operation *, void >(op)
+        llvm::TypeSwitch< mlir::Operation *, void >(op)
             .Case< mllvm::AllocaOp,
                    mlir::BranchOpInterface,
                    mllvm::StoreOp,
@@ -265,6 +276,7 @@ namespace potato::analysis::trad {
                    mllvm::ReturnOp >
             ([&](auto &) { propagateIfChanged(after, after->join(before)); })
             .Default([&](auto &op) { op->dump(); assert(false); });
+        return mlir::success();
     }
 
     void llvm_andersen::visitCallControlFlowTransfer(mlir::CallOpInterface call,
@@ -304,16 +316,18 @@ namespace potato::analysis::trad {
                 if (auto arg_pt = after->lookup(caller_arg))
                     changed |= after->join_var(callee_arg, *arg_pt);
             }
-            propagateIfChanged(this->template getOrCreate< aa_lattice >(&callee_entry), changed);
+            propagateIfChanged(this->template getOrCreate< aa_lattice >(getProgramPointBefore(&callee_entry)), changed);
 
             // Manage the callee exit
-            if (auto before_exit = mlir::dyn_cast< mlir::Operation * >(before.getPoint());
-                     before_exit && before_exit->template hasTrait< mlir::OpTrait::ReturnLike>()
-            ) {
-                for (size_t i = 0; i < call->getNumResults(); i++) {
-                    auto res_arg = before_exit->getOperand(i);
-                    if (auto res_pt = after->lookup(res_arg)) {
-                        changed |= after->join_var(call->getResult(i), *res_pt);
+            if (auto point = mlir::dyn_cast< ppoint >(before.getAnchor())) {
+                if (mlir::Operation * before_exit = point->getOperation();
+                         before_exit && before_exit->template hasTrait< mlir::OpTrait::ReturnLike>()
+                ) {
+                    for (size_t i = 0; i < call->getNumResults(); i++) {
+                        auto res_arg = before_exit->getOperand(i);
+                        if (auto res_pt = after->lookup(res_arg)) {
+                            changed |= after->join_var(call->getResult(i), *res_pt);
+                        }
                     }
                 }
             }
@@ -344,7 +358,7 @@ namespace potato::analysis::trad {
     }
 
     mlir::LogicalResult llvm_andersen::initialize(mlir_operation *op) {
-        auto state = this->getOrCreate< aa_lattice >(op);
+        auto state = this->getOrCreate< aa_lattice >(getProgramPointAfter(op));
         state->initialize_with(relation.get());
         return base::initialize(op);
     }

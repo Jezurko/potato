@@ -54,14 +54,18 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
         if (!init.empty()) {
             auto *ret_op = &init.back().back();
             if (ret_op->hasTrait< mlir::OpTrait::ReturnLike >()) {
-                auto ret_state = this->template getOrCreate< pt_lattice >(ret_op);
-                ret_state->addDependency(after->getPoint(), this);
-                propagateIfChanged(ret_state, ret_state->join(before));
-                for (auto ret_arg : ret_op->getOperands()) {
-                    auto arg_pt = ret_state->lookup(ret_arg);
-                    if (arg_pt) {
-                        changed |= after->join_var(pt_lattice::new_named_var(op.getOperation()), arg_pt);
+                auto ret_state = this->template getOrCreate< pt_lattice >(this->getProgramPointAfter(ret_op));
+                if (auto point = mlir::dyn_cast< ppoint >(after->getAnchor())) {
+                    ret_state->addDependency(point, this);
+                    propagateIfChanged(ret_state, ret_state->join(before));
+                    for (auto ret_arg : ret_op->getOperands()) {
+                        auto arg_pt = ret_state->lookup(ret_arg);
+                        if (arg_pt) {
+                            changed |= after->join_var(pt_lattice::new_named_var(op.getOperation()), arg_pt);
+                        }
                     }
+                } else {
+                    assert(false);
                 }
                 return changed;
             }
@@ -122,7 +126,11 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
         }
         changed |= after->copy_all_pts_into({op.getResult()}, rhs_pt);
 
-        pt_lattice::depend_on_members(rhs_pt, add_dep(after->getPoint()));
+        if (auto point = mlir::dyn_cast< ppoint >(after->getAnchor())) {
+            pt_lattice::depend_on_members(rhs_pt, add_dep(point));
+        } else {
+            assert(false);
+        }
 
         return changed;
     };
@@ -177,7 +185,7 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
             }
             changed |= succ_changed;
             if constexpr (pt_lattice::propagate_assign()) {
-                auto succ_lattice = this->template getOrCreate< pt_lattice >(successor);
+                auto succ_lattice = this->template getOrCreate< pt_lattice >(this->getProgramPointBefore(successor));
                 propagateIfChanged(succ_lattice, succ_changed);
             }
         }
@@ -186,13 +194,17 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
 
     auto get_or_create() {
         return [this](auto arg) -> pt_lattice * {
-            return this->template getOrCreate< pt_lattice >(arg);
+            if constexpr (std::same_as< mlir::Block *, decltype(arg) >) {
+                return this->template getOrCreate< pt_lattice >(this->getProgramPointBefore(arg));
+            } else {
+                return this->template getOrCreate< pt_lattice >(this->getProgramPointAfter(arg));
+            }
         };
     }
 
     auto add_dep(ppoint dep) {
         return [=, this](auto dep_on) {
-            auto dep_on_state = this->template getOrCreate< pt_lattice >(dep_on);
+            auto dep_on_state = get_or_create()(dep_on);
             dep_on_state->addDependency(dep, this);
         };
     }
@@ -203,10 +215,14 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
         };
     }
 
-    void visitOperation(mlir::Operation *op, const pt_lattice &before, pt_lattice *after) override {
-        pt_lattice::add_dependencies(op, this, after->getPoint(), get_or_create());
+    logical_result visitOperation(mlir::Operation *op, const pt_lattice &before, pt_lattice *after) override {
+        if (auto point = mlir::dyn_cast< ppoint >(after->getAnchor())) {
+            pt_lattice::add_dependencies(op, this, point, get_or_create());
+        } else {
+            assert(false);
+        }
 
-        return llvm::TypeSwitch< mlir::Operation *, void >(op)
+        llvm::TypeSwitch< mlir::Operation *, void >(op)
             .Case< pt::AddressOp,
                    pt::AllocOp,
                    pt::AssignOp,
@@ -221,6 +237,7 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
             )
             .template Case< mlir::BranchOpInterface >([&](auto &branch_op) { visit_branch_interface(branch_op, before, after); })
             .Default([&](auto &pt_op) { propagateIfChanged(after, after->join(before)); });
+        return mlir::success();
     };
 
     change_result visit_function_at_exit(const pt_lattice &before, pt_lattice *after, mlir_operation *callee, mlir::CallOpInterface call) {
@@ -243,21 +260,27 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
                 changed |= after->join_var(last_callee_arg, arg_pt);
         }
         if constexpr (pt_lattice::propagate_call_arg_zip()) {
-            propagateIfChanged(this->template getOrCreate< pt_lattice >(&callee_entry), changed);
+            propagateIfChanged(this->template getOrCreate< pt_lattice >(this->getProgramPointBefore(&callee_entry)), changed);
         }
 
         // Manage the callee exit
-        if (auto before_exit = mlir::dyn_cast< mlir::Operation * >(before.getPoint());
-                 before_exit && before_exit->template hasTrait< mlir::OpTrait::ReturnLike>()
-        ) {
-            for (size_t i = 0; i < call->getNumResults(); i++) {
-                auto res_arg = before_exit->getOperand(i);
-                if (auto res_pt = after->lookup(res_arg)) {
-                    changed |= after->join_var(call->getResult(i), res_pt);
-                }
-                if (pt_lattice::propagate_assign()) {
-                    pt_lattice *dep_on_state = this->template getOrCreate< pt_lattice >(res_arg.getDefiningOp());
-                    dep_on_state->addDependency(after->getPoint(), this);
+        if (auto anchor_point = mlir::dyn_cast< ppoint >(before.getAnchor())) {
+            if (auto before_exit = anchor_point->getOperation();
+                     before_exit && before_exit-> template hasTrait< mlir::OpTrait::ReturnLike>()
+            ) {
+                for (size_t i = 0; i < call->getNumResults(); i++) {
+                    auto res_arg = before_exit->getOperand(i);
+                    if (auto res_pt = after->lookup(res_arg)) {
+                        changed |= after->join_var(call->getResult(i), res_pt);
+                    }
+                    if (pt_lattice::propagate_assign()) {
+                        pt_lattice *dep_on_state = this->template getOrCreate< pt_lattice >(this->getProgramPointAfter(res_arg.getDefiningOp()));
+                        if (auto point = mlir::dyn_cast< ppoint >(after->getAnchor())) {
+                            dep_on_state->addDependency(point, this);
+                        } else {
+                            assert(false);
+                        }
+                    }
                 }
             }
         }
@@ -320,7 +343,7 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
             }
             if constexpr (pt_lattice::propagate_assign()) {
                 propagateIfChanged(
-                    this->template getOrCreate< pt_lattice >(call->getOperand(i).getDefiningOp()),
+                    this->template getOrCreate< pt_lattice >(this->getProgramPointAfter(call->getOperand(i).getDefiningOp())),
                     arg_changed
                 );
             }
@@ -368,7 +391,7 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
                     if constexpr (pt_lattice::propagate_assign()) {
                         if (auto def_op = trg.getDefiningOp(); def_op != call.getOperation()) {
                             propagateIfChanged(
-                                this->template getOrCreate< pt_lattice >(def_op),
+                                this->template getOrCreate< pt_lattice >(this->getProgramPointAfter(def_op)),
                                 trg_changed
                             );
                         }
@@ -379,7 +402,11 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
             for (const auto &src : deref_from) {
                 if (auto src_pt = after->lookup(src); src_pt) {
                     changed |= after->copy_all_pts_into(trg, src_pt);
-                    pt_lattice::depend_on_members(src_pt, add_dep(after->getPoint()));
+                    if (auto point = mlir::dyn_cast< ppoint >(after->getAnchor())) {
+                        pt_lattice::depend_on_members(src_pt, add_dep(point));
+                    } else {
+                        assert(false);
+                    }
                 }
             }
         }
@@ -476,21 +503,25 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
             lattice->initialize_with(relation.get());
             changed |= change_result::Change;
         }
-        if (auto op = mlir::dyn_cast< mlir::Operation *>(lattice->getPoint())) {
-            pt_lattice::add_dependencies(op, this, lattice->getPoint(), get_or_create());
-            if (auto call = mlir::dyn_cast< mlir::CallOpInterface >(op)) {
-                if (auto val = mlir::dyn_cast< mlir_value >(call.getCallableForCallee())) {
-                    changed |= lattice->resolve_fptr_call(
-                        val, call, get_or_create(), add_dep(lattice->getPoint()), propagate(), this
-                    );
+        if (auto point = mlir::dyn_cast< ppoint >(lattice->getAnchor())) {
+            if (auto op = point->getOperation()) {
+                pt_lattice::add_dependencies(op, this, point, get_or_create());
+                if (auto call = mlir::dyn_cast< mlir::CallOpInterface >(op)) {
+                    if (auto val = mlir::dyn_cast< mlir_value >(call.getCallableForCallee())) {
+                        changed |= lattice->resolve_fptr_call(
+                            val, call, get_or_create(), add_dep(point), propagate(), this
+                        );
+                    }
                 }
             }
+        } else {
+            assert(false);
         }
         propagateIfChanged(lattice, changed);
     }
 
     mlir::LogicalResult initialize(mlir_operation *op) override {
-        auto state = this->template getOrCreate< pt_lattice >(op);
+        auto state = this->template getOrCreate< pt_lattice >(this->getProgramPointAfter(op));
         state->initialize_with(relation.get());
         if (auto fun = mlir::dyn_cast< mlir::FunctionOpInterface >(op)) {
             if (fun.getNumArguments() == 2 && fun.getName() == "main") {

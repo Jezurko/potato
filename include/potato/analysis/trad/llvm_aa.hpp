@@ -45,7 +45,7 @@ struct llvm_andersen : mlir::dataflow::DenseForwardDataFlowAnalysis< aa_lattice 
     std::vector< mlir::Operation * > get_function_returns(mlir::FunctionOpInterface func);
     std::vector< const aa_lattice * > get_or_create_for(mlir::Operation * dep, const std::vector< mlir::Operation * > &ops);
 
-    void visitOperation(mlir::Operation *op, const aa_lattice &before, aa_lattice *after) override;
+    logical_result visitOperation(mlir::Operation *op, const aa_lattice &before, aa_lattice *after) override;
     void visitCallControlFlowTransfer(mlir::CallOpInterface call,
                                       mlir::dataflow::CallControlFlowAction action,
                                       const aa_lattice &before,
