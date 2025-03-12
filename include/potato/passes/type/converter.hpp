@@ -24,10 +24,10 @@ namespace potato::conv {
 
             auto materializer =
                 [&](mlir::OpBuilder &builder, mlir_type resultType,
-                    mlir::ValueRange inputs, mlir_loc loc) -> std::optional< mlir_value >
+                    mlir::ValueRange inputs, mlir_loc loc) -> mlir_value
                 {
                     if (inputs.size() != 1) {
-                        return std::nullopt;
+                        return mlir::Value();
                     }
 
                     return builder

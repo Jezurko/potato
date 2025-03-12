@@ -13,8 +13,6 @@ POTATO_RELAX_WARNINGS
 #include <llvm/ADT/SetVector.h>
 POTATO_UNRELAX_WARNINGS
 
-#include <optional>
-
 using mlir_type = mlir::Type;
 using mlir_value = mlir::Value;
 using mlir_operation = mlir::Operation;
@@ -30,15 +28,13 @@ using fn_interface = mlir::FunctionOpInterface;
 
 using logical_result = mlir::LogicalResult;
 
-using ppoint = mlir::ProgramPoint;
+using ppoint = mlir::ProgramPoint *;
 using call_cf_action = mlir::dataflow::CallControlFlowAction;
 
 using symbol_table = mlir::SymbolTable;
 
 using alias_res = mlir::AliasResult;
 using alias_kind = mlir::AliasResult::Kind;
-
-using optional_value = std::optional< mlir_value >;
 
 template < typename lattice >
 using mlir_dense_dfa = mlir::dataflow::DenseForwardDataFlowAnalysis< lattice >;
@@ -71,10 +67,11 @@ namespace potato::util {
     analysis_lattice *get_analysis(mlir::DataFlowSolver &solver, mlir_operation *root) {
         analysis_lattice *lattice = nullptr;
         root->walk([&](mlir_operation *op) -> mlir::WalkResult {
-            if(solver.lookupState< analysis_lattice >(op)) {
+            auto ppoint = mlir::ProgramPoint(op);
+            if(solver.lookupState< analysis_lattice >(&ppoint)) {
                 // get non-const state for analyses like steensgaard
                 // that might modify the state on lookup
-                lattice = solver.getOrCreateState< analysis_lattice >(op);
+                lattice = solver.getOrCreateState< analysis_lattice >(&ppoint);
                 return mlir::WalkResult::interrupt();
             }
             return mlir::WalkResult::advance();
