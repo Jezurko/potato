@@ -67,15 +67,16 @@ namespace potato::util {
     analysis_lattice *get_analysis(mlir::DataFlowSolver &solver, mlir_operation *root) {
         analysis_lattice *lattice = nullptr;
         root->walk([&](mlir_operation *op) -> mlir::WalkResult {
-            auto ppoint = mlir::ProgramPoint(op);
-            if(solver.lookupState< analysis_lattice >(&ppoint)) {
+            auto ppoint = solver.getProgramPointAfter(op);
+            if(auto state = solver.lookupState< analysis_lattice >(ppoint)) {
                 // get non-const state for analyses like steensgaard
                 // that might modify the state on lookup
-                lattice = solver.getOrCreateState< analysis_lattice >(&ppoint);
+                lattice = solver.getOrCreateState< analysis_lattice >(ppoint);
                 return mlir::WalkResult::interrupt();
             }
             return mlir::WalkResult::advance();
         });
+        assert(lattice && "Did not find lattice!");
         return lattice;
     }
 
