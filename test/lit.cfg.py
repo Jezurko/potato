@@ -47,10 +47,11 @@ config.test_source_root = os.path.dirname(__file__)
 config.test_exec_root = os.path.join(config.potato_obj_root, 'test')
 config.potato_test_util = os.path.join(config.potato_src_root, 'test/utils')
 config.potato_bin_dir = os.path.join(config.potato_obj_root, 'bin')
+mlir_translate = os.path.join(config.llvm_tools_dir, 'mlir-translate')
 tools = [
     ToolSubst('%potato-opt', command = 'potato-opt'),
     ToolSubst('%emit-llvm', command = 'clang -S -emit-llvm'),
-    ToolSubst('%llvm-to-mlir', command = 'mlir-translate -import-llvm'),
+    ToolSubst('%llvm-to-mlir', command = mlir_translate + ' -import-llvm'),
     ToolSubst('%file-check', command = 'FileCheck'),
     ToolSubst('%cc', command = config.host_cc)
 ]
