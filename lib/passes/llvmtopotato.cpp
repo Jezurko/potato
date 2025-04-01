@@ -570,7 +570,8 @@ namespace potato::conv::llvmtopt
                                           mlir::LLVM::UnreachableOp,
                                           mlir::LLVM::AssumeOp,
                                           mlir::LLVM::VaEndOp,
-                                          mlir::LLVM::FenceOp
+                                          mlir::LLVM::FenceOp,
+                                          mlir::LLVM::ModuleFlagsOp
                                         > (op);
             });
 
