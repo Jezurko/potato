@@ -265,7 +265,7 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
 
         // Manage the callee exit
         if (auto anchor_point = mlir::dyn_cast< ppoint >(before.getAnchor())) {
-            if (auto before_exit = anchor_point->getOperation();
+            if (auto before_exit = anchor_point->getPrevOp();
                      before_exit && before_exit-> template hasTrait< mlir::OpTrait::ReturnLike>()
             ) {
                 for (size_t i = 0; i < call->getNumResults(); i++) {
@@ -504,13 +504,15 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
             changed |= change_result::Change;
         }
         if (auto point = mlir::dyn_cast< ppoint >(lattice->getAnchor())) {
-            if (auto op = point->getOperation()) {
-                pt_lattice::add_dependencies(op, this, point, get_or_create());
-                if (auto call = mlir::dyn_cast< mlir::CallOpInterface >(op)) {
-                    if (auto val = mlir::dyn_cast< mlir_value >(call.getCallableForCallee())) {
-                        changed |= lattice->resolve_fptr_call(
-                            val, call, get_or_create(), add_dep(point), propagate(), this
-                        );
+            if (!point->isBlockStart()) {
+                if (auto op = point->getPrevOp()) {
+                    pt_lattice::add_dependencies(op, this, point, get_or_create());
+                    if (auto call = mlir::dyn_cast< mlir::CallOpInterface >(op)) {
+                        if (auto val = mlir::dyn_cast< mlir_value >(call.getCallableForCallee())) {
+                            changed |= lattice->resolve_fptr_call(
+                                val, call, get_or_create(), add_dep(point), propagate(), this
+                            );
+                        }
                     }
                 }
             }
