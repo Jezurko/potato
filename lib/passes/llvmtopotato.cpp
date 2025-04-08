@@ -461,8 +461,9 @@ namespace potato::conv::llvmtopt
             auto global = rewriter.replaceOpWithNewOp< pt::NamedVarOp >(op, op.getName(), false);
             auto &orig_init = adaptor.getInitializer();
             auto &glob_init = global.getInit();
+
             if (!orig_init.empty()) {
-                rewriter.inlineRegionBefore(orig_init, glob_init, glob_init.end());
+                rewriter.cloneRegionBefore(orig_init, glob_init, glob_init.end());
                 return mlir::success();
             }
             if (auto val_attr = op.getValue()) {
@@ -545,19 +546,11 @@ namespace potato::conv::llvmtopt
             auto tc       = to_pt_type();
             auto dummy_tc = mlir::LLVMTypeConverter(&mctx);
 
-            auto global_trg      = potato_target(mctx);
-            auto global_patterns = mlir::RewritePatternSet(&mctx);
-            add_patterns< util::type_list< global_op > >(global_patterns, dummy_tc);
-
-            global_trg.addDynamicallyLegalDialect< mlir::LLVM::LLVMDialect >(
-                    [&](auto *op){
-                        return !mlir::isa< mlir::LLVM::GlobalOp > (op);
-            });
-
             auto trg      = potato_target(mctx);
             auto patterns = mlir::RewritePatternSet(&mctx);
 
             add_patterns< pattern_list >(patterns, tc);
+            add_patterns< util::type_list< global_op > >(patterns, dummy_tc);
             add_patterns< util::type_list< address_of_op > >(patterns, tc);
             patterns.add< cf::branch_pattern >(patterns.getContext());
 
@@ -577,11 +570,6 @@ namespace potato::conv::llvmtopt
             });
 
             trg.addLegalOp< mlir::UnrealizedConversionCastOp >();
-
-            if (failed(applyPartialConversion(getOperation(),
-                                       global_trg,
-                                       std::move(global_patterns))))
-                    return signalPassFailure();
 
             if (failed(applyPartialConversion(getOperation(),
                                        trg,
