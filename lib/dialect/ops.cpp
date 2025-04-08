@@ -9,6 +9,7 @@ POTATO_UNRELAX_WARNINGS
 
 #include "potato/dialect/potato.hpp"
 #include "potato/dialect/ops.hpp"
+#include "potato/util/common.hpp"
 
 // TableGen generated stuff goes here:
 
@@ -48,4 +49,9 @@ mlir::OpFoldResult CopyOp::fold(FoldAdaptor) {
         operand.setLoc(mlir::FusedLoc::get(getContext(), {operand.getLoc(), this->getLoc()}));
     }
     return res;
+}
+
+mlir::SuccessorOperands BranchOp::getSuccessorOperands(unsigned idx) {
+    assert(idx < getNumSuccessors() && "invalid successor index");
+    return mlir::SuccessorOperands(getSuccOperandsMutable()[idx]);
 }

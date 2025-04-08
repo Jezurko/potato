@@ -4,6 +4,7 @@
 include "mlir/IR/OpBase.td"
 include "mlir/IR/BuiltinAttributes.td"
 include "mlir/IR/SymbolInterfaces.td"
+include "mlir/Interfaces/ControlFlowInterfaces.td"
 include "mlir/Interfaces/SideEffectInterfaces.td"
 
 def Potato_AddressOp
@@ -76,6 +77,16 @@ def Potato_UnknownPtrOp
     }];
 
   let assemblyFormat = [{ attr-dict `:` type(results) }];
+}
+
+def Potato_BranchOp
+  : Potato_Op< "br", [Terminator, BranchOpInterface, DeclareOpInterfaceMethods<BranchOpInterface>] >
+{
+  let arguments = (ins VariadicOfVariadic< AnyType, "succ_operand_segments" >:$succOperands,
+                       DenseI32ArrayAttr:$succ_operand_segments);
+  let successors = (successor VariadicSuccessor< AnySuccessor >:$succs);
+
+  // TODO: assembly format
 }
 
 def Potato_ValuedConstantOp
