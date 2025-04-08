@@ -9,6 +9,7 @@ POTATO_RELAX_WARNINGS
 #include <mlir/IR/BuiltinOps.h>
 #include <mlir/IR/SymbolTable.h>
 #include <mlir/IR/Value.h>
+#include <mlir/Interfaces/ControlFlowInterfaces.h>
 #include <mlir/Interfaces/FunctionInterfaces.h>
 #include <llvm/ADT/SetVector.h>
 POTATO_UNRELAX_WARNINGS
@@ -24,7 +25,9 @@ using operand_range = mlir::OperandRange;
 using result_range = mlir::ResultRange;
 using value_range = mlir::ValueRange;
 
+// TODO: unify
 using fn_interface = mlir::FunctionOpInterface;
+using branch_iface = mlir::BranchOpInterface;
 
 using logical_result = mlir::LogicalResult;
 
