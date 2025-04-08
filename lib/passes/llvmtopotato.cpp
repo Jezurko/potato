@@ -15,6 +15,7 @@ POTATO_RELAX_WARNINGS
 POTATO_UNRELAX_WARNINGS
 
 #include "potato/passes/conversions.hpp"
+#include "potato/passes/common_patterns.hpp"
 #include "potato/passes/type/converter.hpp"
 #include "potato/dialect/potato.hpp"
 #include "potato/util/common.hpp"
@@ -558,11 +559,11 @@ namespace potato::conv::llvmtopt
 
             add_patterns< pattern_list >(patterns, tc);
             add_patterns< util::type_list< address_of_op > >(patterns, tc);
+            patterns.add< cf::branch_pattern >(patterns.getContext());
 
             trg.addDynamicallyLegalDialect< mlir::LLVM::LLVMDialect >(
                     [&](auto *op){
-                        return mlir::isa< mlir::BranchOpInterface,
-                                          mlir::FunctionOpInterface,
+                        return mlir::isa< mlir::FunctionOpInterface,
                                           mlir::RegionBranchOpInterface,
                                           mlir::CallOpInterface,
                                           mlir::LLVM::ReturnOp,
