@@ -202,7 +202,6 @@ change_result aa_lattice::merge(const aa_lattice &rhs) {
         info = rhs.info;
         return change_result::Change;
     }
-    assert(false);
     return change_result::NoChange;
 }
 
