@@ -86,7 +86,7 @@ def Potato_BranchOp
                        DenseI32ArrayAttr:$succ_operand_segments);
   let successors = (successor VariadicSuccessor< AnySuccessor >:$succs);
 
-  // TODO: assembly format
+  let assemblyFormat = [{ attr-dict `:` custom<Branches>($succs, $succ_operand_segments, $succOperands, type($succOperands)) }];
 }
 
 def Potato_ValuedConstantOp
