@@ -274,7 +274,7 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
                         changed |= after->join_var(call->getResult(i), res_pt);
                     }
                     if (pt_lattice::propagate_assign()) {
-                        pt_lattice *dep_on_state = this->template getOrCreate< pt_lattice >(this->getProgramPointAfter(res_arg.getDefiningOp()));
+                        pt_lattice *dep_on_state = this->template getOrCreate< pt_lattice >(get_val_def_point(res_arg));
                         if (auto point = mlir::dyn_cast< ppoint >(after->getAnchor())) {
                             dep_on_state->addDependency(point, this);
                         } else {
@@ -343,7 +343,7 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
             }
             if constexpr (pt_lattice::propagate_assign()) {
                 propagateIfChanged(
-                    this->template getOrCreate< pt_lattice >(this->getProgramPointAfter(call->getOperand(i).getDefiningOp())),
+                    this->template getOrCreate< pt_lattice >(get_val_def_point(call->getOperand(i))),
                     arg_changed
                 );
             }
@@ -391,7 +391,8 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
                     if constexpr (pt_lattice::propagate_assign()) {
                         if (auto def_op = trg.getDefiningOp(); def_op != call.getOperation()) {
                             propagateIfChanged(
-                                this->template getOrCreate< pt_lattice >(this->getProgramPointAfter(def_op)),
+                                // in case defining op is null we need to get the block agument def point
+                                this->template getOrCreate< pt_lattice >(get_val_def_point(trg)),
                                 trg_changed
                             );
                         }
@@ -554,6 +555,11 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
         }
 
     private:
+    ppoint get_val_def_point(mlir_value val) {
+        if (auto op = val.getDefiningOp())
+            return this->getProgramPointAfter(op);
+        return this->getProgramPointBefore(val.getParentBlock());
+    }
     std::unique_ptr< typename pt_lattice::info_t > relation;
     function_models models;
 
