@@ -86,13 +86,16 @@ struct aa_lattice : mlir_dense_abstract_lattice {
         }
     }
 
-    static void depend_on_members(const pointee_set *set, auto add_dep) {
-        for (const auto &member : set->get_set_ref()) {
+    static void depend_on_members(pointee_set *set, auto add_dep) {
+        for (auto &member : set->get_set_ref()) {
             if (member.is_named_var() || member.is_alloca()) {
                 add_dep(member.operation);
             }
             if (member.is_var()) {
-                add_dep(member.val.getDefiningOp());
+                if (auto op = member.val.getDefiningOp())
+                    add_dep(op);
+                else
+                    add_dep(member.val.getParentBlock());
             }
         }
     }
@@ -153,7 +156,10 @@ struct aa_lattice : mlir_dense_abstract_lattice {
                                 if (auto res_pt = lookup(res_arg)) {
                                     changed |= join_var(call->getResult(i), res_pt);
                                 }
-                                add_dep(res_arg.getDefiningOp());
+                                if (auto op = res_arg.getDefiningOp())
+                                    add_dep(op);
+                                else
+                                    add_dep(res_arg.getParentBlock());
                             }
                         }
                     };
