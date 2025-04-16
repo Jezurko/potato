@@ -57,3 +57,11 @@ Please note, that because of how the MLIR analysis framework works, the dependen
 
 # Including into a project
 Currently, PoTATo is mainly an experimental standalone tool. A proper integration with the Tower of IRs - currently only available in [VAST](https://github.com/trailofbits/vast) - is a work in progress. Nonetheless, PoTATo uses CMake to build and as such it is possible to integrate it into your project. To include it into your CMake project you need to link the `MLIRPotato` project and provide the include paths for PoTATo (under the `include` directory).
+
+## License
+
+PoTATo is licensed according to the [Apache 2.0](LICENSE) license. PoTATo links against and uses Clang and LLVM APIs. Clang is also licensed under Apache 2.0, with [LLVM exceptions](https://github.com/llvm/llvm-project/blob/main/clang/LICENSE.TXT).
+
+This research was developed with funding from the Defense Advanced Research Projects Agency (DARPA). The views, opinions and/or findings expressed are those of the author and should not be interpreted as representing the official views or policies of the Department of Defense or the U.S. Government.
+
+Distribution Statement A – Approved for Public Release, Distribution Unlimited
