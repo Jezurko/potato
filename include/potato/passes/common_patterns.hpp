@@ -34,4 +34,17 @@ namespace potato::conv::cf
         }
     };
 
+    template< typename ret_op >
+    struct yield_pattern : mlir::OpConversionPattern< ret_op > {
+        using base = mlir::OpConversionPattern< ret_op >;
+        using base::base;
+        using adaptor_t = typename ret_op::Adaptor;
+
+        logical_result matchAndRewrite(ret_op op, adaptor_t adaptor,
+                mlir::ConversionPatternRewriter &rewriter) const override {
+            rewriter.replaceOpWithNewOp< pt::YieldOp >(op, adaptor.getOperands());
+            return mlir::success();
+     }
+    };
+
 } // namespace potato::conv::cf
