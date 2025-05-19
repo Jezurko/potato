@@ -514,6 +514,11 @@ namespace potato::conv::llvmtopt
         }
     };
 
+    using named_vars_patterns = util::type_list<
+        address_of_op,
+        global_op
+    >;
+
     struct potato_target : public mlir::ConversionTarget {
         potato_target(mlir::MLIRContext &ctx) : ConversionTarget(ctx) {
             addLegalDialect< pt::PotatoDialect >();
@@ -526,6 +531,7 @@ namespace potato::conv::llvmtopt
         copy_patterns,
         store_patterns,
         load_patterns,
+        named_vars_patterns,
         unknown_patterns
     >;
 
@@ -550,9 +556,7 @@ namespace potato::conv::llvmtopt
             auto patterns = mlir::RewritePatternSet(&mctx);
 
             add_patterns< pattern_list >(patterns, tc);
-            add_patterns< util::type_list< global_op > >(patterns, dummy_tc);
-            add_patterns< util::type_list< address_of_op > >(patterns, tc);
-            patterns.add< cf::branch_pattern >(patterns.getContext());
+            patterns.add< cf::branch_pattern >(&mctx);
 
             trg.addDynamicallyLegalDialect< mlir::LLVM::LLVMDialect >(
                     [&](auto *op){
