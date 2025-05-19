@@ -37,8 +37,6 @@ namespace potato::conv {
 
             addTargetMaterialization(materializer);
             addSourceMaterialization(materializer);
-            addArgumentMaterialization(materializer);
-
         }
     };
 

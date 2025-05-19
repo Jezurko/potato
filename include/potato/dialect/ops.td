@@ -86,7 +86,7 @@ def Potato_BranchOp
                        DenseI32ArrayAttr:$succ_operand_segments);
   let successors = (successor VariadicSuccessor< AnySuccessor >:$succs);
 
-  let assemblyFormat = [{ attr-dict `:` custom<Branches>($succs, $succ_operand_segments, $succOperands, type($succOperands)) }];
+  let assemblyFormat = [{ attr-dict custom<Branches>($succs, $succ_operand_segments, $succOperands, type($succOperands)) }];
 }
 
 def Potato_ValuedConstantOp
@@ -109,6 +109,13 @@ def Potato_ValuedConstantOp
   let hasFolder = 1;
 
   let assemblyFormat = [{$value attr-dict `:` type($result)}];
+}
+
+def Potato_YieldOp
+  : Potato_Op< "yield", [ReturnLike, Terminator] >
+  , Arguments<( ins Variadic< AnyType >:$value )>
+{
+  let assemblyFormat = [{attr-dict ($value^ `:` type($value))?}];
 }
 
 #endif // POTATO_DIALECT_OPS

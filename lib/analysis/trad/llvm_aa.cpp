@@ -100,12 +100,8 @@ namespace potato::analysis::trad {
 
     void llvm_andersen::visit_op(mllvm::GEPOp &op, const aa_lattice &before, aa_lattice *after) {
         auto changed = after->join(before);
-        if (op->hasAttr(op.getInboundsAttrName())) {
-            if (auto base_pt = before.lookup(op.getBase()))
-                changed |= after->join_var(op.getResult(), *base_pt);
-        } else {
-            changed |= after->join_var(op.getResult(), aa_lattice::new_top_set());
-        }
+        if (auto base_pt = before.lookup(op.getBase()))
+            changed |= after->join_var(op.getResult(), *base_pt);
         propagateIfChanged(after, changed);
     }
 

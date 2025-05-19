@@ -9,19 +9,17 @@
     }
     func.func @foo() {
         %0 = pt.alloc : !pt.ptr
+        %a = pt.copy %0: (!pt.ptr) -> !pt.ptr
         %1 = pt.alloc : !pt.ptr
+        %b = pt.copy %1 : (!pt.ptr) -> !pt.ptr
         %2 = builtin.unrealized_conversion_cast %1 : !pt.ptr to i1
         %3 = pt.alloc : !pt.ptr
-        cf.cond_br %2, ^bb1(%0 : !pt.ptr), ^bb2(%1 : !pt.ptr)
-        ^bb1(%arg0 : !pt.ptr):
-            pt.assign * %3 = %0 : !pt.ptr, !pt.ptr
-            cf.br ^bb3(%arg0 : !pt.ptr)
-        ^bb2(%arg1 : !pt.ptr):
-            pt.assign * %3 = %1 : !pt.ptr, !pt.ptr
-            cf.br ^bb3(%arg1 : !pt.ptr)
-        ^bb3(%arg2 : !pt.ptr):
-            func.call @may_alias(%arg2, %0) : (!pt.ptr, !pt.ptr) -> ()
-            func.call @may_alias(%arg2, %1) : (!pt.ptr, !pt.ptr) -> ()
+        pt.br ^bb1(%0, %a : !pt.ptr, !pt.ptr), ^bb2(%1, %b : !pt.ptr, !pt.ptr)
+        ^bb1(%arg0: !pt.ptr, %arg0b : !pt.ptr):
+            func.call @may_alias(%arg0, %arg0b) : (!pt.ptr, !pt.ptr) -> ()
+            func.return
+        ^bb2(%arg1 : !pt.ptr, %arg1b : !pt.ptr):
+            func.call @may_alias(%arg1, %arg1b) : (!pt.ptr, !pt.ptr) -> ()
             func.return
     }
 } ): () -> ()
