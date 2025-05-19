@@ -1,7 +1,7 @@
 // RUN: %potato-opt %s --points-to-pass="print_lattice=true print_stats=false print_func_stats=false" -o /dev/null
 // RUN: %potato-opt %s --canonicalize="region-simplify=disabled" --points-to-pass="print_lattice=true print_stats=false print_func_stats=false" -o /dev/null
-// RUN: %potato-opt --steensgaard-points-to-pass="print_lattice=true print_stats=false print_func_stats=false" -o /dev/null
-// RUN: %potato-opt --canonicalize="region-simplify=disabled" --steensgaard-points-to-pass="print_lattice=true print_stats=false print_func_stats=false" -o /dev/null
+// RUN: %potato-opt %s --steensgaard-points-to-pass="print_lattice=true print_stats=false print_func_stats=false" -o /dev/null
+// RUN: %potato-opt %s --canonicalize="region-simplify=disabled" --steensgaard-points-to-pass="print_lattice=true print_stats=false print_func_stats=false" -o /dev/null
 
 "builtin.module"() ( {
     func.func @may_alias(%p : !pt.ptr, %q : !pt.ptr) {
