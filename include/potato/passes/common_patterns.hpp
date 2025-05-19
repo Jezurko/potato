@@ -11,16 +11,23 @@ POTATO_UNRELAX_WARNINGS
 
 namespace potato::conv::cf
 {
-    struct branch_pattern : mlir::OpInterfaceRewritePattern< branch_iface > {
-        using base = mlir::OpInterfaceRewritePattern< branch_iface >;
+    struct branch_pattern : mlir::OpInterfaceConversionPattern< branch_iface > {
+        using base = mlir::OpInterfaceConversionPattern< branch_iface >;
         using base::base;
 
         logical_result matchAndRewrite(branch_iface branch,
-                                       mlir::PatternRewriter& rewriter
+                                       mlir::ArrayRef< mlir_value > operands,
+                                       mlir::ConversionPatternRewriter& rewriter
         ) const override {
             mlir::SmallVector< mlir::ValueRange > ops;
             for (unsigned i = 0; i < branch->getNumSuccessors(); i++) {
-                ops.push_back(branch.getSuccessorOperands(i).getForwardedOperands());
+                auto succ_ops = branch.getSuccessorOperands(i);
+                if (succ_ops.empty()) {
+                    ops.emplace_back(mlir::ValueRange());
+                } else {
+                    auto start_idx = succ_ops.getOperandIndex(0);
+                    ops.emplace_back(operands.slice(start_idx, succ_ops.size()));
+                }
             }
             rewriter.replaceOpWithNewOp< pt::BranchOp >(branch, ops, branch->getSuccessors());
             return mlir::success();
