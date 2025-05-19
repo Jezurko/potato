@@ -111,4 +111,11 @@ def Potato_ValuedConstantOp
   let assemblyFormat = [{$value attr-dict `:` type($result)}];
 }
 
+def Potato_YieldOp
+  : Potato_Op< "yield", [ReturnLike, Terminator] >
+  , Arguments<( ins Variadic< AnyType >:$value )>
+{
+  let assemblyFormat = [{attr-dict ($value^ `:` type($value))?}];
+}
+
 #endif // POTATO_DIALECT_OPS
