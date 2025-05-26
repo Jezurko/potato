@@ -519,6 +519,103 @@ namespace potato::conv::llvmtopt
         global_op
     >;
 
+    struct func_op : mlir::OpConversionPattern< mlir::LLVM::LLVMFuncOp > {
+        using base = mlir::OpConversionPattern< mlir::LLVM::LLVMFuncOp >;
+        using base::base;
+        using adaptor_t = typename mlir::LLVM::LLVMFuncOp::Adaptor;
+
+        logical_result matchAndRewrite(mlir::LLVM::LLVMFuncOp op,
+                                       adaptor_t adaptor,
+                                       mlir::ConversionPatternRewriter &rewriter
+        ) const override {
+            auto fn = mlir::cast< fn_interface >(op.getOperation());
+            auto type = op.getFunctionType();
+            mlir::TypeConverter::SignatureConversion result(type.getNumParams());
+            mlir::SmallVector<mlir::Type, 1> newResults;
+            if (failed(typeConverter->convertSignatureArgs(type.getParams(), result)) ||
+                failed(typeConverter->convertTypes(op.getResultTypes(), newResults)))
+                return mlir::failure();
+            auto fn_type = mlir::FunctionType::get(rewriter.getContext(), result.getConvertedTypes(), newResults);
+            auto get_visibility = [&]() -> mlir::StringAttr {
+                if (fn.isExternal())
+                    return mlir::StringAttr::get(rewriter.getContext(), "private");
+                return {};
+            };
+            auto new_fn = rewriter.replaceOpWithNewOp< mlir::func::FuncOp >(
+                    op,
+                    fn.getNameAttr(),
+                    fn_type,
+                    get_visibility(),
+                    fn.getAllArgAttrs(),
+                    fn.getAllResultAttrs()
+            );
+            if (!op.getBody().empty()) {
+                auto &new_body = new_fn.getBody();
+                rewriter.cloneRegionBefore(op.getBody(), new_body, new_body.end());
+                auto tc = this->getTypeConverter();
+                for (auto &succ : new_body)
+                    tc->convertBlockSignature(&succ);
+                if (failed(rewriter.convertRegionTypes(&new_body, *typeConverter, &result)))
+                    return mlir::failure();
+            }
+            return mlir::success();
+        }
+    };
+
+    struct call_op : mlir::OpConversionPattern< mlir::LLVM::CallOp > {
+        using base = mlir::OpConversionPattern< mlir::LLVM::CallOp >;
+        using base::base;
+        using adaptor_t = typename mlir::LLVM::CallOp::Adaptor;
+
+        logical_result matchAndRewrite(mlir::LLVM::CallOp op,
+                                       adaptor_t adaptor,
+                                       mlir::ConversionPatternRewriter &rewriter
+        ) const override {
+            mlir::SmallVector< mlir_type > result_types;
+            if (mlir::failed(typeConverter->convertTypes(op.getResultTypes(), result_types)))
+                return mlir::failure();
+            auto callable = op.getCallableForCallee();
+            if (auto callee = mlir::dyn_cast< mlir::SymbolRefAttr >(callable)) {
+                rewriter.replaceOpWithNewOp< mlir::func::CallOp >(
+                        op,
+                        result_types,
+                        // easiest way to get it as a string ref
+                        op.getCallee().value(),
+                        adaptor.getCalleeOperands(),
+                        op.getArgAttrs().value_or(mlir::ArrayAttr()),
+                        op.getResAttrs().value_or(mlir::ArrayAttr())
+                );
+                return mlir::success();
+            }
+            if (auto callee = mlir::dyn_cast< mlir::Value >(callable)) {
+                // adaptor getter also includes the fptr value…
+                auto callee_operands = adaptor.getCalleeOperands().drop_front();
+                auto callee_type = mlir::FunctionType::get(
+                        this->getContext(),
+                        callee_operands.getTypes(),
+                        result_types
+                );
+                callee.setType(callee_type);
+                rewriter.replaceOpWithNewOp< mlir::func::CallIndirectOp >(
+                        op,
+                        result_types,
+                        callee,
+                        callee_operands,
+                        op.getArgAttrs().value_or(mlir::ArrayAttr()),
+                        op.getResAttrs().value_or(mlir::ArrayAttr())
+                );
+                return mlir::success();
+            }
+            return mlir::failure();
+        }
+    };
+
+    using func_patterns = util::type_list<
+        func_op,
+        call_op,
+        cf::yield_pattern< mlir::LLVM::ReturnOp >
+    >;
+
     struct potato_target : public mlir::ConversionTarget {
         potato_target(mlir::MLIRContext &ctx) : ConversionTarget(ctx) {
             addLegalDialect< pt::PotatoDialect >();
@@ -529,9 +626,10 @@ namespace potato::conv::llvmtopt
         alloc_patterns,
         constant_patterns,
         copy_patterns,
-        store_patterns,
+        func_patterns,
         load_patterns,
         named_vars_patterns,
+        store_patterns,
         unknown_patterns
     >;
 
@@ -560,10 +658,7 @@ namespace potato::conv::llvmtopt
 
             trg.addDynamicallyLegalDialect< mlir::LLVM::LLVMDialect >(
                     [&](auto *op){
-                        return mlir::isa< mlir::FunctionOpInterface,
-                                          mlir::RegionBranchOpInterface,
-                                          mlir::CallOpInterface,
-                                          mlir::LLVM::ReturnOp,
+                        return mlir::isa< mlir::RegionBranchOpInterface,
                                           mlir::LLVM::NoAliasScopeDeclOp,
                                           mlir::LLVM::UnreachableOp,
                                           mlir::LLVM::AssumeOp,
@@ -572,6 +667,7 @@ namespace potato::conv::llvmtopt
                                           mlir::LLVM::ModuleFlagsOp
                                         > (op);
             });
+            trg.addLegalDialect< mlir::func::FuncDialect >();
 
             trg.addLegalOp< mlir::UnrealizedConversionCastOp >();
 
