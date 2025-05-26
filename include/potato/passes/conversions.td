@@ -12,6 +12,7 @@ def LLVMIRToPoTATo : Pass<"llvm-ir-to-potato", "mlir::ModuleOp"> {
   let constructor = "potato::createLLVMToPotatoPass()";
   let dependentDialects = [
     "mlir::LLVM::LLVMDialect",
+    "mlir::func::FuncDialect",
     "potato::pt::PotatoDialect"
   ];
 }
