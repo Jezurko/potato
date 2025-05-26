@@ -4,6 +4,7 @@
 
 POTATO_RELAX_WARNINGS
 #include <mlir/Dialect/LLVMIR/LLVMDialect.h>
+#include <mlir/Dialect/Func/IR/FuncOps.h>
 
 #include <mlir/IR/BuiltinOps.h>
 #include <mlir/IR/Operation.h>
