@@ -484,12 +484,7 @@ namespace potato::conv::llvmtopt
                     return rewriter.create< pt::ConstantOp >(op.getLoc(), tc->convertType(op.getGlobalType())).getResult();
                 }
                }();
-               auto cast = rewriter.create< mlir::UnrealizedConversionCastOp >(
-                   op.getLoc(),
-                   op.getGlobalType(),
-                   constant
-               );
-               rewriter.create< mlir::LLVM::ReturnOp >(op.getLoc(), cast.getOutputs());
+               rewriter.create< pt::YieldOp >(op.getLoc(), constant);
             }
             return mlir::success();
         }
@@ -535,17 +530,19 @@ namespace potato::conv::llvmtopt
             if (failed(typeConverter->convertSignatureArgs(type.getParams(), result)) ||
                 failed(typeConverter->convertTypes(op.getResultTypes(), newResults)))
                 return mlir::failure();
-            auto fn_type = mlir::FunctionType::get(rewriter.getContext(), result.getConvertedTypes(), newResults);
-            auto get_visibility = [&]() -> mlir::StringAttr {
-                if (fn.isExternal())
-                    return mlir::StringAttr::get(rewriter.getContext(), "private");
-                return {};
-            };
-            auto new_fn = rewriter.replaceOpWithNewOp< mlir::func::FuncOp >(
+            mlir_type res_type = newResults.empty() ? mlir::NoneType::get(fn.getContext()) : newResults[0];
+            auto fn_type = pt::FunctionType::get(fn.getContext(), res_type, result.getConvertedTypes(), type.isVarArg());
+
+            // TODO: figure out if we need visibility in the custom op?
+            //auto get_visibility = [&]() -> mlir::StringAttr {
+            //    if (fn.isExternal())
+            //        return mlir::StringAttr::get(rewriter.getContext(), "private");
+            //    return {};
+            //};
+            auto new_fn = rewriter.replaceOpWithNewOp< pt::FuncOp >(
                     op,
                     fn.getNameAttr(),
                     fn_type,
-                    get_visibility(),
                     fn.getAllArgAttrs(),
                     fn.getAllResultAttrs()
             );
@@ -576,7 +573,7 @@ namespace potato::conv::llvmtopt
                 return mlir::failure();
             auto callable = op.getCallableForCallee();
             if (auto callee = mlir::dyn_cast< mlir::SymbolRefAttr >(callable)) {
-                rewriter.replaceOpWithNewOp< mlir::func::CallOp >(
+                rewriter.replaceOpWithNewOp< pt::CallOp >(
                         op,
                         result_types,
                         // easiest way to get it as a string ref
@@ -596,7 +593,7 @@ namespace potato::conv::llvmtopt
                         result_types
                 );
                 callee.setType(callee_type);
-                rewriter.replaceOpWithNewOp< mlir::func::CallIndirectOp >(
+                rewriter.replaceOpWithNewOp< pt::CallIndirectOp >(
                         op,
                         result_types,
                         callee,
@@ -667,9 +664,6 @@ namespace potato::conv::llvmtopt
                                           mlir::LLVM::ModuleFlagsOp
                                         > (op);
             });
-            trg.addLegalDialect< mlir::func::FuncDialect >();
-
-            trg.addLegalOp< mlir::UnrealizedConversionCastOp >();
 
             if (failed(applyPartialConversion(getOperation(),
                                        trg,
