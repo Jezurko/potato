@@ -36,6 +36,8 @@ def Potato_FunctionType : Potato_Type<"Function", "func"> {
     /// Returns whether the function is variadic.
     bool isVarArg() const { return getVarArg(); }
 
+    FunctionType clone(::mlir::TypeRange inputs, ::mlir::TypeRange results) const;
+
     /// Returns the result type of the function as an ArrayRef, enabling better
     /// integration with generic MLIR utilities.
     ::llvm::ArrayRef<::mlir::Type> getReturnTypes() const;

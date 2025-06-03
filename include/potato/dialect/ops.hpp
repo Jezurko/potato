@@ -8,5 +8,6 @@
 
 POTATO_RELAX_WARNINGS
 #include <mlir/Interfaces/ControlFlowInterfaces.h>
+#include <mlir/Interfaces/FunctionInterfaces.h>
 #include "potato/dialect/Potato.h.inc"
 POTATO_UNRELAX_WARNINGS
