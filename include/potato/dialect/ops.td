@@ -155,4 +155,79 @@ def Potato_FuncOp
   //let hasRegionVerifier = 1;
 }
 
+def CallOp
+  : Potato_Op< "call", [CallOpInterface, DeclareOpInterfaceMethods< SymbolUserOpInterface >] > {
+  let summary = "call operation";
+  let description = [{
+    TODO
+  }];
+
+  let arguments = (ins
+    FlatSymbolRefAttr:$callee,
+    Variadic<AnyType>:$operands,
+    OptionalAttr<DictArrayAttr>:$arg_attrs,
+    OptionalAttr<DictArrayAttr>:$res_attrs,
+    UnitAttr:$no_inline
+  );
+
+  let results = (outs Variadic<AnyType>);
+
+  let extraClassDeclaration = [{
+    // Get operands passed as arguments to the called function
+    operand_range getArgOperands() { return getOperands(); }
+
+    ::mlir::MutableOperandRange getArgOperandsMutable() { return getOperandsMutable(); }
+
+    /// Return the callee of this operation.
+    ::mlir::CallInterfaceCallable getCallableForCallee() { return getCalleeAttr(); }
+
+    /// Set the callee for this operation.
+    void setCalleeFromCallable(::mlir::CallInterfaceCallable callee) {
+      (*this)->setAttr("callee", ::mlir::cast< ::mlir::SymbolRefAttr >(callee));
+    }
+  }];
+
+  let assemblyFormat = [{
+    $callee `(` $operands `)` attr-dict `:` functional-type($operands, results)
+  }];
+}
+
+def CallIndirectOp
+  : Potato_Op< "call_indirect", [CallOpInterface] > {
+  let summary = "indirect call operation";
+  let description = [{
+    TODO
+  }];
+
+  let arguments = (ins
+    AnyType:$callee,
+    Variadic<AnyType>:$callee_operands,
+    OptionalAttr<DictArrayAttr>:$arg_attrs,
+    OptionalAttr<DictArrayAttr>:$res_attrs
+  );
+
+  let results = (outs Variadic<AnyType>:$results);
+
+  let extraClassDeclaration = [{
+    // Get operands passed as arguments to the called function
+    operand_range getArgOperands() { return getCalleeOperands(); }
+
+    ::mlir::MutableOperandRange getArgOperandsMutable() {
+      return getCalleeOperandsMutable();
+      }
+
+    /// Return the callee of this operation.
+    ::mlir::CallInterfaceCallable getCallableForCallee() { return getCallee(); }
+
+    /// Set the callee for this operation.
+    void setCalleeFromCallable(::mlir::CallInterfaceCallable callee) {
+      setOperand(0, ::mlir::cast< ::mlir::Value >(callee));
+    }
+  }];
+
+  let assemblyFormat = [{
+    $callee `(` $callee_operands `)` attr-dict `:` type($callee) `,` functional-type($callee_operands, $results)
+  }];
+}
+
 #endif // POTATO_DIALECT_OPS
