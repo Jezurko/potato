@@ -5,6 +5,7 @@ include "mlir/IR/OpBase.td"
 include "mlir/IR/BuiltinAttributes.td"
 include "mlir/IR/SymbolInterfaces.td"
 include "mlir/Interfaces/ControlFlowInterfaces.td"
+include "mlir/Interfaces/FunctionInterfaces.td"
 include "mlir/Interfaces/SideEffectInterfaces.td"
 
 def Potato_AddressOp
@@ -116,6 +117,42 @@ def Potato_YieldOp
   , Arguments<( ins Variadic< AnyType >:$value )>
 {
   let assemblyFormat = [{attr-dict ($value^ `:` type($value))?}];
+}
+
+def Potato_FuncOp
+  : Potato_Op< "func", [IsolatedFromAbove, FunctionOpInterface]>
+{
+  let arguments = (ins
+    StrAttr:$sym_name,
+    TypeAttrOf< Potato_FunctionType >:$function_type,
+    OptionalAttr<DictArrayAttr>:$arg_attrs,
+    OptionalAttr<DictArrayAttr>:$res_attrs
+  );
+
+  let regions = (region AnyRegion:$body);
+  let hasCustomAssemblyFormat = 1;
+
+  let extraClassDeclaration = [{
+
+    ::llvm::ArrayRef< ::mlir::Type > getResultTypes() {
+      return getFunctionType().getReturnTypes();
+    }
+
+    ::llvm::ArrayRef< ::mlir::Type > getArgumentTypes() {
+      return getFunctionType().getParams();
+    }
+
+    bool isVarArg() { return getFunctionType().isVarArg(); }
+
+    ::mlir::Region * getCallableRegion() {
+      if (isExternal())
+        return nullptr;
+      return &getBody();
+    }
+  }];
+
+  //let hasVerifier = 1;
+  //let hasRegionVerifier = 1;
 }
 
 #endif // POTATO_DIALECT_OPS

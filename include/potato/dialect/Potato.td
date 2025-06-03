@@ -24,7 +24,7 @@ def Potato_Dialect : Dialect {
 class Potato_Op< string mnemonic, list< Trait > traits = [] >
   : Op< Potato_Dialect, mnemonic, traits >;
 
-include "ops.td"
 include "types.td"
+include "ops.td"
 
 #endif // POTATO_DIALECT

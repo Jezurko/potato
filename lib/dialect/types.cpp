@@ -60,12 +60,22 @@ namespace potato::pt {
       }
       p << ')';
     }
-
-}
+} // namespace potato::pt
 
 #define GET_TYPEDEF_CLASSES
 #include "potato/dialect/PotatoTypes.cpp.inc"
 
-llvm::ArrayRef< mlir_type > potato::pt::FunctionType::getReturnTypes() const {
-  return static_cast< ::potato::pt::detail::FunctionTypeStorage * >(getImpl())->returnType;
-}
+namespace potato::pt {
+    FunctionType FunctionType::clone(
+            mlir::TypeRange inputs, mlir::TypeRange results
+    ) const {
+      if (results.size() != 1)
+        return {};
+      return get(results[0], llvm::to_vector(inputs), isVarArg());
+    }
+
+
+    llvm::ArrayRef< mlir_type > FunctionType::getReturnTypes() const {
+      return static_cast< detail::FunctionTypeStorage * >(getImpl())->returnType;
+    }
+} // namespace potato::pt
