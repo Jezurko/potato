@@ -4,6 +4,8 @@ POTATO_RELAX_WARNINGS
 #include <llvm/ADT/APSInt.h>
 #include <mlir/IR/Builders.h>
 #include <mlir/IR/BuiltinAttributes.h>
+#include <mlir/Interfaces/FunctionInterfaces.h>
+#include "mlir/Interfaces/FunctionImplementation.h"
 #include <mlir/Support/LLVM.h>
 POTATO_UNRELAX_WARNINGS
 
@@ -119,4 +121,69 @@ mlir::OpFoldResult CopyOp::fold(FoldAdaptor) {
 mlir::SuccessorOperands BranchOp::getSuccessorOperands(unsigned idx) {
     assert(idx < getNumSuccessors() && "invalid successor index");
     return mlir::SuccessorOperands(getSuccOperandsMutable()[idx]);
+}
+
+mlir::ParseResult FuncOp::parse(mlir::OpAsmParser &parser, mlir::OperationState &result) {
+  mlir::StringAttr nameAttr;
+  llvm::SmallVector< mlir::OpAsmParser::Argument > entryArgs;
+  llvm::SmallVector< mlir::DictionaryAttr > resultAttrs;
+  llvm::SmallVector< mlir_type > resultTypes;
+  bool isVariadic;
+
+  if (parser.parseSymbolName(nameAttr, mlir::SymbolTable::getSymbolAttrName(),
+                             result.attributes) ||
+      mlir::function_interface_impl::parseFunctionSignatureWithArguments(
+          parser, /*allowVariadic=*/true, entryArgs, isVariadic, resultTypes,
+          resultAttrs))
+    return mlir::failure();
+
+  llvm::SmallVector< mlir_type > argTypes;
+  for (auto &arg : entryArgs)
+    argTypes.push_back(arg.type);
+  auto type = FunctionType::get(resultTypes.front(), argTypes, isVariadic);
+  if (!type)
+    return mlir::failure();
+  result.addAttribute(getFunctionTypeAttrName(result.name),
+                      mlir::TypeAttr::get(type));
+
+
+  if (failed(parser.parseOptionalAttrDictWithKeyword(result.attributes)))
+    return mlir::failure();
+  mlir::call_interface_impl::addArgAndResultAttrs(
+      parser.getBuilder(), result, entryArgs, resultAttrs,
+      getArgAttrsAttrName(result.name), getResAttrsAttrName(result.name));
+
+  auto *body = result.addRegion();
+  auto parseResult = parser.parseOptionalRegion(*body, entryArgs);
+  return mlir::failure(parseResult.has_value() && failed(*parseResult));
+}
+
+void FuncOp::print(mlir::OpAsmPrinter &p) {
+  p << ' ';
+  p.printSymbolName(getName());
+
+  FunctionType fnType = getFunctionType();
+  llvm::SmallVector< mlir_type, 8 > argTypes;
+  llvm::SmallVector< mlir_type, 1 > resTypes;
+  argTypes.reserve(fnType.getNumParams());
+  for (unsigned i = 0, e = fnType.getNumParams(); i < e; ++i)
+    argTypes.push_back(fnType.getParamType(i));
+
+  resTypes.push_back(fnType.getReturnType());
+
+  mlir::function_interface_impl::printFunctionSignature(p, *this, argTypes,
+                                                  isVarArg(), resTypes);
+
+
+  mlir::function_interface_impl::printFunctionAttributes(
+      p, *this,
+      {getFunctionTypeAttrName(), getArgAttrsAttrName(), getResAttrsAttrName()});
+
+  // Print the body if this is not an external function.
+  auto &body = getBody();
+  if (!body.empty()) {
+    p << ' ';
+    p.printRegion(body, /*printEntryBlockArgs=*/false,
+                  /*printBlockTerminators=*/true);
+  }
 }
