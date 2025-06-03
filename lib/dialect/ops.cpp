@@ -187,3 +187,15 @@ void FuncOp::print(mlir::OpAsmPrinter &p) {
                   /*printBlockTerminators=*/true);
   }
 }
+
+logical_result CallOp::verifySymbolUses(mlir::SymbolTableCollection &symbolTable) {
+  auto fn_attr = (*this)->getAttrOfType< mlir::FlatSymbolRefAttr >("callee");
+  if (!fn_attr)
+    return emitOpError("requires a 'callee' symbol reference attribute");
+  FuncOp fn = symbolTable.lookupNearestSymbolFrom<FuncOp>(*this, fn_attr);
+  if (!fn)
+    return emitOpError() << "'" << fn_attr.getValue()
+                         << "' does not reference a valid function";
+  // TODO: verify args and returns
+  return mlir::success();
+}
