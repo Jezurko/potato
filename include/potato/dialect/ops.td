@@ -31,6 +31,8 @@ def Potato_AssignOp
   , Arguments<( ins Arg< AnyType, "", [MemWrite] >: $lhs,
                     Arg< AnyType, "", [MemRead] >:  $rhs )>
 {
+  let hasCanonicalizeMethod = 1;
+
   let assemblyFormat = [{ attr-dict `*` $lhs `=` $rhs `:` type(operands) }];
 }
 

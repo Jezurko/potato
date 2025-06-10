@@ -4,6 +4,7 @@ POTATO_RELAX_WARNINGS
 #include <llvm/ADT/APSInt.h>
 #include <mlir/IR/Builders.h>
 #include <mlir/IR/BuiltinAttributes.h>
+#include <mlir/IR/PatternMatch.h>
 #include <mlir/Interfaces/FunctionInterfaces.h>
 #include "mlir/Interfaces/FunctionImplementation.h"
 #include <mlir/Support/LLVM.h>
@@ -116,6 +117,15 @@ mlir::OpFoldResult CopyOp::fold(FoldAdaptor) {
         operand.setLoc(mlir::FusedLoc::get(getContext(), {operand.getLoc(), this->getLoc()}));
     }
     return res;
+}
+
+logical_result AssignOp::canonicalize(AssignOp op, mlir::PatternRewriter &rewriter) {
+    if (mlir::isa_and_present< pt::ConstantOp >(op.getRhs().getDefiningOp())) {
+        rewriter.eraseOp(op);
+        return mlir::success();
+    }
+    return mlir::failure();
+
 }
 
 mlir::SuccessorOperands BranchOp::getSuccessorOperands(unsigned idx) {
