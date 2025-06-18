@@ -585,19 +585,12 @@ namespace potato::conv::llvmtopt
                 return mlir::success();
             }
             if (auto callee = mlir::dyn_cast< mlir::Value >(callable)) {
-                // adaptor getter also includes the fptr value…
-                auto callee_operands = adaptor.getCalleeOperands().drop_front();
-                auto callee_type = mlir::FunctionType::get(
-                        this->getContext(),
-                        callee_operands.getTypes(),
-                        result_types
-                );
-                callee.setType(callee_type);
                 rewriter.replaceOpWithNewOp< pt::CallIndirectOp >(
                         op,
                         result_types,
-                        callee,
-                        callee_operands,
+                        // adaptor getter also includes the fptr value…
+                        adaptor.getCalleeOperands().front(),
+                        adaptor.getCalleeOperands().drop_front(),
                         op.getArgAttrs().value_or(mlir::ArrayAttr()),
                         op.getResAttrs().value_or(mlir::ArrayAttr())
                 );
