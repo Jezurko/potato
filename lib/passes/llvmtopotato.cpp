@@ -539,8 +539,8 @@ namespace potato::conv::llvmtopt
             //        return mlir::StringAttr::get(rewriter.getContext(), "private");
             //    return {};
             //};
-            auto new_fn = rewriter.replaceOpWithNewOp< pt::FuncOp >(
-                    op,
+            auto new_fn = rewriter.create< pt::FuncOp >(
+                    op.getLoc(),
                     fn.getNameAttr(),
                     fn_type,
                     fn.getAllArgAttrs(),
@@ -548,13 +548,11 @@ namespace potato::conv::llvmtopt
             );
             if (!op.getBody().empty()) {
                 auto &new_body = new_fn.getBody();
-                rewriter.cloneRegionBefore(op.getBody(), new_body, new_body.end());
-                auto tc = this->getTypeConverter();
-                for (auto &succ : new_body)
-                    tc->convertBlockSignature(&succ);
+                rewriter.inlineRegionBefore(op.getBody(), new_body, new_body.end());
                 if (failed(rewriter.convertRegionTypes(&new_body, *typeConverter, &result)))
                     return mlir::failure();
             }
+            rewriter.replaceOp(op, new_fn);
             return mlir::success();
         }
     };
