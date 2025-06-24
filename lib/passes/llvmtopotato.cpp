@@ -458,12 +458,13 @@ namespace potato::conv::llvmtopt
             adaptor_t adaptor,
             mlir::ConversionPatternRewriter &rewriter
         ) const override {
-            auto global = rewriter.replaceOpWithNewOp< pt::NamedVarOp >(op, op.getName(), false);
+            auto global = rewriter.create< pt::NamedVarOp >(op.getLoc(), op.getName(), false);
             auto &orig_init = adaptor.getInitializer();
             auto &glob_init = global.getInit();
 
             if (!orig_init.empty()) {
-                rewriter.cloneRegionBefore(orig_init, glob_init, glob_init.end());
+                rewriter.inlineRegionBefore(orig_init, glob_init, glob_init.end());
+                rewriter.replaceOp(op, global);
                 return mlir::success();
             }
             if (auto val_attr = op.getValue()) {
@@ -486,6 +487,7 @@ namespace potato::conv::llvmtopt
                }();
                rewriter.create< pt::YieldOp >(op.getLoc(), constant);
             }
+            rewriter.replaceOp(op, global);
             return mlir::success();
         }
 
