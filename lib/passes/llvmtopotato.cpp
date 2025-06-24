@@ -34,8 +34,10 @@ namespace potato::conv::llvmtopt
                                        adaptor_t adaptor,
                                        mlir::ConversionPatternRewriter &rewriter
         ) const override {
-            auto tc = this->getTypeConverter();
-            rewriter.replaceOpWithNewOp< pt::AllocOp >(op, tc->convertType(op.getRes().getType()));
+            rewriter.replaceOpWithNewOp< pt::AllocOp >(
+                    op,
+                    this->typeConverter->convertType(op.getRes().getType())
+            );
             return mlir::success();
         }
     };
@@ -67,8 +69,11 @@ namespace potato::conv::llvmtopt
                                        adaptor_t adaptor,
                                        mlir::ConversionPatternRewriter &rewriter
         ) const override {
-            auto tc = this->getTypeConverter();
-            rewriter.replaceOpWithNewOp< pt::DereferenceOp >(op, tc->convertType(op.getRes().getType()), adaptor.getPtr());
+            rewriter.replaceOpWithNewOp< pt::DereferenceOp >(
+                    op,
+                    typeConverter->convertType(op.getRes().getType()),
+                    adaptor.getPtr()
+            );
             rewriter.create< pt::AssignOp >(op.getLoc(), adaptor.getPtr(), adaptor.getVal());
             return mlir::success();
         }
@@ -83,8 +88,11 @@ namespace potato::conv::llvmtopt
                                        adaptor_t adaptor,
                                        mlir::ConversionPatternRewriter &rewriter
         ) const override {
-            auto tc = this->getTypeConverter();
-            rewriter.replaceOpWithNewOp< pt::DereferenceOp >(op, tc->convertType(op.getRes().getType()), adaptor.getPtr());
+            rewriter.replaceOpWithNewOp< pt::DereferenceOp >(
+                    op,
+                    typeConverter->convertType(op.getRes().getType()),
+                    adaptor.getPtr()
+            );
             rewriter.create< pt::AssignOp >(op.getLoc(), adaptor.getPtr(), adaptor.getVal());
             return mlir::success();
         }
@@ -175,10 +183,9 @@ namespace potato::conv::llvmtopt
                                        adaptor_t adaptor,
                                        mlir::ConversionPatternRewriter &rewriter
         ) const override {
-            auto tc = this->getTypeConverter();
             rewriter.replaceOpWithNewOp< pt::DereferenceOp >(
                     op,
-                    tc->convertType(op.getRes().getType()),
+                    typeConverter->convertType(op.getRes().getType()),
                     adaptor.getAddr()
             );
             return mlir::success();
@@ -195,10 +202,9 @@ namespace potato::conv::llvmtopt
                                        adaptor_t adaptor,
                                        mlir::ConversionPatternRewriter &rewriter
         ) const override {
-            auto tc = this->getTypeConverter();
             rewriter.replaceOpWithNewOp< pt::CopyOp >(
                     op,
-                    tc->convertType(op.getRes().getType()),
+                    this->typeConverter->convertType(op.getRes().getType()),
                     adaptor.getOperands()[0]
             );
             return mlir::success();
@@ -221,10 +227,9 @@ namespace potato::conv::llvmtopt
                                        adaptor_t adaptor,
                                        mlir::ConversionPatternRewriter &rewriter
         ) const override {
-            auto tc = this->getTypeConverter();
             rewriter.replaceOpWithNewOp< pt::CopyOp >(
                     op,
-                    tc->convertType(op.getType()),
+                    this->typeConverter->convertType(op.getType()),
                     adaptor.getOperands()
             );
             return mlir::success();
@@ -240,10 +245,9 @@ namespace potato::conv::llvmtopt
                                        adaptor_t adaptor,
                                        mlir::ConversionPatternRewriter &rewriter
         ) const override {
-            auto tc = this->getTypeConverter();
             rewriter.replaceOpWithNewOp< pt::CopyOp >(
                         op,
-                        tc->convertType(op.getType()),
+                        typeConverter->convertType(op.getType()),
                         adaptor.getBase()
                 );
             return mlir::success();
@@ -260,10 +264,9 @@ namespace potato::conv::llvmtopt
                                        adaptor_t adaptor,
                                        mlir::ConversionPatternRewriter &rewriter
         ) const override {
-            auto tc = this->getTypeConverter();
             rewriter.replaceOpWithNewOp< pt::CopyOp >(
                         op,
-                        tc->convertType(op.getType()),
+                        this->typeConverter->convertType(op.getType()),
                         adaptor.getLhs()
                 );
             return mlir::success();
@@ -280,10 +283,9 @@ namespace potato::conv::llvmtopt
                                        adaptor_t adaptor,
                                        mlir::ConversionPatternRewriter &rewriter
         ) const override {
-            auto tc = this->getTypeConverter();
             rewriter.replaceOpWithNewOp< pt::CopyOp >(
                     op,
-                    tc->convertType(op.getType()),
+                    this->typeConverter->convertType(op.getType()),
                     mlir::ValueRange{adaptor.getOperands()[0], adaptor.getValue()}
             );
             return mlir::success();
@@ -302,7 +304,7 @@ namespace potato::conv::llvmtopt
             // TODO: Check if we know the value of cond to select an operand
             rewriter.replaceOpWithNewOp< pt::CopyOp >(
                     op,
-                    this->getTypeConverter()->convertType(op.getType()),
+                    typeConverter->convertType(op.getType()),
                     mlir::ValueRange{adaptor.getTrueValue(), adaptor.getFalseValue()}
             );
             return mlir::success();
@@ -371,8 +373,10 @@ namespace potato::conv::llvmtopt
                                        adaptor_t adaptor,
                                        mlir::ConversionPatternRewriter &rewriter
         ) const override {
-            auto tc = this->getTypeConverter();
-            rewriter.replaceOpWithNewOp< pt::UnknownPtrOp >(op, tc->convertType(op.getType()));
+            rewriter.replaceOpWithNewOp< pt::UnknownPtrOp >(
+                    op,
+                    this->typeConverter->convertType(op.getType())
+            );
             return mlir::success();
         }
     };
@@ -390,11 +394,15 @@ namespace potato::conv::llvmtopt
                                        adaptor_t adaptor,
                                        mlir::ConversionPatternRewriter &rewriter
         ) const override {
-            auto tc = this->getTypeConverter();
             if (mlir::isa< mlir::LLVM::LLVMPointerType >(op.getType())) {
-                rewriter.replaceOpWithNewOp< pt::UnknownPtrOp >(op, tc->convertType(op.getType()));
+                rewriter.replaceOpWithNewOp< pt::UnknownPtrOp >(
+                        op,
+                        this->typeConverter->convertType(op.getType())
+                );
             } else {
-                rewriter.replaceOpWithNewOp< pt::ConstantOp >(op, tc->convertType(op.getType()));
+                rewriter.replaceOpWithNewOp< pt::ConstantOp >(
+                        op,
+                        this->typeConverter->convertType(op.getType()));
             }
             return mlir::success();
         }
@@ -408,8 +416,10 @@ namespace potato::conv::llvmtopt
                                        adaptor_t adaptor,
                                        mlir::ConversionPatternRewriter &rewriter
         ) const override {
-            auto tc = this->getTypeConverter();
-            rewriter.replaceOpWithNewOp< pt::ConstantOp >(op, tc->convertType(op.getType()));
+            rewriter.replaceOpWithNewOp< pt::ConstantOp >(
+                    op,
+                    typeConverter->convertType(op.getType())
+            );
             return mlir::success();
         }
     };
@@ -471,18 +481,23 @@ namespace potato::conv::llvmtopt
                auto guard = mlir::OpBuilder::InsertionGuard(rewriter);
                rewriter.setInsertionPointToStart(&glob_init.emplaceBlock());
                auto constant = [&]() {
-                auto tc = this->getTypeConverter();
                 if (mlir::isa< mlir::LLVM::LLVMPointerType >(op.getType())) {
                     if (auto symbol = mlir::dyn_cast< mlir::FlatSymbolRefAttr >(val_attr.value())) {
                         return rewriter.create< pt::AddressOp >(
                                 op.getLoc(),
-                                tc->convertType(op.getGlobalType()),
+                                typeConverter->convertType(op.getGlobalType()),
                                 symbol
                         ).getResult();
                     }
-                    return rewriter.create< pt::UnknownPtrOp >(op.getLoc(), tc->convertType(op.getGlobalType())).getResult();
+                    return rewriter.create< pt::UnknownPtrOp >(
+                            op.getLoc(),
+                            typeConverter->convertType(op.getGlobalType())
+                    ).getResult();
                 } else {
-                    return rewriter.create< pt::ConstantOp >(op.getLoc(), tc->convertType(op.getGlobalType())).getResult();
+                    return rewriter.create< pt::ConstantOp >(
+                            op.getLoc(),
+                            typeConverter->convertType(op.getGlobalType())
+                    ).getResult();
                 }
                }();
                rewriter.create< pt::YieldOp >(op.getLoc(), constant);
@@ -504,7 +519,7 @@ namespace potato::conv::llvmtopt
         ) const override {
             rewriter.replaceOpWithNewOp< pt::AddressOp >(
                     op,
-                    this->getTypeConverter()->convertType(op.getRes().getType()),
+                    this->typeConverter->convertType(op.getRes().getType()),
                     op.getGlobalNameAttr()
             );
             return mlir::success();
@@ -525,28 +540,25 @@ namespace potato::conv::llvmtopt
                                        adaptor_t adaptor,
                                        mlir::ConversionPatternRewriter &rewriter
         ) const override {
-            auto fn = mlir::cast< fn_interface >(op.getOperation());
             auto type = op.getFunctionType();
             mlir::TypeConverter::SignatureConversion result(type.getNumParams());
             mlir::SmallVector<mlir::Type, 1> newResults;
             if (failed(typeConverter->convertSignatureArgs(type.getParams(), result)) ||
                 failed(typeConverter->convertTypes(op.getResultTypes(), newResults)))
                 return mlir::failure();
-            mlir_type res_type = newResults.empty() ? mlir::NoneType::get(fn.getContext()) : newResults[0];
-            auto fn_type = pt::FunctionType::get(fn.getContext(), res_type, result.getConvertedTypes(), type.isVarArg());
-
-            // TODO: figure out if we need visibility in the custom op?
-            //auto get_visibility = [&]() -> mlir::StringAttr {
-            //    if (fn.isExternal())
-            //        return mlir::StringAttr::get(rewriter.getContext(), "private");
-            //    return {};
-            //};
+            mlir_type res_type = newResults.empty() ? mlir::NoneType::get(op.getContext()) : newResults[0];
+            auto fn_type = pt::FunctionType::get(
+                    op.getContext(),
+                    res_type,
+                    result.getConvertedTypes(),
+                    type.isVarArg()
+            );
             auto new_fn = rewriter.create< pt::FuncOp >(
                     op.getLoc(),
-                    fn.getNameAttr(),
+                    op.getNameAttr(),
                     fn_type,
-                    fn.getAllArgAttrs(),
-                    fn.getAllResultAttrs()
+                    op.getAllArgAttrs(),
+                    op.getAllResultAttrs()
             );
             if (!op.getBody().empty()) {
                 auto &new_body = new_fn.getBody();
@@ -638,7 +650,6 @@ namespace potato::conv::llvmtopt
         void runOnOperation() override {
             auto &mctx    = getContext();
             auto tc       = to_pt_type();
-            auto dummy_tc = mlir::LLVMTypeConverter(&mctx);
 
             auto trg      = potato_target(mctx);
             auto patterns = mlir::RewritePatternSet(&mctx);
@@ -648,8 +659,7 @@ namespace potato::conv::llvmtopt
 
             trg.addDynamicallyLegalDialect< mlir::LLVM::LLVMDialect >(
                     [&](auto *op){
-                        return mlir::isa< mlir::RegionBranchOpInterface,
-                                          mlir::LLVM::NoAliasScopeDeclOp,
+                        return mlir::isa< mlir::LLVM::NoAliasScopeDeclOp,
                                           mlir::LLVM::UnreachableOp,
                                           mlir::LLVM::AssumeOp,
                                           mlir::LLVM::VaEndOp,
