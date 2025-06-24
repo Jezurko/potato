@@ -667,10 +667,13 @@ namespace potato::conv::llvmtopt
                                           mlir::LLVM::ModuleFlagsOp
                                         > (op);
             });
+            mlir::ConversionConfig cfg{};
+            cfg.allowPatternRollback = false;
 
             if (failed(applyPartialConversion(getOperation(),
                                        trg,
-                                       std::move(patterns))))
+                                       std::move(patterns),
+                                       cfg)))
                     return signalPassFailure();
         }
     };
