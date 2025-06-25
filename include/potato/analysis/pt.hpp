@@ -14,8 +14,6 @@ POTATO_RELAX_WARNINGS
 #include <llvm/ADT/TypeSwitch.h>
 POTATO_UNRELAX_WARNINGS
 
-#include "potato/analysis/config.hpp"
-#include "potato/analysis/function_models.hpp"
 #include "potato/dialect/ops.hpp"
 #include "potato/util/common.hpp"
 
@@ -287,158 +285,6 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
         return changed;
     }
 
-    change_result visit_function_model(pt_lattice *after, const function_model &model, mlir::CallOpInterface call) {
-        auto changed = change_result::NoChange;
-        std::vector< mlir_value > from;
-        std::vector< mlir_value > deref_from;
-        std::vector< mlir_value > copy_to;
-        std::vector< mlir_value > assign_to;
-        mlir_value realloc_ptr;
-        mlir_value realloc_res;
-        for (size_t i = 0; i < model.args.size(); i++) {
-            auto arg_changed = change_result::NoChange;
-            switch(model.args[i]) {
-                case arg_effect::none:
-                    break;
-                case arg_effect::alloc:
-                    arg_changed |= after->new_alloca(call->getOperand(i));
-                    break;
-                case arg_effect::static_alloc: {
-                    auto symbol = call.resolveCallable();
-                    assert(symbol);
-                    arg_changed |= after->new_alloca(call->getOperand(i), symbol);
-                    break;
-                }
-                case arg_effect::deref_alloc: {
-                    arg_changed |= after->deref_alloca(call->getOperand(i), call);
-                    if (arg_changed == change_result::Change) {
-                        pt_lattice::propagate_members_changed(
-                                after->lookup(call->getOperand(i)),
-                                get_or_create(),
-                                propagate()
-                        );
-                    }
-                    break;
-                }
-                case arg_effect::realloc_ptr:
-                    realloc_ptr = call->getOperand(i);
-                    break;
-                case arg_effect::realloc_res:
-                    realloc_res = call->getOperand(i);
-                    break;
-                case arg_effect::src:
-                    from.push_back(call->getOperand(i));
-                    break;
-                case arg_effect::deref_src:
-                    deref_from.push_back(call->getOperand(i));
-                    break;
-                case arg_effect::copy_trg:
-                    copy_to.push_back(call->getOperand(i));
-                    break;
-                case arg_effect::assign_trg:
-                    assign_to.push_back(call->getOperand(i));
-                    break;
-                case arg_effect::unknown:
-                    arg_changed |= after->join_var(call->getOperand(i), pt_lattice::new_top_set());
-            }
-            if constexpr (pt_lattice::propagate_assign()) {
-                propagateIfChanged(
-                    this->template getOrCreate< pt_lattice >(get_val_def_point(call->getOperand(i))),
-                    arg_changed
-                );
-            }
-            changed |= arg_changed;
-        }
-        // TODO: we only represent single return funtions right now
-        // adding multiple-returns should not be complicated
-        for (auto res : call->getResults()) {
-            switch (model.ret) {
-                case ret_effect::none:
-                    break;
-                case ret_effect::alloc:
-                    changed |= after->new_alloca(res);
-                    break;
-                case ret_effect::static_alloc: {
-                    auto symbol = call.resolveCallable();
-                    assert(symbol);
-                    changed |= after->new_alloca(res, symbol);
-                    break;
-                }
-                case ret_effect::realloc_res:
-                    realloc_res = res;
-                    break;
-                case ret_effect::copy_trg:
-                    copy_to.push_back(res);
-                    break;
-                case ret_effect::assign_trg:
-                    assign_to.push_back(res);
-                    break;
-                case ret_effect::unknown:
-                    changed |= after->join_var(res, pt_lattice::new_top_set());
-                    break;
-            }
-        }
-
-        if (realloc_res) {
-            changed |= after->new_alloca(realloc_res);
-            changed |= after->join_var(realloc_res, after->lookup(realloc_ptr));
-        }
-
-        for (const auto &trg : copy_to) {
-            for (const auto &src : from) {
-                if (auto src_pt = after->lookup(src); src_pt) {
-                    auto trg_changed = after->join_var(trg, src_pt);
-                    if constexpr (pt_lattice::propagate_assign()) {
-                        if (auto def_op = trg.getDefiningOp(); def_op != call.getOperation()) {
-                            propagateIfChanged(
-                                // in case defining op is null we need to get the block agument def point
-                                this->template getOrCreate< pt_lattice >(get_val_def_point(trg)),
-                                trg_changed
-                            );
-                        }
-                    }
-                    changed |= trg_changed;
-                }
-            }
-            for (const auto &src : deref_from) {
-                if (auto src_pt = after->lookup(src); src_pt) {
-                    changed |= after->copy_all_pts_into(trg, src_pt);
-                    if (auto point = mlir::dyn_cast< ppoint >(after->getAnchor())) {
-                        pt_lattice::depend_on_members(src_pt, add_dep(point));
-                    } else {
-                        assert(false);
-                    }
-                }
-            }
-        }
-        for (const auto &trg : assign_to) {
-            if (auto trg_pt = after->lookup(trg); trg_pt) {
-                if (trg_pt->is_top()) {
-                    return after->set_all_unknown();
-                }
-                for (const auto &src : from) {
-                    if (auto src_pt = after->lookup(src); src_pt) {
-                        auto trg_changed = after->join_all_pointees_with(trg_pt, src_pt);
-                        if (trg_changed == change_result::Change) {
-                            pt_lattice::propagate_members_changed(trg_pt, get_or_create(), propagate());
-                        }
-                        changed |= trg_changed;
-                    }
-                }
-                for (const auto &src : deref_from) {
-                    if (auto src_pt = after->lookup(src); src_pt) {
-                        auto trg_changed = after->copy_all_pts_into(trg_pt, src_pt);
-                        if (trg_changed == change_result::Change) {
-                            pt_lattice::propagate_members_changed(trg_pt, get_or_create(), propagate());
-                        }
-                        changed |= trg_changed;
-                    }
-                }
-            }
-        }
-        return changed;
-    }
-
     void visitCallControlFlowTransfer(
         mlir::CallOpInterface call, call_cf_action action,
         const pt_lattice &before, pt_lattice *after
@@ -480,14 +326,7 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
         }
 
         if (action == call_cf_action::ExternalCallee) {
-            auto callable = call.getCallableForCallee();
-            auto symbol = mlir::dyn_cast< mlir::SymbolRefAttr >(callable);
-            if (auto model_it = models.find(symbol.getLeafReference()); model_it != models.end()) {
-                for (const auto &model : model_it->second) {
-                    changed |= visit_function_model(after, model, call);
-                }
-            }
-            propagateIfChanged(after, changed );
+            propagateIfChanged(after, changed);
         }
     };
 
@@ -540,19 +379,11 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
 
     pt_analysis(mlir::DataFlowSolver &solver)
         : base(solver),
-          relation(std::make_unique< typename pt_lattice::info_t >()),
-          models(load_and_parse(pointsto_analysis_config))
-        {
-            relation->models = &models;
-        }
+          relation(std::make_unique< typename pt_lattice::info_t >()) {}
 
     pt_analysis(mlir::DataFlowSolver &solver, std::string config)
         : base(solver),
-          relation(std::make_unique< typename pt_lattice::info_t >()),
-          models(load_and_parse(config))
-        {
-            relation->models = &models;
-        }
+          relation(std::make_unique< typename pt_lattice::info_t >()) {}
 
     private:
     ppoint get_val_def_point(mlir_value val) {
@@ -561,7 +392,6 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
         return this->getProgramPointBefore(val.getParentBlock());
     }
     std::unique_ptr< typename pt_lattice::info_t > relation;
-    function_models models;
 
 };
 
