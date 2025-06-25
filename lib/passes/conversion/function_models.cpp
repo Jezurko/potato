@@ -1,63 +1,63 @@
-#include "potato/analysis/function_models.hpp"
+#include "potato/passes/modelling/function_models.hpp"
 
-LLVM_YAML_IS_SEQUENCE_VECTOR(potato::analysis::arg_effect);
-LLVM_YAML_IS_SEQUENCE_VECTOR(potato::analysis::function_model);
-LLVM_YAML_IS_SEQUENCE_VECTOR(potato::analysis::named_function_model);
+LLVM_YAML_IS_SEQUENCE_VECTOR(potato::models::arg_effect);
+LLVM_YAML_IS_SEQUENCE_VECTOR(potato::models::function_model);
+LLVM_YAML_IS_SEQUENCE_VECTOR(potato::models::named_function_model);
 
 using llvm::yaml::IO;
 using llvm::yaml::MappingTraits;
 using llvm::yaml::ScalarEnumerationTraits;
 
 template<>
-struct ScalarEnumerationTraits< potato::analysis::arg_effect >
+struct ScalarEnumerationTraits< potato::models::arg_effect >
 {
-    static void enumeration(IO &io, potato::analysis::arg_effect &value) {
-        io.enumCase(value, "none", potato::analysis::arg_effect::none);
-        io.enumCase(value, "alloc", potato::analysis::arg_effect::alloc);
-        io.enumCase(value, "static_alloc", potato::analysis::arg_effect::static_alloc);
-        io.enumCase(value, "deref_alloc", potato::analysis::arg_effect::static_alloc);
-        io.enumCase(value, "realloc_ptr", potato::analysis::arg_effect::realloc_ptr);
-        io.enumCase(value, "realloc_res", potato::analysis::arg_effect::realloc_res);
-        io.enumCase(value, "copy_trg", potato::analysis::arg_effect::copy_trg);
-        io.enumCase(value, "src", potato::analysis::arg_effect::src);
-        io.enumCase(value, "assign_trg", potato::analysis::arg_effect::assign_trg);
-        io.enumCase(value, "deref_src", potato::analysis::arg_effect::deref_src);
-        io.enumCase(value, "unknown", potato::analysis::arg_effect::unknown);
+    static void enumeration(IO &io, potato::models::arg_effect &value) {
+        io.enumCase(value, "none", potato::models::arg_effect::none);
+        io.enumCase(value, "alloc", potato::models::arg_effect::alloc);
+        io.enumCase(value, "static_alloc", potato::models::arg_effect::static_alloc);
+        io.enumCase(value, "deref_alloc", potato::models::arg_effect::static_alloc);
+        io.enumCase(value, "realloc_ptr", potato::models::arg_effect::realloc_ptr);
+        io.enumCase(value, "realloc_res", potato::models::arg_effect::realloc_res);
+        io.enumCase(value, "copy_trg", potato::models::arg_effect::copy_trg);
+        io.enumCase(value, "src", potato::models::arg_effect::src);
+        io.enumCase(value, "assign_trg", potato::models::arg_effect::assign_trg);
+        io.enumCase(value, "deref_src", potato::models::arg_effect::deref_src);
+        io.enumCase(value, "unknown", potato::models::arg_effect::unknown);
     }
 };
 
 template<>
-struct ScalarEnumerationTraits< potato::analysis::ret_effect >
+struct ScalarEnumerationTraits< potato::models::ret_effect >
 {
-    static void enumeration(IO &io, potato::analysis::ret_effect &value) {
-        io.enumCase(value, "none", potato::analysis::ret_effect::none);
-        io.enumCase(value, "alloc", potato::analysis::ret_effect::alloc);
-        io.enumCase(value, "static_alloc", potato::analysis::ret_effect::static_alloc);
-        io.enumCase(value, "realloc_res", potato::analysis::ret_effect::realloc_res);
-        io.enumCase(value, "copy_trg", potato::analysis::ret_effect::copy_trg);
-        io.enumCase(value, "assign_trg", potato::analysis::ret_effect::assign_trg);
-        io.enumCase(value, "unknown", potato::analysis::ret_effect::unknown);
+    static void enumeration(IO &io, potato::models::ret_effect &value) {
+        io.enumCase(value, "none", potato::models::ret_effect::none);
+        io.enumCase(value, "alloc", potato::models::ret_effect::alloc);
+        io.enumCase(value, "static_alloc", potato::models::ret_effect::static_alloc);
+        io.enumCase(value, "realloc_res", potato::models::ret_effect::realloc_res);
+        io.enumCase(value, "copy_trg", potato::models::ret_effect::copy_trg);
+        io.enumCase(value, "assign_trg", potato::models::ret_effect::assign_trg);
+        io.enumCase(value, "unknown", potato::models::ret_effect::unknown);
     }
 };
 
 template<>
-struct MappingTraits< potato::analysis::function_model >
+struct MappingTraits< potato::models::function_model >
 {
-    static void mapping(IO &io, potato::analysis::function_model &model) {
+    static void mapping(IO &io, potato::models::function_model &model) {
         io.mapRequired("return_effect", model.ret);
         io.mapRequired("arguments", model.args);
     }
 };
 
 template <>
-struct MappingTraits< potato::analysis::named_function_model > {
-    static void mapping(IO &io, potato::analysis::named_function_model &model) {
+struct MappingTraits< potato::models::named_function_model > {
+    static void mapping(IO &io, potato::models::named_function_model &model) {
         io.mapRequired("function", model.name);
         io.mapRequired("model", model.models);
     }
 };
 
-namespace potato::analysis {
+namespace potato::models {
     function_models load_and_parse(string_ref config) {
         function_models models;
         auto file_or_err = llvm::MemoryBuffer::getFile(config);
@@ -81,4 +81,4 @@ namespace potato::analysis {
         }
         return models;
     }
-} // namespace potato::analysis
+} // namespace potato::models
