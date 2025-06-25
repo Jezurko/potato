@@ -17,12 +17,9 @@ struct ScalarEnumerationTraits< potato::models::arg_effect >
         io.enumCase(value, "static_alloc", potato::models::arg_effect::static_alloc);
         io.enumCase(value, "deref_alloc", potato::models::arg_effect::static_alloc);
         io.enumCase(value, "realloc_ptr", potato::models::arg_effect::realloc_ptr);
-        io.enumCase(value, "realloc_res", potato::models::arg_effect::realloc_res);
-        io.enumCase(value, "copy_trg", potato::models::arg_effect::copy_trg);
         io.enumCase(value, "src", potato::models::arg_effect::src);
         io.enumCase(value, "assign_trg", potato::models::arg_effect::assign_trg);
         io.enumCase(value, "deref_src", potato::models::arg_effect::deref_src);
-        io.enumCase(value, "unknown", potato::models::arg_effect::unknown);
     }
 };
 
@@ -35,7 +32,6 @@ struct ScalarEnumerationTraits< potato::models::ret_effect >
         io.enumCase(value, "static_alloc", potato::models::ret_effect::static_alloc);
         io.enumCase(value, "realloc_res", potato::models::ret_effect::realloc_res);
         io.enumCase(value, "copy_trg", potato::models::ret_effect::copy_trg);
-        io.enumCase(value, "assign_trg", potato::models::ret_effect::assign_trg);
         io.enumCase(value, "unknown", potato::models::ret_effect::unknown);
     }
 };

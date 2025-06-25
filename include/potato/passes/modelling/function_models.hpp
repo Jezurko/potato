@@ -13,12 +13,12 @@ POTATO_UNRELAX_WARNINGS
 #include <vector>
 
 namespace potato::models {
-    enum class arg_effect { none, alloc, static_alloc, deref_alloc, realloc_ptr, realloc_res, src, deref_src, copy_trg, assign_trg, unknown };
-    enum class ret_effect { none, alloc, static_alloc, realloc_res, copy_trg, assign_trg, unknown};
+    enum class arg_effect { none, alloc, static_alloc, realloc_ptr, src, deref_src, assign_trg };
+    enum class ret_effect { none, alloc, static_alloc, realloc_res, copy_trg, unknown};
 
     struct function_model {
         ret_effect ret;
-        std::vector< arg_effect > args;
+        llvm::SmallVector< arg_effect > args;
     };
 
     struct named_function_model {
