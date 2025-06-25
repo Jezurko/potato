@@ -112,7 +112,7 @@ fn_info *steensgaard::get_or_create_fn_info(elem_t &elem) {
         return nullptr;
     }
 
-    auto fn = mlir::dyn_cast< fn_interface >(elem_op);
+    auto fn = mlir::dyn_cast< func_iface >(elem_op);
     if (!fn) {
         return nullptr;
     }
