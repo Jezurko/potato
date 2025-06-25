@@ -1,13 +1,11 @@
 #include "potato/util/warnings.hpp"
 
 POTATO_RELAX_WARNINGS
-#include <mlir/Analysis/DataLayoutAnalysis.h>
 #include <mlir/Conversion/LLVMCommon/Pattern.h>
 #include <mlir/Conversion/LLVMCommon/TypeConverter.h>
 #include <mlir/Dialect/LLVMIR/LLVMDialect.h>
 #include <mlir/IR/PatternMatch.h>
 #include <mlir/Transforms/DialectConversion.h>
-#include <mlir/Transforms/GreedyPatternRewriteDriver.h>
 
 #include <llvm/ADT/APFloat.h>
 #include <llvm/ADT/SmallVector.h>
