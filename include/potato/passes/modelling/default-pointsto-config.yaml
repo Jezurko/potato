@@ -257,14 +257,14 @@
   model:
     - return_effect: none
       arguments:
-        - deref_alloc
+        - alloc
         - none
 
 - function: getline
   model:
     - return_effect: none
       arguments:
-        - deref_alloc
+        - alloc
 
 - function: getenv
   model:

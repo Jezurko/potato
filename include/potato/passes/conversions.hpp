@@ -20,6 +20,7 @@ POTATO_UNRELAX_WARNINGS
 namespace potato
 {
     std::unique_ptr< mlir::Pass > createLLVMToPotatoPass();
+    std::unique_ptr< mlir::Pass > createFunctionModellingPass();
 
     #define GEN_PASS_REGISTRATION
     #include "potato/passes/Conversions.h.inc"

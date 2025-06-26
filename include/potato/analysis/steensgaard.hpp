@@ -6,7 +6,6 @@ POTATO_RELAX_WARNINGS
 #include <llvm/ADT/Hashing.h>
 POTATO_UNRELAX_WARNINGS
 
-#include "potato/analysis/function_models.hpp"
 #include "potato/analysis/utils.hpp"
 #include "potato/util/common.hpp"
 
@@ -185,7 +184,6 @@ namespace potato::analysis {
 
         std::unordered_map< elem_t, elem_t > mapping;
         std::unordered_map< elem_t, fn_info > fn_infos;
-        function_models *models;
         bool all_unknown;
         size_t dummy_count = 0;
     };
@@ -200,9 +198,6 @@ namespace potato::analysis {
         inline auto &mapping() const { return info->mapping; }
         inline auto &sets() const { return info->sets; }
         inline auto &all_unknown() const { return info->all_unknown; }
-        change_result visit_function_model(
-                const function_model &model, fn_interface fn, elem_t res_dummy, const std::vector< elem_t > &args
-        );
 
         public:
         bool initialized() const { return (bool) info; }

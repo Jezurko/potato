@@ -1,6 +1,5 @@
 #pragma once
 
-#include "potato/analysis/function_models.hpp"
 #include "potato/analysis/lattice.hpp"
 #include "potato/analysis/utils.hpp"
 #include "potato/util/common.hpp"
@@ -14,7 +13,6 @@ struct aa_lattice : mlir_dense_abstract_lattice {
     using relation_t = pt_map< elem_t, lattice_set >;
     struct aa_info {
         pt_map< elem_t, lattice_set > pt_relation;
-        function_models *models;
         bool all_unknown;
     };
     using info_t = aa_info;
@@ -123,11 +121,7 @@ struct aa_lattice : mlir_dense_abstract_lattice {
             }
             auto fn = mlir::dyn_cast< mlir::FunctionOpInterface >(fun.operation);
             if (fn.isExternal()) {
-                if (auto model_it = info->models->find(fn.getName()); model_it != info->models->end()) {
-                    for (const auto &model : model_it->second) {
-                        changed |= analysis->visit_function_model(this, model, call);
-                    }
-                }
+                assert(false);
             } else {
                 // FIXME: this is almost copy paste from pt.hpp. Can we unify it?
                 auto &callee_entry = fn->getRegion(0).front();

@@ -25,10 +25,10 @@ using operand_range = mlir::OperandRange;
 using result_range = mlir::ResultRange;
 using value_range = mlir::ValueRange;
 
-// TODO: unify
-using fn_interface = mlir::FunctionOpInterface;
+using func_iface = mlir::FunctionOpInterface;
 using branch_iface = mlir::BranchOpInterface;
 
+using op_builder = mlir::OpBuilder;
 using logical_result = mlir::LogicalResult;
 
 using ppoint = mlir::ProgramPoint *;
