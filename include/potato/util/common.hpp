@@ -28,6 +28,7 @@ using value_range = mlir::ValueRange;
 using func_iface = mlir::FunctionOpInterface;
 using branch_iface = mlir::BranchOpInterface;
 
+using op_builder = mlir::OpBuilder;
 using logical_result = mlir::LogicalResult;
 
 using ppoint = mlir::ProgramPoint *;
