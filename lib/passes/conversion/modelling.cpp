@@ -14,10 +14,25 @@ namespace potato::conv::modelling
 {
     struct FunctionModellingPass : FunctionModellingBase< FunctionModellingPass >
     {
-        mlir_value create_body(value_range args, mlir_loc loc, op_builder &builder, mlir::ArrayRef< models::function_model > models) {
+        static bool is_inlineable(mlir::ArrayRef< models::function_model > models) {
+            for (const auto &model : models) {
+                if (model.ret == models::ret_effect::static_alloc)
+                    return false;
+                for (const auto &effect : model.args) {
+                    if (effect == models::arg_effect::static_alloc)
+                        return false;
+                }
+            }
+            return true;
+        }
+
+        static mlir_operation *create_body(
+                value_range args, mlir_loc loc, op_builder &builder,
+                mlir::ArrayRef< models::function_model > models
+        ) {
             llvm::SmallVector< mlir_value, 2 > reallocated;
             llvm::SmallVector< mlir_value, 1 > src;
-            mlir_value ret_val;
+            mlir_operation *ret_op;
             mlir_type ptr_type = pt::PointerType::get(builder.getContext());
             for (const auto &model : models) {
                 for (const auto &[effect, arg] : llvm::zip(model.args, args)) {
@@ -62,19 +77,19 @@ namespace potato::conv::modelling
                         break;
                     case ret_effect::alloc:
                     case ret_effect::static_alloc:
-                        ret_val = builder.create< pt::AllocOp >(loc, ptr_type);
+                        ret_op = builder.create< pt::AllocOp >(loc, ptr_type);
                         break;
                     case ret_effect::realloc_res:
-                        ret_val = builder.create< pt::CopyOp >(loc, ptr_type, reallocated);
+                        ret_op = builder.create< pt::CopyOp >(loc, ptr_type, reallocated);
                         break;
                     case ret_effect::copy_trg:
-                        ret_val = builder.create< pt::CopyOp >(loc, ptr_type, src);
+                        ret_op = builder.create< pt::CopyOp >(loc, ptr_type, src);
                         break;
                     case ret_effect::unknown:
-                        ret_val = builder.create< pt::UnknownPtrOp >(loc, ptr_type);
+                        ret_op = builder.create< pt::UnknownPtrOp >(loc, ptr_type);
                 }
             }
-            return ret_val;
+            return ret_op;
         }
 
         void model_function(func_iface fn, op_builder &builder, const models::function_models &models) {
@@ -86,32 +101,77 @@ namespace potato::conv::modelling
             }
             mlir::ArrayRef< models::function_model > fn_models = model_it->getValue();
 
-            if (inline_bodies) { /*TODO*/ }
+            if (inline_bodies) {
+                if (is_inlineable(fn_models)) {
+                    builder.setInsertionPoint(fn);
+                }
+            }
 
             auto entry = fn.addEntryBlock();
             builder.setInsertionPointToStart(entry);
-            if (auto ret_val = create_body(entry->getArguments(), fn.getLoc(), builder, fn_models))
-                builder.create< pt::YieldOp >(fn.getLoc(), ret_val);
-            else
-                builder.create< pt::YieldOp >(fn.getLoc(), value_range());
+            if (auto ret_op = create_body(entry->getArguments(), fn.getLoc(), builder, fn_models)) {
+                builder.create< pt::YieldOp >(fn.getLoc(), ret_op->getResults());
+            } else {
+                value_range results{};
+                if (fn.getNumResults() != 0)
+                    results = {builder.create< pt::ConstantOp >(fn.getLoc(), pt::PointerType::get(builder.getContext()))};
+                builder.create< pt::YieldOp >(fn.getLoc(), results);
+            }
         }
-        // void inlineFunction
+
+        bool maybe_inline(
+                func_iface fn, mlir::SymbolTable &symbol_table, mlir::SymbolUserMap &map,
+                op_builder &builder, const models::function_models &models
+        ) {
+            auto model_it = models.find(fn.getName());
+            if (model_it == models.end()) {
+                llvm::errs() << "External function without a model: " << fn.getName() << "\n";
+                // TODO: Add pass option for hard fail on unknown function
+                return false;
+            }
+            mlir::ArrayRef< models::function_model > fn_models = model_it->getValue();
+
+            for (auto user : map.getUsers(fn)) {
+                builder.setInsertionPoint(user);
+                auto new_result_op = create_body(user->getOperands(), user->getLoc(), builder, fn_models);
+                auto old_results = user->getResults();
+                for (auto [new_res, old_res] : llvm::zip(new_result_op->getResults(), old_results)) {
+                    old_res.replaceAllUsesWith(new_res);
+                }
+                user->erase();
+            }
+            symbol_table.erase(fn);
+            return true;
+        }
 
         void runOnOperation() override {
-            if (inline_bodies) {
-                llvm::errs() << "Inlining NYI for modelling pass\n";
-                return signalPassFailure();
-            }
 
             auto root = getOperation();
 
             auto &mctx = getContext();
             auto builder = mlir::OpBuilder(&mctx);
 
+            std::unique_ptr< mlir::SymbolTableCollection > table_collection{};
+            std::unique_ptr< mlir::SymbolUserMap > symbol_map{};
+
+            if (inline_bodies) {
+                table_collection = std::make_unique< mlir::SymbolTableCollection >();
+                table_collection->getSymbolTable(root);
+                symbol_map = std::make_unique< mlir::SymbolUserMap >(*table_collection.get(), root);
+            }
+
             auto models = models::load_and_parse(models::pointsto_analysis_config);
             for (auto &op : root) {
                 if (auto fn = mlir::dyn_cast< func_iface >(op)) {
                     if (fn.isExternal()) {
+                        if (inline_bodies) {
+                            assert(table_collection && symbol_map &&
+                                   "inlining without symbol info!");
+
+                            auto symbol_table = table_collection->getSymbolTable(root);
+                            if (maybe_inline(fn, symbol_table, *symbol_map.get(), builder, models))
+                                continue;
+                        }
                         model_function(fn, builder, models);
                     }
                 }
