@@ -96,6 +96,8 @@ mlir::OpFoldResult CopyOp::fold(FoldAdaptor) {
     for (auto operand : getOperands()) {
         auto def_op = operand.getDefiningOp();
         if (!def_op) {
+            if (res)
+                return {};
             res = operand;
             continue;
         }
