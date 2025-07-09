@@ -24,7 +24,7 @@ def FunctionModelling : Pass<"add-fn-bodies-from-models", "mlir::ModuleOp"> {
   let options = [
     Option<"override_existing", "override-existing-bodies", "bool", /*default=*/"false",
            "If set to true the pass will overwrite bodies of defined functions when a model is available.">,
-    Option<"inline_bodies", "inline-model-bodies", "bool", /*default=*/"false",
+    Option<"inline_bodies", "inline-model-bodies", "bool", /*default=*/"true",
            "If set to true the pass will inline the bodies of models when possible.">,
   ];
 
