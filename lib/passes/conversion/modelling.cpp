@@ -32,7 +32,8 @@ namespace potato::conv::modelling
         ) {
             llvm::SmallVector< mlir_value, 2 > reallocated;
             llvm::SmallVector< mlir_value, 1 > src;
-            mlir_operation *ret_op;
+            llvm::SmallVector< mlir_value, 1 > assign_trgs;
+            mlir_operation *ret_op = nullptr;
             mlir_type ptr_type = pt::PointerType::get(builder.getContext());
             for (const auto &model : models) {
                 for (const auto &[effect, arg] : llvm::zip(model.args, args)) {
@@ -61,16 +62,25 @@ namespace potato::conv::modelling
                             break;
                         }
                         case arg_effect::assign_trg: {
-                            mlir_value copy_val;
-                            if (src.size() == 1)
-                                copy_val = src[0];
-                            else
-                                copy_val = builder.create< pt::CopyOp >(loc, ptr_type, src);
-                            builder.create< pt::AssignOp >(loc, arg, copy_val);
+                            // We might not yet have all sources
+                            // Collect targets and resolve later
+                            assign_trgs.push_back(arg);
                             break;
                         }
                     }
                 }
+            }
+            if (!assign_trgs.empty()) {
+                mlir_value copy_val;
+                if (src.size() == 1)
+                    copy_val = src[0];
+                else
+                    copy_val = builder.create< pt::CopyOp >(loc, ptr_type, src);
+                for (const auto &trg : assign_trgs) {
+                    builder.create< pt::AssignOp >(loc, trg, copy_val);
+                }
+            }
+            for (const auto &model : models) {
                 using ret_effect = models::ret_effect;
                 switch (model.ret) {
                     case ret_effect::none:
