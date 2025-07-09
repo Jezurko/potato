@@ -121,7 +121,7 @@ struct aa_lattice : mlir_dense_abstract_lattice {
             }
             auto fn = mlir::dyn_cast< mlir::FunctionOpInterface >(fun.operation);
             if (fn.isExternal()) {
-                assert(false);
+                continue;
             } else {
                 // FIXME: this is almost copy paste from pt.hpp. Can we unify it?
                 auto &callee_entry = fn->getRegion(0).front();
