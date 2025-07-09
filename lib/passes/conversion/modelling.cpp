@@ -105,17 +105,10 @@ namespace potato::conv::modelling
         void model_function(func_iface fn, op_builder &builder, const models::function_models &models) {
             auto model_it = models.find(fn.getName());
             if (model_it == models.end()) {
-                llvm::errs() << "External function without a model: " << fn.getName() << "\n";
                 // TODO: Add pass option for hard fail on unknown function
                 return;
             }
             mlir::ArrayRef< models::function_model > fn_models = model_it->getValue();
-
-            if (inline_bodies) {
-                if (is_inlineable(fn_models)) {
-                    builder.setInsertionPoint(fn);
-                }
-            }
 
             auto entry = fn.addEntryBlock();
             builder.setInsertionPointToStart(entry);
@@ -134,8 +127,7 @@ namespace potato::conv::modelling
                 op_builder &builder, const models::function_models &models
         ) {
             auto model_it = models.find(fn.getName());
-            if (model_it == models.end()) {
-                llvm::errs() << "External function without a model: " << fn.getName() << "\n";
+            if (model_it == models.end() || !is_inlineable(model_it->getValue())) {
                 // TODO: Add pass option for hard fail on unknown function
                 return false;
             }
@@ -145,12 +137,19 @@ namespace potato::conv::modelling
                 builder.setInsertionPoint(user);
                 auto new_result_op = create_body(user->getOperands(), user->getLoc(), builder, fn_models);
                 auto old_results = user->getResults();
-                for (auto [new_res, old_res] : llvm::zip(new_result_op->getResults(), old_results)) {
-                    old_res.replaceAllUsesWith(new_res);
+                if (old_results.size() > 0) {
+                    if (new_result_op) {
+                        for (auto [new_res, old_res] : llvm::zip(new_result_op->getResults(), old_results)) {
+                            old_res.replaceAllUsesWith(new_res);
+                        }
+                    } else {
+                        auto constant = builder.create< pt::ConstantOp >(user->getLoc(), pt::PointerType::get(builder.getContext()));
+                        for (auto old_res : old_results)
+                            old_res.replaceAllUsesWith(constant);
+                    }
                 }
                 user->erase();
             }
-            symbol_table.erase(fn);
             return true;
         }
 
@@ -171,6 +170,7 @@ namespace potato::conv::modelling
             }
 
             auto models = models::load_and_parse(models::pointsto_analysis_config);
+            std::vector< mlir_operation * > to_erase{};
             for (auto &op : root) {
                 if (auto fn = mlir::dyn_cast< func_iface >(op)) {
                     if (fn.isExternal()) {
@@ -178,13 +178,19 @@ namespace potato::conv::modelling
                             assert(table_collection && symbol_map &&
                                    "inlining without symbol info!");
 
-                            auto symbol_table = table_collection->getSymbolTable(root);
-                            if (maybe_inline(fn, symbol_table, *symbol_map.get(), builder, models))
+                            auto &symbol_table = table_collection->getSymbolTable(root);
+                            if (maybe_inline(fn, symbol_table, *symbol_map.get(), builder, models)) {
+                                to_erase.push_back(fn);
                                 continue;
+                            }
                         }
                         model_function(fn, builder, models);
                     }
                 }
+            }
+            for (auto op : to_erase) {
+                auto &symbol_table = table_collection->getSymbolTable(root);
+                symbol_table.erase(op);
             }
         }
     };
