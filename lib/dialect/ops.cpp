@@ -96,17 +96,19 @@ mlir::OpFoldResult CopyOp::fold(FoldAdaptor) {
     for (auto operand : getOperands()) {
         auto def_op = operand.getDefiningOp();
         if (!def_op) {
-            if (res)
+            if (!res)
+                res = operand;
+            else if (operand != mlir::cast< mlir::Value >(res))
                 return {};
-            res = operand;
             continue;
         }
         if (!(mlir::isa< pt::ConstantOp >(def_op))) {
+            if (!res)
+                res = operand;
             // Copy op is joining results of multiple non-constant operations,
             // conservatively bail out to not lose any information
-            if (res)
+            else if (operand != mlir::cast< mlir::Value >(res))
                 return {};
-            res = operand;
         }
         if (mlir::isa< pt::UnknownPtrOp >(def_op)) {
             return operand;
@@ -127,7 +129,6 @@ logical_result AssignOp::canonicalize(AssignOp op, mlir::PatternRewriter &rewrit
         return mlir::success();
     }
     return mlir::failure();
-
 }
 
 mlir::SuccessorOperands BranchOp::getSuccessorOperands(unsigned idx) {
