@@ -42,6 +42,7 @@ using alias_kind = mlir::AliasResult::Kind;
 template < typename lattice >
 using mlir_dense_dfa = mlir::dataflow::DenseForwardDataFlowAnalysis< lattice >;
 using mlir_dense_abstract_lattice = mlir::dataflow::AbstractDenseLattice;
+using dfa = mlir::DataFlowAnalysis;
 
 using call_graph = mlir::CallGraph;
 using cg_node    = mlir::CallGraphNode;
