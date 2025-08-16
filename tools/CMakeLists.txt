@@ -7,6 +7,7 @@ set(LIBS
         MLIROptLib
         MLIRPotatoPasses
         MLIRpotato
+        MLIRRegisterAllDialects
         )
 add_llvm_executable(potato-opt potato-opt.cpp)
 
