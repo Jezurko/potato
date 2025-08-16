@@ -1,6 +1,7 @@
 #include "potato/util/warnings.hpp"
 
 POTATO_RELAX_WARNINGS
+#include "mlir/Transforms/Passes.h"
 #include "mlir/IR/Dialect.h"
 #include "mlir/IR/MLIRContext.h"
 #include "mlir/InitAllDialects.h"
