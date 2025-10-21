@@ -137,7 +137,9 @@ private:
         mlir_operation *op, const mlir::RegionSuccessor &successor,
         lattices_ref arg_lattices, unsigned first_index
     ) {
-        return derived().visit_non_control_flow_arguments(op, successor, arg_lattices, first_index);
+        return derived().visit_non_control_flow_arguments(
+            op, successor, arg_lattices, first_index
+        );
     }
 
     logical_result visit_call_operation_impl(
@@ -168,6 +170,19 @@ private:
         mlir_operation *op, const_lattices_ref operand_lattices, lattices_ref res_lattices
     ) {
         return derived().visit_non_pt_op(op, operand_lattices, res_lattices);
+    }
+
+    logical_result visit_unrealized_cast_impl(
+        mlir::UnrealizedConversionCastOp op,
+        const_lattices_ref operand_lattices, lattices_ref res_lattices
+    ) {
+        return derived().visit_unrealized_cast(op, operand_lattices, res_lattices);
+    }
+
+    logical_result visit_branch_impl(
+        branch_iface op, const_lattices_ref operand_lattices, lattices_ref res_lattices
+    ) {
+        return derived().visit_branch(op, operand_lattices, res_lattices);
     }
 
     // derived_t has to provide a custom definition for the following methods:
@@ -219,6 +234,7 @@ public:
                 visit_block(&block);
             }
         }
+        return mlir::success();
     }
 
     constexpr bool add_deps() { return true; }
@@ -403,11 +419,13 @@ public:
             if (!edge_executable->isLive())
                 continue;
 
-            if (auto branch = dyn_cast< mlir::BranchOpInterface >(pred->getTerminator())) {
+            if (auto branch = dyn_cast< branch_iface >(pred->getTerminator())) {
                 auto operands = branch.getSuccessorOperands(it.getSuccessorIndex());
                 for (auto [idx, lattice] : llvm::enumerate(arg_lattices)) {
                     if (auto operand = operands[idx]) {
-                        join(lattice, *get_lattice_element_for(getProgramPointBefore(block), operand));
+                        join(lattice,
+                            *get_lattice_element_for(getProgramPointBefore(block), operand)
+                        );
                     } else {
                         // Conservatively consider internally produced arguments as entry points.
                         // TODO: is this necessary for us? when does this happen?
@@ -483,13 +501,16 @@ public:
     }
 
     logical_result visit_pt_op(pt::AllocOp op, const_lattices_ref operand_lts, lattices_ref res_lts) {
-        for (auto res_lat : res_lts) {
+        for (auto res_lat : res_lts)
             propagateIfChanged(res_lat, res_lat->insert(getLatticeAnchor< mem_loc_anchor >(op.getOperation())));
-        }
         return mlir::success();
     }
 
-    logical_result visit_pt_op(pt::AssignOp, const_lattices_ref operand_lts, lattices_ref res_lts);
+    logical_result visit_pt_op(pt::AssignOp, const_lattices_ref operand_lts, lattices_ref res_lts) {
+        for (auto lhs_deref : operand_lts[0]->get_deref_lats(*this))
+            join(lhs_deref, *operand_lts[1]);
+        return mlir::success();
+    }
 
     logical_result visit_pt_op(pt::ConstantOp, const_lattices_ref operand_lts, lattices_ref res_lts) {
         return mlir::success();
@@ -503,10 +524,8 @@ public:
 
     logical_result visit_pt_op(pt::DereferenceOp, const_lattices_ref operand_lts, lattices_ref res_lts) {
         for (auto res_lat : res_lts) {
-            auto changed = change_result::NoChange;
-            for (auto operand_lat : operand_lts) {
-                // get array of lattices for to join into res_lat
-            }
+            for (auto operand_lat : operand_lts)
+                join_all(res_lat, operand_lat->get_deref_lats(*this));
         }
         return mlir::success();
     }
@@ -519,7 +538,7 @@ public:
                 auto var_state =
                     getOrCreate< pt_lattice >(getLatticeAnchor< named_val_anchor >(op.getOperation()));
                 for (auto ret_val : ret_op->getOperands())
-                    propagateIfChanged(var_state, var_state->join(*getOrCreate< pt_lattice >(ret_val)));
+                    join(var_state, *getOrCreate< pt_lattice >(ret_val));
             }
         }
         return mlir::success();
@@ -527,14 +546,24 @@ public:
 
     logical_result visit_pt_op(pt::UnknownPtrOp, const_lattices_ref operand_lts, lattices_ref res_lts) {
         for (auto res_lt : res_lts)
-            res_lt->set_unknown();
+            propagateIfChanged(res_lt, res_lt->set_unknown());
+        return mlir::success();
+    }
+
+    logical_result visit_unrealized_cast(mlir::UnrealizedConversionCastOp, const_lattices_ref operand_lts, lattices_ref res_lts) {
+        for (auto [res_lt, operand_lt] : llvm::zip(res_lts, operand_lts))
+            join(res_lt, *operand_lt);
+        return mlir::success();
+    }
+
+    logical_result visit_branch(branch_iface, const_lattices_ref, lattices_ref) {
         return mlir::success();
     }
 
     logical_result visit_operation(
         mlir_operation *op, const_lattices_ref operand_lts, lattices_ref res_lts
     ) {
-        llvm::TypeSwitch< mlir::Operation *, void >(op)
+        return llvm::TypeSwitch< mlir::Operation *, logical_result >(op)
             .Case< pt::AddressOp,
                    pt::AllocOp,
                    pt::AssignOp,
@@ -547,13 +576,15 @@ public:
                 return visit_pt_op_impl(pt_op, operand_lts, res_lts);
             })
             .template Case< mlir::UnrealizedConversionCastOp >(
-                    [&](auto &cast_op) {}
-            )
-            .template Case< mlir::BranchOpInterface >([&](auto &branch_op) {})
+                    [&](auto &cast_op) {
+                        return visit_unrealized_cast_impl(cast_op, operand_lts, res_lts);
+            })
+            .template Case< branch_iface >([&](auto &branch_op) {
+                return visit_branch_impl(branch_op, operand_lts, res_lts);
+            })
             .Default([&](auto &pt_op) {
                 return visit_non_pt_op_impl(pt_op, operand_lts, res_lts);
             });
-        return mlir::success();
     }
     protected:
     symbol_table_collection tables;
