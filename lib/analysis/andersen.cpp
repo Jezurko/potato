@@ -49,12 +49,6 @@ namespace potato::analysis {
             change_result::Change : change_result::NoChange;
     }
 
-    llvm::SmallVector< lattice_anchor > aa_lattice::get_deref(mlir::DataFlowSolver &solver) const {
-        for (const auto anchor : pointees) {
-            solver.getOrCreateState< aa_lattice >(anchor);
-        }
-    }
-
     void aa_lattice::print(llvm::raw_ostream &os) const {
         os << getAnchor() << " -> ";
 
