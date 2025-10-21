@@ -65,6 +65,7 @@ struct named_val_anchor : mlir::GenericLatticeAnchorBase< named_val_anchor, mlir
     void print(llvm::raw_ostream &) const override;
 };
 
+template< typename derived_t >
 struct pt_lattice_base : mlir::AnalysisState {
 
     pt_lattice_base(lattice_anchor anchor) : AnalysisState(anchor) {}
@@ -95,8 +96,7 @@ struct pt_lattice_base : mlir::AnalysisState {
     // it has to be updated as well
     void add_user(mlir_operation *op) { extra_deps.insert(op); }
 
-    // CRTP this?
-    virtual llvm::SmallVector< lattice_anchor > get_deref(mlir::DataFlowSolver &) const = 0;
+    llvm::SmallVector< derived_t * > get_deref_lats(dfa &) const;
 
 private:
     llvm::SetVector< dfa *, llvm::SmallVector< dfa *, 4 >, llvm::SmallPtrSet< dfa *, 4 > >
@@ -112,6 +112,7 @@ struct pt_analysis : dfa {
     using base = dfa;
     using const_lattices_ref = llvm::ArrayRef< const pt_lattice * >;
     using lattices_ref = llvm::ArrayRef< pt_lattice * >;
+    friend lattice_t;
 
 protected:
 

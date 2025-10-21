@@ -13,7 +13,7 @@ POTATO_UNRELAX_WARNINGS
 
 namespace potato::analysis {
 
-struct aa_lattice : pt_lattice_base {
+struct aa_lattice : pt_lattice_base< aa_lattice > {
 
     aa_lattice(lattice_anchor anchor) : pt_lattice_base(anchor), unknown(false) {};
     aa_lattice(mlir_value value) : pt_lattice_base(value), unknown(false) {};
@@ -21,7 +21,13 @@ struct aa_lattice : pt_lattice_base {
     change_result set_unknown();
     change_result join(const aa_lattice &);
     change_result insert(lattice_anchor);
-    llvm::SmallVector< lattice_anchor > get_deref(mlir::DataFlowSolver &) const override;
+    llvm::SmallVector< aa_lattice * > get_deref_lats(auto &analysis) const {
+        llvm::SmallVector< aa_lattice *> res;
+        res.reserve(pointees.size());
+        for (const auto &anchor : pointees)
+            res.push_back(analysis.template getOrCreate< aa_lattice >(anchor));
+        return res;
+    }
     void print(llvm::raw_ostream &) const override;
 
 private:
