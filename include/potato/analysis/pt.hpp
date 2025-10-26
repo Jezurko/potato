@@ -253,7 +253,9 @@ public:
         const_lattices_ref operand_lattices,
         lattices_ref result_lattices
     ) {
-        auto callable = dyn_cast_if_present< mlir::CallableOpInterface >(call.resolveCallable());
+        auto callable = dyn_cast_if_present< mlir::CallableOpInterface >(
+            call.resolveCallableInTable(&tables)
+        );
         if (!getSolverConfig().isInterprocedural() ||
             (callable && !callable.getCallableRegion()))
         {
