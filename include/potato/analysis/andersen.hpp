@@ -6,9 +6,7 @@ POTATO_RELAX_WARNINGS
 #include <llvm/ADT/DenseSet.h>
 POTATO_UNRELAX_WARNINGS
 
-
 #include "potato/analysis/pt.hpp"
-#include "potato/analysis/utils.hpp"
 #include "potato/util/common.hpp"
 
 namespace potato::analysis {
