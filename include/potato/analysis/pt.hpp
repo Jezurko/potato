@@ -340,10 +340,11 @@ public:
         mlir_block *entry_block = &callable.getCallableRegion()->front();
         const auto *callsites = getOrCreateFor< mlir::dataflow::PredecessorState >(
             getProgramPointBefore(entry_block), getProgramPointAfter(callable));
-        // If not all callsites are known, conservatively mark all lattices as
-        // having reached their pessimistic fixpoints.
-        // TODO: This might be changed for out points-to analysis?
-        if (!callsites->allPredecessorsKnown() || !getSolverConfig().isInterprocedural()) {
+
+        // NOTE: Here we diverge from sparse analysis and assume all callsites are known.
+        // This is not ideal, but currently we support only WPA, so it isn't an issue.
+        // TODO: Introduce option for partial program analysis.
+        if (!getSolverConfig().isInterprocedural()) {
             set_all_to_entry_state(arg_lattices);
         }
 
