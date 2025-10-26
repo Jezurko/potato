@@ -146,6 +146,14 @@ private:
         return derived().visit_call_operation(call, operand_lattices, result_lattices);
     }
 
+    logical_result visit_fptr_call_impl(
+        mlir::CallOpInterface call,
+        const_lattices_ref operand_lattices,
+        lattices_ref result_lattices
+    ) {
+        return derived().visit_fptr_call(call, operand_lattices, result_lattices);
+    }
+
     constexpr bool add_deps_impl() {
         return derived().add_deps();
     }
@@ -245,16 +253,58 @@ public:
         set_all_to_entry_state(res_lattices);
     }
 
+    llvm::SmallVector< mlir::CallableOpInterface > fptr_to_callables(mlir_value fptr) {
+        auto fptr_pointees = getOrCreate< pt_lattice >(fptr)->get_pointees();
+        llvm::SmallVector< mlir::CallableOpInterface > callables;
+        callables.reserve(fptr_pointees.size());
+
+        for (const auto &pointee : fptr_pointees) {
+            auto pointee_pp = mlir::dyn_cast< ppoint >(pointee);
+            if (!pointee_pp)
+                continue;
+            if (auto callable = mlir::dyn_cast_if_present< mlir::CallableOpInterface >(pointee_pp->getOperation()))
+                callables.push_back(callable);
+        }
+        // TODO: Add possibility to error out on non-funciton pointee
+        return callables;
+    }
+
+    logical_result visit_fptr_call(
+        mlir::CallOpInterface call, const_lattices_ref arg_lattices, lattices_ref res_lattices
+    ) {
+        return mlir::failure();
+        auto callable = mlir::dyn_cast< mlir_value >(call.getCallableForCallee());
+        if (!callable)
+            return mlir::failure();
+        for (auto callable : derived().fptr_to_callables(callable)) {
+            auto callable_body = callable.getCallableRegion();
+            // TODO: Add optional error?
+            if (!callable_body)
+                continue;
+
+            auto fn_args = callable_body->getArguments();
+            for (auto &&[fn_arg, call_arg] : llvm::zip(fn_args, arg_lattices))
+                join(getOrCreate< pt_lattice >(fn_arg), *call_arg);
+            callable_body->walk([&](mlir_operation *op) {
+                if (!op->hasTrait< mlir::OpTrait::ReturnLike >())
+                    return;
+                for (auto &&[call_res, fn_res] : llvm::zip(res_lattices, op->getOperands()))
+                    join(call_res, *get_lattice_element_for(getProgramPointAfter(call), fn_res));
+            });
+        }
+        return mlir::success();
+    }
+
     logical_result visit_call_operation(
         mlir::CallOpInterface call,
         const_lattices_ref operand_lattices,
         lattices_ref result_lattices
     ) {
-        auto callable = dyn_cast_if_present< mlir::CallableOpInterface >(
+        auto callable_op = dyn_cast_if_present< mlir::CallableOpInterface >(
             call.resolveCallableInTable(&tables)
         );
         if (!getSolverConfig().isInterprocedural() ||
-            (callable && !callable.getCallableRegion()))
+            (callable_op && !callable_op.getCallableRegion()))
         {
             visit_external_call_impl(call, operand_lattices, result_lattices);
             return mlir::success();
@@ -263,10 +313,11 @@ public:
         const auto predecessors = getOrCreateFor< mlir::dataflow::PredecessorState >(
             getProgramPointAfter(call), getProgramPointAfter(call)
         );
+        if (mlir::isa< mlir_value >(call.getCallableForCallee()))
+            return visit_fptr_call_impl(call, operand_lattices, result_lattices);
 
         // TODO: this should simply check that we know all return sites from the function
         // Check if it's true and if we need to modify this in any way
-
         if (!predecessors->allPredecessorsKnown()) {
             set_all_to_entry_state(result_lattices);
             return mlir::success();
