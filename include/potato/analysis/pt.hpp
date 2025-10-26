@@ -94,9 +94,6 @@ struct pt_lattice_base : mlir::AnalysisState {
     // In this case %set -> {y} and if the points-to set of x gets updated
     // it has to be updated as well
     void add_user(mlir_operation *op) { extra_deps.insert(op); }
-
-    llvm::SmallVector< derived_t * > get_deref_lats(dfa &) const;
-
 private:
     llvm::SetVector< dfa *, llvm::SmallVector< dfa *, 4 >, llvm::SmallPtrSet< dfa *, 4 > >
         use_def_subs;
@@ -508,8 +505,9 @@ public:
     }
 
     logical_result visit_pt_op(pt::AssignOp, const_lattices_ref operand_lts, lattices_ref res_lts) {
-        for (auto lhs_deref : operand_lts[0]->get_deref_lats(*this))
-            join(lhs_deref, *operand_lts[1]);
+        for (const auto &pointee : operand_lts[0]->get_pointees()) {
+            join(getOrCreate< pt_lattice >(pointee), *operand_lts[1]);
+        }
         return mlir::success();
     }
 
@@ -525,8 +523,11 @@ public:
 
     logical_result visit_pt_op(pt::DereferenceOp, const_lattices_ref operand_lts, lattices_ref res_lts) {
         for (auto res_lat : res_lts) {
-            for (auto operand_lat : operand_lts)
-                join_all(res_lat, operand_lat->get_deref_lats(*this));
+            for (auto operand_lat : operand_lts) {
+                for (const auto &pointee : operand_lat->get_pointees()) {
+                    join(res_lat, *getOrCreate< pt_lattice >(pointee));
+                }
+            }
         }
         return mlir::success();
     }
