@@ -23,7 +23,6 @@ namespace potato::analysis {
 // Memory location is identified by the allocating operation first.
 // Multiple unique allocations performed by the same operation can be modelled
 // using a uniquer id.
-//using mem_loc = std::pair< mlir_operation *, size_t >;
 struct mem_loc : std::pair< mlir_operation *, size_t > {
     using pair_t = std::pair< mlir_operation *, size_t >;
     mem_loc(mlir_operation *op) : pair_t(op, 0) {}
@@ -266,7 +265,7 @@ public:
             getProgramPointAfter(call), getProgramPointAfter(call)
         );
 
-        // TODO: this sould simply check that we know all return sites from the function
+        // TODO: this should simply check that we know all return sites from the function
         // Check if it's true and if we need to modify this in any way
 
         if (!predecessors->allPredecessorsKnown()) {
@@ -586,6 +585,7 @@ public:
                 return visit_non_pt_op_impl(pt_op, operand_lts, res_lts);
             });
     }
+
     protected:
     symbol_table_collection tables;
 };
