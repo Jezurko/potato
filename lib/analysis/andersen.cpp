@@ -86,6 +86,6 @@ namespace potato::analysis {
     }
 
     void aa_analysis::register_anchors() {}
-    void aa_analysis::set_to_entry_state(aa_lattice *lattice) { assert(false); }
+    void aa_analysis::set_to_entry_state(aa_lattice *lattice) {}
 } // namespace potato::analysis
 
