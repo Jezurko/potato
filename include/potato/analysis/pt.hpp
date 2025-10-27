@@ -215,13 +215,13 @@ public:
     }
 
     logical_result initialize(mlir_operation *root) override {
+        tables.getSymbolTable(root);
         for (mlir_region &region : root->getRegions()) {
             if (region.empty())
                 continue;
             for (mlir_value argument : region.front().getArguments())
                 set_to_entry_state_impl(get_lattice_element(argument));
         }
-        tables.getSymbolTable(root);
         return initialize_recursively(root);
     };
 
