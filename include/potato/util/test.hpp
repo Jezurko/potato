@@ -19,11 +19,6 @@ namespace potato::test {
     constexpr auto no_alias   = "no_alias";
     template< typename analysis_lattice >
     void check_aliases(mlir::DataFlowSolver &solver, mlir_operation *root) {
-        auto lattice = util::get_analysis< analysis_lattice >(solver, root);
-        if (lattice->is_all_unknown()) {
-            llvm::errs() << "Test pass got all unknonw!\n";
-            assert(false);
-        }
         root->walk([&](mlir::CallOpInterface call) {
             auto fn = mlir::dyn_cast_if_present< mlir::FunctionOpInterface >(call.resolveCallable());
             if (!fn) {
@@ -45,14 +40,18 @@ namespace potato::test {
             auto expected_res = alias_res(kind);
             size_t args_c = call->getNumOperands();
             for (size_t i = 0; i < args_c; i++) {
+                auto arg_i = solver.getOrCreateState< analysis_lattice >(call->getOperand(i));
                 for (size_t j = i + 1; j < args_c; j++) {
-                    auto alias = lattice->alias(call->getOperand(i), call->getOperand(j));
+                    auto arg_j = solver.getOrCreateState< analysis_lattice >(call->getOperand(j));
+                    auto alias = arg_i->alias(arg_j);
                     if (alias != expected_res) {
                         llvm::errs()
                             << "Arguments " << i << " and " << j
                             << " of call at " << call.getLoc()
                             << "have wrong alias!\n"
                             << "Expected: " << expected_res << " but got: " << alias << "\n";
+                        arg_i->dump();
+                        arg_j->dump();
                         assert(false);
                     }
                 }
