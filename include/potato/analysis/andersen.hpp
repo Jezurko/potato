@@ -19,6 +19,7 @@ struct aa_lattice : pt_lattice_base< aa_lattice > {
     change_result set_unknown();
     change_result join(const aa_lattice &);
     change_result insert(lattice_anchor);
+    alias_res alias_impl(aa_lattice *rhs);
     const llvm::DenseSet< lattice_anchor> &get_pointees() const { return pointees; }
     void print(llvm::raw_ostream &) const override;
 
