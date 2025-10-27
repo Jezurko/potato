@@ -241,6 +241,9 @@ public:
                 getOrCreate<mlir::dataflow::Executable>(
                     getProgramPointBefore(&block))->blockContentSubscribe(this);
                 visit_block(&block);
+                for (auto &op : block)
+                    if (failed(initialize_recursively(&op)))
+                        return mlir::failure();
             }
         }
         return mlir::success();
@@ -429,6 +432,7 @@ public:
             pt_lattice *operand_lattice = get_lattice_element(operand);
             // TODO: point of customization!
             operand_lattice->use_def_subscribe(this);
+            operand_lattices.push_back(operand_lattice);
         }
         if (auto call = dyn_cast< mlir::CallOpInterface >(op))
             return visit_call_operation_impl(call, operand_lattices, result_lattices);
@@ -539,7 +543,6 @@ public:
                         first_idx
                     );
                 }
-
             }
 
             for (auto [operand, lattice] : llvm::zip(*operands, lattices.drop_front(first_idx)))
