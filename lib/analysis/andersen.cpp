@@ -6,6 +6,7 @@ POTATO_UNRELAX_WARNINGS
 
 #include "potato/analysis/andersen.hpp"
 #include "potato/analysis/pt.hpp"
+#include "potato/analysis/utils.hpp"
 #include "potato/util/common.hpp"
 
 namespace potato::analysis {
