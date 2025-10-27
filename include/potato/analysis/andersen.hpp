@@ -24,7 +24,7 @@ struct aa_lattice : pt_lattice_base< aa_lattice > {
     void print(llvm::raw_ostream &) const override;
 
 private:
-    bool unknown;
+    bool unknown = false;
     llvm::DenseSet< mlir::LatticeAnchor > pointees;
 };
 
