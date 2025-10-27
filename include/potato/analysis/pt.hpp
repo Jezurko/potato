@@ -81,6 +81,11 @@ struct pt_lattice_base : mlir::AnalysisState {
                 solver->enqueue({solver->getProgramPointAfter(dep), analysis});
     }
 
+    // not const since lookup can modify some datastructures
+    alias_res alias(derived_t *rhs) {
+        return static_cast< derived_t & >(*this).alias_impl(rhs);
+    }
+
     // Subscribe an analysis (including the pt analysis itself) to the updates
     // of this lattice. If the lattice is updated, the registered analyses are
     // invoked on the users of the anchor value

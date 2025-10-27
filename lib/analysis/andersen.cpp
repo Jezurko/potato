@@ -64,6 +64,26 @@ namespace potato::analysis {
         os << "}\n";
     }
 
+    alias_res aa_lattice::alias_impl(aa_lattice *rhs) {
+        auto is_mem_loc = [](const mlir::LatticeAnchor &anchor) -> bool {
+            return mlir::isa_and_present< mem_loc_anchor >(
+                mlir::dyn_cast< mlir::GenericLatticeAnchor * >(anchor)
+            );
+        };
+
+        if (unknown || rhs->unknown)
+            return alias_kind::MayAlias;
+        if (sets_intersect(pointees, rhs->pointees)) {
+            if (pointees.size() == 1 && rhs->pointees.size() == 1) {
+                // memory location can abstract multiple allocations
+                return is_mem_loc(*pointees.begin()) ?
+                    alias_kind::MayAlias : alias_kind::MustAlias;
+            }
+            return alias_kind::MayAlias;
+        }
+        return alias_kind::NoAlias;
+    }
+
     void aa_analysis::register_anchors() {}
     void aa_analysis::set_to_entry_state(aa_lattice *lattice) { assert(false); }
 } // namespace potato::analysis
