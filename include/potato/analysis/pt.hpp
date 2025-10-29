@@ -291,9 +291,15 @@ public:
             if (!callable_body)
                 continue;
 
-            auto fn_args = callable_body->getArguments();
-            for (auto &&[fn_arg, call_arg] : llvm::zip(fn_args, arg_lattices))
+            // Using mutable operand range because the non-mutable iterator provides
+            // mlir values, not operands
+            for (auto &&[fn_arg, call_arg_op] :
+                llvm::zip(callable_body->getArguments(), call.getArgOperandsMutable()))
+            {
+                auto call_arg = arg_lattices[call_arg_op.getOperandNumber()];
                 join(getOrCreate< pt_lattice >(fn_arg), *call_arg);
+            }
+
             callable_body->walk([&](mlir_operation *op) {
                 if (!op->hasTrait< mlir::OpTrait::ReturnLike >())
                     return;
