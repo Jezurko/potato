@@ -26,13 +26,13 @@ namespace potato::pt {
             solver.load< mlir::dataflow::DeadCodeAnalysis >();
 
             // Load our analysis
-            solver.load< analysis::pt_analysis< analysis::aa_lattice > >();
+            solver.load< analysis::aa_analysis >();
 
             if (failed(solver.initializeAndRun(root)))
                 signalPassFailure();
 
             if (print_lattice)
-                analysis::print_analysis_result(solver, root, llvm::outs());
+                analysis::aa_analysis::print_analysis(root, solver, llvm::outs());
             test::check_aliases< analysis::aa_lattice >(solver, root);
             //if (print_stats)
             //    analysis::print_analysis_stats(solver, root, llvm::outs());
