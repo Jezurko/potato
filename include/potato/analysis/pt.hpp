@@ -600,8 +600,11 @@ public:
             if (ret_op->hasTrait< mlir::OpTrait::ReturnLike >()) {
                 auto var_state =
                     getOrCreate< pt_lattice >(getLatticeAnchor< named_val_anchor >(op.getOperation()));
-                for (auto ret_val : ret_op->getOperands())
-                    join(var_state, *getOrCreate< pt_lattice >(ret_val));
+                for (auto ret_val : ret_op->getOperands()) {
+                    auto ret_lat = getOrCreate< pt_lattice >(ret_val);
+                    ret_lat->add_user(op, this);
+                    join(var_state, *ret_lat);
+                }
             }
         }
         return mlir::success();
