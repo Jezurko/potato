@@ -76,9 +76,8 @@ struct pt_lattice_base : mlir::AnalysisState {
             for (mlir_operation *user : value.getUsers())
                 for (dfa *analysis : use_def_subs)
                    solver->enqueue({solver->getProgramPointAfter(user), analysis});
-        for (auto dep : extra_deps)
-            for (dfa *analysis : use_def_subs)
-                solver->enqueue({solver->getProgramPointAfter(dep), analysis});
+        for (auto [dep, dep_analysis] : extra_deps)
+            solver->enqueue({solver->getProgramPointAfter(dep), dep_analysis});
     }
 
     // not const since lookup can modify some datastructures
@@ -98,11 +97,11 @@ struct pt_lattice_base : mlir::AnalysisState {
     // %set = deref %ptr
     // In this case %set -> {y} and if the points-to set of x gets updated
     // it has to be updated as well
-    void add_user(mlir_operation *op) { extra_deps.insert(op); }
+    void add_user(mlir_operation *op, dfa *analysis) { extra_deps.insert({op, analysis}); }
 private:
     llvm::SetVector< dfa *, llvm::SmallVector< dfa *, 4 >, llvm::SmallPtrSet< dfa *, 4 > >
         use_def_subs;
-    llvm::SmallPtrSet< mlir_operation *, 8 > extra_deps;
+    llvm::SetVector< std::pair< mlir_operation *, dfa * > > extra_deps;
 };
 
 // Heavily inspired by (Abstract)SparseForwardDataFlowAnalysis.
@@ -581,11 +580,13 @@ public:
         return mlir::success();
     }
 
-    logical_result visit_pt_op(pt::DereferenceOp, const_lattices_ref operand_lts, lattices_ref res_lts) {
+    logical_result visit_pt_op(pt::DereferenceOp op, const_lattices_ref operand_lts, lattices_ref res_lts) {
         for (auto res_lat : res_lts) {
             for (auto operand_lat : operand_lts) {
                 for (const auto &pointee : operand_lat->get_pointees()) {
-                    join(res_lat, *getOrCreate< pt_lattice >(pointee));
+                    auto pointee_lat = getOrCreate< pt_lattice >(pointee);
+                    pointee_lat->add_user(op, this);
+                    join(res_lat, *pointee_lat);
                 }
             }
         }
