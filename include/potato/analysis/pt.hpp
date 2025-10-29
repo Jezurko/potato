@@ -650,11 +650,32 @@ public:
             });
     }
 
+    static void print_analysis(mlir_operation *root, mlir::DataFlowSolver &solver, llvm::raw_ostream &os) {
+        llvm::DenseSet< lattice_anchor > visited;
+        auto visit_anchor([&](const auto &anchor, auto &visitor) -> void {
+            auto [it, inserted] = visited.insert(anchor);
+            if (!inserted)
+                return;
+            auto state = solver.lookupState< pt_lattice >(anchor);
+            if (!state)
+                return;
+            state->print(os);
+            for (const auto &pointee : state->get_pointees())
+                visitor(pointee, visitor);
+        });
+        root->walk([&](mlir_operation *op) {
+            for (mlir_value res : op->getResults())
+                visit_anchor(lattice_anchor(res), visit_anchor);
+        });
+        root->walk([&](mlir_block *op) {
+            for (mlir_value arg : op->getArguments())
+                visit_anchor(lattice_anchor(arg), visit_anchor);
+        });
+    }
+
     protected:
     symbol_table_collection tables;
 };
-
-void print_analysis_result(mlir::DataFlowSolver &solver, mlir_operation *op, llvm::raw_ostream &os);
 
 void print_analysis_stats(mlir::DataFlowSolver &solver, mlir_operation *op, llvm::raw_ostream &os);
 
