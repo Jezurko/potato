@@ -210,6 +210,7 @@ public:
            // Do I want to require this?
            registerAnchorKind< mlir::dataflow::CFGEdge >();
            registerAnchorKind< mem_loc_anchor >();
+           registerAnchorKind< named_val_anchor >();
            register_anchors_impl();
     }
 
