@@ -279,7 +279,6 @@ public:
     logical_result visit_fptr_call(
         mlir::CallOpInterface call, const_lattices_ref arg_lattices, lattices_ref res_lattices
     ) {
-        return mlir::failure();
         auto callable = mlir::dyn_cast< mlir_value >(call.getCallableForCallee());
         if (!callable)
             return mlir::failure();
