@@ -262,15 +262,17 @@ public:
     }
 
     llvm::SmallVector< mlir::CallableOpInterface > fptr_to_callables(mlir_value fptr) {
-        auto fptr_pointees = getOrCreate< pt_lattice >(fptr)->get_pointees();
+        const auto &fptr_pointees = getOrCreate< pt_lattice >(fptr)->get_pointees();
         llvm::SmallVector< mlir::CallableOpInterface > callables;
         callables.reserve(fptr_pointees.size());
 
         for (const auto &pointee : fptr_pointees) {
-            auto pointee_pp = mlir::dyn_cast< ppoint >(pointee);
-            if (!pointee_pp)
+            // TODO: Potentially support callables that aren't named functions?
+            auto generic_anchor = mlir::dyn_cast< mlir::GenericLatticeAnchor * >(pointee);
+            auto named_val = mlir::dyn_cast_if_present< named_val_anchor >(generic_anchor);
+            if (!named_val)
                 continue;
-            if (auto callable = mlir::dyn_cast_if_present< mlir::CallableOpInterface >(pointee_pp->getOperation()))
+            if (auto callable = mlir::dyn_cast_if_present< mlir::CallableOpInterface >(named_val->getValue()))
                 callables.push_back(callable);
         }
         // TODO: Add possibility to error out on non-funciton pointee
