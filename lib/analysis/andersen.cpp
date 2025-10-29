@@ -60,8 +60,10 @@ namespace potato::analysis {
 
         std::string sep = "";
         os << "{";
-        for (const auto &pointee : pointees)
+        for (const auto &pointee : pointees) {
             os << sep << pointee;
+            sep = ", ";
+        }
         os << "}\n";
     }
 
