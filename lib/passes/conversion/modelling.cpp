@@ -43,12 +43,12 @@ namespace potato::conv::modelling
                             continue;
                         case arg_effect::alloc:
                         case arg_effect::static_alloc: {
-                            auto alloc = builder.create< pt::AllocOp >(loc, ptr_type);
-                            builder.create< pt::AssignOp >(loc, arg, alloc);
+                            auto alloc = pt::AllocOp::create(builder, loc, ptr_type);
+                            pt::AssignOp::create(builder, loc, arg, alloc);
                             break;
                         }
                         case arg_effect::realloc_ptr: {
-                            auto alloc = builder.create< pt::AllocOp >(loc, ptr_type);
+                            auto alloc = pt::AllocOp::create(builder, loc, ptr_type);
                             reallocated.push_back(arg);
                             reallocated.push_back(alloc);
                             break;
@@ -57,7 +57,7 @@ namespace potato::conv::modelling
                             src.push_back(arg);
                             break;
                         case arg_effect::deref_src: {
-                            auto deref = builder.create< pt::DereferenceOp >(loc, ptr_type, arg);
+                            auto deref = pt::DereferenceOp::create(builder, loc, ptr_type, arg);
                             src.push_back(deref);
                             break;
                         }
@@ -75,9 +75,9 @@ namespace potato::conv::modelling
                 if (src.size() == 1)
                     copy_val = src[0];
                 else
-                    copy_val = builder.create< pt::CopyOp >(loc, ptr_type, src);
+                    copy_val = pt::CopyOp::create(builder, loc, ptr_type, src);
                 for (const auto &trg : assign_trgs) {
-                    builder.create< pt::AssignOp >(loc, trg, copy_val);
+                    pt::AssignOp::create(builder, loc, trg, copy_val);
                 }
             }
             for (const auto &model : models) {
@@ -87,16 +87,16 @@ namespace potato::conv::modelling
                         break;
                     case ret_effect::alloc:
                     case ret_effect::static_alloc:
-                        ret_op = builder.create< pt::AllocOp >(loc, ptr_type);
+                        ret_op = pt::AllocOp::create(builder, loc, ptr_type);
                         break;
                     case ret_effect::realloc_res:
-                        ret_op = builder.create< pt::CopyOp >(loc, ptr_type, reallocated);
+                        ret_op = pt::CopyOp::create(builder, loc, ptr_type, reallocated);
                         break;
                     case ret_effect::copy_trg:
-                        ret_op = builder.create< pt::CopyOp >(loc, ptr_type, src);
+                        ret_op = pt::CopyOp::create(builder, loc, ptr_type, src);
                         break;
                     case ret_effect::unknown:
-                        ret_op = builder.create< pt::UnknownPtrOp >(loc, ptr_type);
+                        ret_op = pt::UnknownPtrOp::create(builder, loc, ptr_type);
                 }
             }
             return ret_op;
@@ -113,12 +113,14 @@ namespace potato::conv::modelling
             auto entry = fn.addEntryBlock();
             builder.setInsertionPointToStart(entry);
             if (auto ret_op = create_body(entry->getArguments(), fn.getLoc(), builder, fn_models)) {
-                builder.create< pt::YieldOp >(fn.getLoc(), ret_op->getResults());
+                pt::YieldOp::create(builder, fn.getLoc(), ret_op->getResults());
             } else {
                 value_range results{};
                 if (fn.getNumResults() != 0)
-                    results = {builder.create< pt::ConstantOp >(fn.getLoc(), pt::PointerType::get(builder.getContext()))};
-                builder.create< pt::YieldOp >(fn.getLoc(), results);
+                    results = {pt::ConstantOp::create(
+                        builder, fn.getLoc(), pt::PointerType::get(builder.getContext())
+                    )};
+                pt::YieldOp::create(builder, fn.getLoc(), results);
             }
         }
 
@@ -143,7 +145,9 @@ namespace potato::conv::modelling
                             old_res.replaceAllUsesWith(new_res);
                         }
                     } else {
-                        auto constant = builder.create< pt::ConstantOp >(user->getLoc(), pt::PointerType::get(builder.getContext()));
+                        auto constant = pt::ConstantOp::create(
+                            builder, user->getLoc(), pt::PointerType::get(builder.getContext())
+                        );
                         for (auto old_res : old_results)
                             old_res.replaceAllUsesWith(constant);
                     }
