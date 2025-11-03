@@ -72,7 +72,7 @@ namespace potato::conv::llvmtopt
                     typeConverter->convertType(op.getRes().getType()),
                     adaptor.getPtr()
             );
-            rewriter.create< pt::AssignOp >(op.getLoc(), adaptor.getPtr(), adaptor.getVal());
+            pt::AssignOp::create(rewriter, op.getLoc(), adaptor.getPtr(), adaptor.getVal());
             return mlir::success();
         }
     };
@@ -91,7 +91,7 @@ namespace potato::conv::llvmtopt
                     typeConverter->convertType(op.getRes().getType()),
                     adaptor.getPtr()
             );
-            rewriter.create< pt::AssignOp >(op.getLoc(), adaptor.getPtr(), adaptor.getVal());
+            pt::AssignOp::create(rewriter, op.getLoc(), adaptor.getPtr(), adaptor.getVal());
             return mlir::success();
         }
     };
@@ -106,7 +106,7 @@ namespace potato::conv::llvmtopt
                                        adaptor_t adaptor,
                                        mlir::ConversionPatternRewriter &rewriter
         ) const override {
-            auto src_deref = rewriter.create< pt::DereferenceOp >(
+            auto src_deref = pt::DereferenceOp::create(rewriter,
                     op.getLoc(),
                     this->getTypeConverter()->convertType(adaptor.getSrc().getType()),
                     adaptor.getSrc()
@@ -148,8 +148,8 @@ namespace potato::conv::llvmtopt
                                        mlir::ConversionPatternRewriter &rewriter
         ) const override {
             auto paren_fn = op->getParentOfType< mlir::FunctionOpInterface >();
-            auto new_alloc = rewriter.create< pt::AllocOp >(op.getLoc(), this->getTypeConverter()->convertType(adaptor.getArgList().getType()));
-            rewriter.create< pt::AssignOp >(
+            auto new_alloc = pt::AllocOp::create(rewriter, op.getLoc(), this->getTypeConverter()->convertType(adaptor.getArgList().getType()));
+            pt::AssignOp::create(rewriter,
                 op.getLoc(),
                 new_alloc,
                 paren_fn.getArgument(paren_fn.getNumArguments() - 1)
@@ -539,7 +539,7 @@ namespace potato::conv::llvmtopt
             adaptor_t adaptor,
             mlir::ConversionPatternRewriter &rewriter
         ) const override {
-            auto global = rewriter.create< pt::NamedVarOp >(op.getLoc(), op.getName(), false);
+            auto global = pt::NamedVarOp::create(rewriter, op.getLoc(), op.getName(), false);
             auto &orig_init = adaptor.getInitializer();
             auto &glob_init = global.getInit();
 
@@ -554,24 +554,24 @@ namespace potato::conv::llvmtopt
                auto constant = [&]() {
                 if (mlir::isa< mlir::LLVM::LLVMPointerType >(op.getType())) {
                     if (auto symbol = mlir::dyn_cast< mlir::FlatSymbolRefAttr >(val_attr.value())) {
-                        return rewriter.create< pt::AddressOp >(
+                        return pt::AddressOp::create(rewriter,
                                 op.getLoc(),
                                 typeConverter->convertType(op.getGlobalType()),
                                 symbol
                         ).getResult();
                     }
-                    return rewriter.create< pt::UnknownPtrOp >(
+                    return pt::UnknownPtrOp::create(rewriter,
                             op.getLoc(),
                             typeConverter->convertType(op.getGlobalType())
                     ).getResult();
                 } else {
-                    return rewriter.create< pt::ConstantOp >(
+                    return pt::ConstantOp::create(rewriter,
                             op.getLoc(),
                             typeConverter->convertType(op.getGlobalType())
                     ).getResult();
                 }
                }();
-               rewriter.create< pt::YieldOp >(op.getLoc(), constant);
+               pt::YieldOp::create(rewriter, op.getLoc(), constant);
             }
             rewriter.replaceOp(op, global);
             return mlir::success();
@@ -624,7 +624,7 @@ namespace potato::conv::llvmtopt
                     result.getConvertedTypes(),
                     type.isVarArg()
             );
-            auto new_fn = rewriter.create< pt::FuncOp >(
+            auto new_fn = pt::FuncOp::create(rewriter,
                     op.getLoc(),
                     op.getNameAttr(),
                     fn_type,

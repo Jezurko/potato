@@ -30,9 +30,9 @@ namespace potato::conv {
                         return mlir::Value();
                     }
 
-                    return builder
-                        .create< mlir::UnrealizedConversionCastOp >(loc, resultType, inputs)
-                        .getResult(0);
+                    return mlir::UnrealizedConversionCastOp::create(
+                        builder, loc, resultType, inputs
+                    ).getResult(0);
                 };
 
             addTargetMaterialization(materializer);
