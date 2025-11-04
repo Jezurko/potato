@@ -139,6 +139,13 @@ namespace potato::conv::llvmtopt {
         }
     };
 
+    using store_patterns = util::type_list<
+        store_op,
+        memcpy_insensitive< mlir::LLVM::MemcpyOp >,
+        memcpy_insensitive< mlir::LLVM::MemmoveOp >,
+        memset_insensitive
+    >;
+
     struct va_start : mlir::OpConversionPattern< mlir::LLVM::VaStartOp > {
         using source = mlir::LLVM::VaStartOp ;
         using base = mlir::OpConversionPattern< source >;
@@ -148,18 +155,7 @@ namespace potato::conv::llvmtopt {
                                        adaptor_t adaptor,
                                        mlir::ConversionPatternRewriter &rewriter
         ) const override {
-            auto paren_fn = op->getParentOfType< mlir::FunctionOpInterface >();
-            auto new_alloc = pt::AllocOp::create(rewriter, op.getLoc(), this->getTypeConverter()->convertType(adaptor.getArgList().getType()));
-            pt::AssignOp::create(rewriter,
-                op.getLoc(),
-                new_alloc,
-                paren_fn.getArgument(paren_fn.getNumArguments() - 1)
-            );
-            rewriter.replaceOpWithNewOp< pt::AssignOp >(
-                 op,
-                 adaptor.getArgList(),
-                 new_alloc
-            );
+            rewriter.replaceOpWithNewOp< pt::VaStartOp >(op, adaptor.getArgList());
             return mlir::success();
         }
     };
@@ -173,22 +169,41 @@ namespace potato::conv::llvmtopt {
                                        adaptor_t adaptor,
                                        mlir::ConversionPatternRewriter &rewriter
         ) const override {
+            auto src_deref = pt::DereferenceOp::create(
+                rewriter,
+                op.getLoc(),
+                pt::PointerType::get(rewriter.getContext()), adaptor.getSrcList()
+            );
             rewriter.replaceOpWithNewOp< pt::AssignOp >(
                  op,
                  adaptor.getDestList(),
-                 adaptor.getSrcList()
+                 src_deref
             );
             return mlir::success();
         }
     };
 
+    struct va_arg : mlir::OpConversionPattern< mlir::LLVM::VaArgOp > {
+        using source = mlir::LLVM::VaArgOp ;
+        using base = mlir::OpConversionPattern< source >;
+        using base::base;
+        using adaptor_t = typename source::Adaptor;
+        logical_result matchAndRewrite(source op,
+                                       adaptor_t adaptor,
+                                       mlir::ConversionPatternRewriter &rewriter
+        ) const override {
+            rewriter.replaceOpWithNewOp< pt::DereferenceOp >(
+                 op,
+                 typeConverter->convertType(op.getRes().getType()),
+                 adaptor.getArg()
+            );
+            return mlir::success();
+        }
+    };
 
-    using store_patterns = util::type_list<
-        store_op,
-        memcpy_insensitive< mlir::LLVM::MemcpyOp >,
-        memcpy_insensitive< mlir::LLVM::MemmoveOp >,
-        memset_insensitive,
+    using vararg_patterns = util::type_list<
         va_start,
+        va_arg,
         va_copy
     >;
 
@@ -758,7 +773,8 @@ namespace potato::conv::llvmtopt {
         load_patterns,
         named_vars_patterns,
         store_patterns,
-        unknown_patterns
+        unknown_patterns,
+        vararg_patterns
     >;
 
     struct LLVMIRToPoTAToPass : impl::LLVMIRToPoTAToBase< LLVMIRToPoTAToPass > {
