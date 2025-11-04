@@ -27,6 +27,7 @@ using result_range = mlir::ResultRange;
 using value_range = mlir::ValueRange;
 
 using func_iface = mlir::FunctionOpInterface;
+using callable_iface = mlir::CallableOpInterface;
 using branch_iface = mlir::BranchOpInterface;
 using symbol_iface = mlir::SymbolOpInterface;
 
