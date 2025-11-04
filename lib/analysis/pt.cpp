@@ -1,10 +1,23 @@
 #include "potato/analysis/pt.hpp"
-#include "potato/analysis/andersen.hpp"
 #include "potato/util/common.hpp"
 
 namespace potato::analysis {
-void print_analysis_result(mlir::DataFlowSolver &solver, mlir_operation *op, llvm::raw_ostream &os)
-{
-    //potato::util::print_analysis_result< aa_lattice >(solver, op, os);
+mlir_loc mem_loc_anchor::getLoc() const { return getValue().first->getLoc(); }
+
+void mem_loc_anchor::print(llvm::raw_ostream &os) const {
+    os << "mem_alloc at: " << getLoc();
+    if (getValue().second != 0)
+        os << "with unique id " << getValue().second;
+}
+
+mlir_loc named_val_anchor::getLoc() const { return getValue()->getLoc(); }
+
+void named_val_anchor::print(llvm::raw_ostream &os) const {
+    if (auto symbol = mlir::dyn_cast< symbol_iface >(getValue()))
+        os << symbol.getName();
+    else
+        os << "named_val: " << *getValue();
+}
+
 }
 } // namespace potato::analysis
