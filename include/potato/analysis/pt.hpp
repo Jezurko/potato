@@ -390,7 +390,10 @@ public:
                     lattice = {vararg_lattice};
                 }
 
-                join(lattice.value(), *get_lattice_element_for(getProgramPointBefore(entry_block), arg.value()));
+                join(
+                    lattice.value(),
+                    *get_lattice_element_for(getProgramPointBefore(entry_block), arg.value())
+                );
             }
         }
     }
@@ -542,7 +545,9 @@ public:
 
             if (op == branch) {
                 operands = branch.getEntrySuccessorOperands(successor);
-            } else if (auto region_terminator = mlir::dyn_cast< mlir::RegionBranchTerminatorOpInterface >(op)) {
+            } else if (auto region_terminator =
+                mlir::dyn_cast< mlir::RegionBranchTerminatorOpInterface >(op)
+            ) {
                 operands = region_terminator.getSuccessorOperands(successor);
             }
 
@@ -551,7 +556,9 @@ public:
                 return set_all_to_entry_state(lattices);
 
             mlir::ValueRange inputs = preds->getSuccessorInputs(op);
-            assert(inputs.size() == operands->size() && "expected the same number of successor inputs as operands");
+            assert(inputs.size() == operands->size() &&
+                "expected the same number of successor inputs as operands"
+            );
 
             unsigned first_idx = 0;
             if (inputs.size() != lattices.size()) {
@@ -570,7 +577,10 @@ public:
                     mlir_region *region = point->getBlock()->getParent();
                     visit_non_control_flow_arguments_impl(
                         branch,
-                        mlir::RegionSuccessor(region, region->getArguments().slice(first_idx, inputs.size())),
+                        mlir::RegionSuccessor(
+                            region,
+                            region->getArguments().slice(first_idx, inputs.size())
+                        ),
                         lattices,
                         first_idx
                     );
@@ -592,7 +602,10 @@ public:
 
     logical_result visit_pt_op(pt::AllocOp op, const_lattices_ref operand_lts, lattices_ref res_lts) {
         for (auto res_lat : res_lts)
-            propagateIfChanged(res_lat, res_lat->insert(getLatticeAnchor< mem_loc_anchor >(op.getOperation())));
+            propagateIfChanged(
+                res_lat,
+                res_lat->insert(getLatticeAnchor< mem_loc_anchor >(op.getOperation()))
+            );
         return mlir::success();
     }
 
@@ -613,7 +626,11 @@ public:
         return mlir::success();
     }
 
-    logical_result visit_pt_op(pt::DereferenceOp op, const_lattices_ref operand_lts, lattices_ref res_lts) {
+    logical_result visit_pt_op(
+        pt::DereferenceOp op,
+        const_lattices_ref operand_lts,
+        lattices_ref res_lts
+    ) {
         for (auto res_lat : res_lts) {
             for (auto operand_lat : operand_lts) {
                 for (const auto &pointee : operand_lat->get_pointees()) {
@@ -657,13 +674,20 @@ public:
         for (auto operand_lt : operand_lts)
             for (auto pointee : operand_lt->get_pointees()) {
                 auto pointee_lat = getOrCreate< pt_lattice >(pointee);
-                propagateIfChanged(pointee_lat, pointee_lat->insert(getLatticeAnchor< var_arg_anchor >(parent_callable)));
+                propagateIfChanged(
+                    pointee_lat,
+                    pointee_lat->insert(getLatticeAnchor< var_arg_anchor >(parent_callable))
+                );
             }
 
         return mlir::success();
     }
 
-    logical_result visit_unrealized_cast(mlir::UnrealizedConversionCastOp, const_lattices_ref operand_lts, lattices_ref res_lts) {
+    logical_result visit_unrealized_cast(
+        mlir::UnrealizedConversionCastOp,
+        const_lattices_ref operand_lts,
+        lattices_ref res_lts
+    ) {
         for (auto [res_lt, operand_lt] : llvm::zip(res_lts, operand_lts))
             join(res_lt, *operand_lt);
         return mlir::success();
@@ -701,7 +725,11 @@ public:
             });
     }
 
-    static void print_analysis(mlir_operation *root, mlir::DataFlowSolver &solver, llvm::raw_ostream &os) {
+    static void print_analysis(
+        mlir_operation *root,
+        mlir::DataFlowSolver &solver,
+        llvm::raw_ostream &os
+    ) {
         llvm::DenseSet< lattice_anchor > visited;
         auto visit_anchor([&](const auto &anchor, auto &visitor) -> void {
             auto [it, inserted] = visited.insert(anchor);
