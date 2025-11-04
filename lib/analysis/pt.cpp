@@ -19,5 +19,14 @@ void named_val_anchor::print(llvm::raw_ostream &os) const {
         os << "named_val: " << *getValue();
 }
 
+mlir_loc var_arg_anchor::getLoc() const { return getValue().first->getLoc(); }
+
+void var_arg_anchor::print(llvm::raw_ostream &os) const {
+    os << "vararg anchor";
+    if (auto func = mlir::dyn_cast< func_iface >(getValue().first))
+        os << " for: " << func.getName();
+    os << " at: " << getLoc();
+    if (getValue().second != 0)
+        os << "with unique id " << getValue().second;
 }
 } // namespace potato::analysis

@@ -57,6 +57,16 @@ struct mem_loc_anchor : mlir::GenericLatticeAnchorBase< mem_loc_anchor, mem_loc 
     void print(llvm::raw_ostream &) const override;
 };
 
+struct var_arg_anchor : mlir::GenericLatticeAnchorBase< var_arg_anchor, mem_loc > {
+    using Base::Base;
+
+    callable_iface getCallable() const { return mlir::cast< callable_iface >(getValue().first); }
+    size_t getUniquer() const { return getValue().second; }
+
+    mlir_loc getLoc() const override;
+    void print(llvm::raw_ostream &) const override;
+};
+
 struct named_val_anchor : mlir::GenericLatticeAnchorBase< named_val_anchor, mlir_operation * > {
     using Base::Base;
 
@@ -211,6 +221,7 @@ public:
            registerAnchorKind< mlir::dataflow::CFGEdge >();
            registerAnchorKind< mem_loc_anchor >();
            registerAnchorKind< named_val_anchor >();
+           registerAnchorKind< var_arg_anchor >();
            register_anchors_impl();
     }
 
@@ -360,10 +371,27 @@ public:
             set_all_to_entry_state(arg_lattices);
         }
 
+        pt_lattice *vararg_lattice = nullptr;
         for (mlir_operation *callsite : callsites->getKnownPredecessors()) {
             auto call = cast< mlir::CallOpInterface >(callsite);
-            for (auto [arg, lattice] : llvm::zip(call.getArgOperands(), arg_lattices))
-                join(lattice, *get_lattice_element_for(getProgramPointBefore(entry_block), arg));
+            for (auto [arg, lattice] :
+                    llvm::zip_longest(call.getArgOperands(), arg_lattices)
+            ) {
+                // Arg not assigned a value?
+                if (!arg)
+                    continue;
+
+                // VarArg call
+                if (!lattice) {
+                    if (!vararg_lattice)
+                        vararg_lattice = getOrCreate< pt_lattice >(
+                            getLatticeAnchor< var_arg_anchor >(callable)
+                        );
+                    lattice = {vararg_lattice};
+                }
+
+                join(lattice.value(), *get_lattice_element_for(getProgramPointBefore(entry_block), arg.value()));
+            }
         }
     }
 
@@ -621,6 +649,20 @@ public:
         return mlir::success();
     }
 
+    logical_result visit_pt_op(pt::VaStartOp op, const_lattices_ref operand_lts, lattices_ref res_lts) {
+        auto parent_callable = op->getParentOfType< callable_iface >();
+        if (!parent_callable)
+            return mlir::failure();
+
+        for (auto operand_lt : operand_lts)
+            for (auto pointee : operand_lt->get_pointees()) {
+                auto pointee_lat = getOrCreate< pt_lattice >(pointee);
+                propagateIfChanged(pointee_lat, pointee_lat->insert(getLatticeAnchor< var_arg_anchor >(parent_callable)));
+            }
+
+        return mlir::success();
+    }
+
     logical_result visit_unrealized_cast(mlir::UnrealizedConversionCastOp, const_lattices_ref operand_lts, lattices_ref res_lts) {
         for (auto [res_lt, operand_lt] : llvm::zip(res_lts, operand_lts))
             join(res_lt, *operand_lt);
@@ -642,7 +684,8 @@ public:
                    pt::CopyOp,
                    pt::DereferenceOp,
                    pt::NamedVarOp,
-                   pt::UnknownPtrOp >
+                   pt::UnknownPtrOp,
+                   pt::VaStartOp >
             ([&](auto &pt_op) {
                 return visit_pt_op_impl(pt_op, operand_lts, res_lts);
             })
