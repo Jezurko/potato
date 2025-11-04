@@ -261,9 +261,9 @@ public:
         set_all_to_entry_state(res_lattices);
     }
 
-    llvm::SmallVector< mlir::CallableOpInterface > fptr_to_callables(mlir_value fptr) {
+    llvm::SmallVector< callable_iface > fptr_to_callables(mlir_value fptr) {
         const auto &fptr_pointees = getOrCreate< pt_lattice >(fptr)->get_pointees();
-        llvm::SmallVector< mlir::CallableOpInterface > callables;
+        llvm::SmallVector< callable_iface > callables;
         callables.reserve(fptr_pointees.size());
 
         for (const auto &pointee : fptr_pointees) {
@@ -272,7 +272,7 @@ public:
             auto named_val = mlir::dyn_cast_if_present< named_val_anchor >(generic_anchor);
             if (!named_val)
                 continue;
-            if (auto callable = mlir::dyn_cast_if_present< mlir::CallableOpInterface >(named_val->getValue()))
+            if (auto callable = mlir::dyn_cast_if_present< callable_iface >(named_val->getValue()))
                 callables.push_back(callable);
         }
         // TODO: Add possibility to error out on non-funciton pointee
@@ -315,7 +315,7 @@ public:
         const_lattices_ref operand_lattices,
         lattices_ref result_lattices
     ) {
-        auto callable_op = dyn_cast_if_present< mlir::CallableOpInterface >(
+        auto callable_op = dyn_cast_if_present< callable_iface >(
             call.resolveCallableInTable(&tables)
         );
         if (!getSolverConfig().isInterprocedural() ||
@@ -348,10 +348,7 @@ public:
         return mlir::success();
     }
 
-    void visit_callable_operation(
-        mlir::CallableOpInterface callable,
-        lattices_ref arg_lattices
-    ) {
+    void visit_callable_operation(callable_iface callable, lattices_ref arg_lattices) {
         mlir_block *entry_block = &callable.getCallableRegion()->front();
         const auto *callsites = getOrCreateFor< mlir::dataflow::PredecessorState >(
             getProgramPointBefore(entry_block), getProgramPointAfter(callable));
@@ -461,7 +458,7 @@ public:
         }
 
         if (block->isEntryBlock()) {
-            auto callable = mlir::dyn_cast< mlir::CallableOpInterface >(block->getParentOp());
+            auto callable = mlir::dyn_cast< callable_iface >(block->getParentOp());
             if (callable && callable.getCallableRegion() == block->getParent())
                 return visit_callable_operation(callable, arg_lattices);
 
