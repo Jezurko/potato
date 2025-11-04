@@ -7,15 +7,20 @@ void may_alias(void *p, void *q) { return; }
 void no_alias(void *p, void *q) { return; }
 
 #include <stdarg.h>
-void *foo(int c, void *a, ...) {
-    return a;
+int *foo(int c, void *a, ...) {
+    int *res;
+    va_list ap;
+    va_start(ap, a);
+    res = va_arg(ap, int *);
+    va_end(ap);
+    return res;
 }
 
 int x;
 int y;
 int z;
 int main() {
-    void *p = foo(2, &x, &y);
+    int *p = foo(2, &z, &x, &y);
     may_alias(p, &x);
     may_alias(p, &y);
     no_alias(p, &z);
