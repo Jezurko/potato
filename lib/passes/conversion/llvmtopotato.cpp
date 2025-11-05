@@ -463,7 +463,17 @@ namespace potato::conv::llvmtopt {
                                        mlir::ConversionPatternRewriter &rewriter
         ) const override {
             if (auto res = op.getRes()) {
-                rewriter.replaceOpWithNewOp< pt::UnknownPtrOp >(op, this->typeConverter->convertType(res.getType()));
+                if (op.getAsmString() == "bswap $0")
+                    rewriter.replaceOpWithNewOp< pt::CopyOp >(
+                        op,
+                        this->typeConverter->convertType(res.getType()),
+                        adaptor.getOperands()
+                    );
+                else
+                    rewriter.replaceOpWithNewOp< pt::UnknownPtrOp >(
+                        op,
+                        this->typeConverter->convertType(res.getType())
+                    );
             } else {
                 rewriter.eraseOp(op);
             }
