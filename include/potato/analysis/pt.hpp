@@ -26,6 +26,7 @@ namespace potato::analysis {
 struct mem_loc : std::pair< mlir_operation *, size_t > {
     using pair_t = std::pair< mlir_operation *, size_t >;
     mem_loc(mlir_operation *op) : pair_t(op, 0) {}
+    mem_loc(mlir_operation *op, size_t uniquer) : pair_t(op, uniquer) {}
 
     friend struct ::llvm::DenseMapInfo< potato::analysis::mem_loc >;
 private:
@@ -201,6 +202,10 @@ private:
         branch_iface op, const_lattices_ref operand_lattices, lattices_ref res_lattices
     ) {
         return derived().visit_branch(op, operand_lattices, res_lattices);
+    }
+
+    void init_entry_func_impl(func_iface func, lattices_ref operand_lattices) {
+        return derived().init_entry_func(func, operand_lattices);
     }
 
     // derived_t has to provide a custom definition for the following methods:
@@ -475,6 +480,21 @@ public:
         return visit_operation_impl(op, operand_lattices, result_lattices);
     }
 
+    void init_entry_func(func_iface func, lattices_ref operands) {
+        if (operands.size() > 1 && func.getName() == "main") {
+            auto var_alloc = getLatticeAnchor< mem_loc_anchor >(func);
+            propagateIfChanged(
+                operands[1],
+                operands[1]->insert(var_alloc)
+            );
+            auto alloca_lattice = getOrCreate< pt_lattice >(var_alloc);
+            propagateIfChanged(
+                alloca_lattice,
+                alloca_lattice->insert(getLatticeAnchor< mem_loc_anchor >(func, 1))
+            );
+        }
+    }
+
     void visit_block(mlir_block *block) {
         if (block->getNumArguments() == 0)
             return;
@@ -489,6 +509,9 @@ public:
         }
 
         if (block->isEntryBlock()) {
+            if (auto fn = mlir::dyn_cast< func_iface >(block->getParentOp()))
+                init_entry_func_impl(fn, arg_lattices);
+
             auto callable = mlir::dyn_cast< callable_iface >(block->getParentOp());
             if (callable && callable.getCallableRegion() == block->getParent())
                 return visit_callable_operation(callable, arg_lattices);
