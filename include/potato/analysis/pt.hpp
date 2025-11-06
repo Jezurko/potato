@@ -15,6 +15,8 @@ POTATO_RELAX_WARNINGS
 #include <llvm/ADT/TypeSwitch.h>
 POTATO_UNRELAX_WARNINGS
 
+#include <ranges>
+
 #include "potato/dialect/ops.hpp"
 #include "potato/util/common.hpp"
 
@@ -309,11 +311,29 @@ public:
 
             // Using mutable operand range because the non-mutable iterator provides
             // mlir values, not operands
-            for (auto &&[fn_arg, call_arg_op] :
-                llvm::zip(callable_body->getArguments(), call.getArgOperandsMutable()))
+            pt_lattice *vararg_lattice = nullptr;
+            auto ops_range = call.getArgOperandsMutable();
+            auto operand_idx = [](mlir::OpOperand &o){ return o.getOperandNumber(); };
+            for (auto [fn_arg, call_arg_idx] :
+                llvm::zip_longest(
+                    callable_body->getArguments(),
+                    ops_range | std::views::transform(operand_idx))
+                )
             {
-                auto call_arg = arg_lattices[call_arg_op.getOperandNumber()];
-                join(getOrCreate< pt_lattice >(fn_arg), *call_arg);
+                if (!call_arg_idx)
+                    continue;
+                pt_lattice *arg_lattice = nullptr;
+                if (fn_arg) {
+                    arg_lattice = getOrCreate< pt_lattice >(fn_arg.value());
+                } else {
+                    if (!vararg_lattice)
+                        vararg_lattice = getOrCreate< pt_lattice >(
+                            getLatticeAnchor< var_arg_anchor >(callable)
+                        );
+                    arg_lattice = vararg_lattice;
+                }
+                auto call_arg = arg_lattices[call_arg_idx.value()];
+                join(arg_lattice, *call_arg);
             }
 
             callable_body->walk([&](mlir_operation *op) {
@@ -380,7 +400,7 @@ public:
         for (mlir_operation *callsite : callsites->getKnownPredecessors()) {
             auto call = cast< mlir::CallOpInterface >(callsite);
             for (auto [arg, lattice] :
-                    llvm::zip_longest(call.getArgOperands(), arg_lattices)
+                llvm::zip_longest(call.getArgOperands(), arg_lattices)
             ) {
                 // Arg not assigned a value?
                 if (!arg)
@@ -711,7 +731,7 @@ public:
         const_lattices_ref operand_lts,
         lattices_ref res_lts
     ) {
-        for (auto [res_lt, operand_lt] : llvm::zip(res_lts, operand_lts))
+        for (auto [res_lt, operand_lt] : llvm::zip_equal(res_lts, operand_lts))
             join(res_lt, *operand_lt);
         return mlir::success();
     }
