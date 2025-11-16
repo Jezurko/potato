@@ -402,6 +402,7 @@ namespace potato::conv::llvmtopt
         copy_op< mlir::LLVM::vector_reduce_smax >,
         copy_op< mlir::LLVM::ShuffleVectorOp >,
         copy_op< mlir::LLVM::ByteSwapOp >,
+        copy_op< mlir::LLVM::BitReverseOp >,
         shift_op< mlir::LLVM::ShlOp >,
         shift_op< mlir::LLVM::LShrOp >,
         shift_op< mlir::LLVM::AShrOp >,
