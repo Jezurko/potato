@@ -526,6 +526,8 @@ namespace potato::conv::llvmtopt
         constant_op< mlir::LLVM::CountLeadingZerosOp >,
         constant_op< mlir::LLVM::CountTrailingZerosOp >,
         constant_op< mlir::LLVM::CtPopOp >,
+        constant_op< mlir::LLVM::UCmpOp >,
+        constant_op< mlir::LLVM::SCmpOp >,
         zero_op
     >;
 
