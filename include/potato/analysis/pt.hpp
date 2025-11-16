@@ -481,7 +481,7 @@ public:
         if (auto branch = dyn_cast< mlir::RegionBranchOpInterface >(op)) {
             visit_region_successors(
                 getProgramPointAfter(branch), branch,
-                mlir::RegionBranchPoint::parent(), result_lattices
+                {branch, branch->getResults()}, result_lattices
             );
             return mlir::success();
         }
@@ -577,7 +577,7 @@ public:
 
     void visit_region_successors(
         ppoint point, mlir::RegionBranchOpInterface branch,
-        mlir::RegionBranchPoint successor,
+        mlir::RegionSuccessor successor,
         lattices_ref lattices)
     {
         const auto *preds = getOrCreateFor< mlir::dataflow::PredecessorState >(point, point);
@@ -610,7 +610,7 @@ public:
                         first_idx = mlir::cast< mlir::OpResult >(inputs.front()).getResultNumber();
                     visit_non_control_flow_arguments_impl(
                         branch,
-                        mlir::RegionSuccessor(branch->getResults().slice(first_idx, inputs.size())),
+                        mlir::RegionSuccessor(branch, branch->getResults().slice(first_idx, inputs.size())),
                         lattices,
                         first_idx
                     );
@@ -653,9 +653,8 @@ public:
     }
 
     logical_result visit_pt_op(pt::AssignOp, const_lattices_ref operand_lts, lattices_ref res_lts) {
-        for (const auto &pointee : operand_lts[0]->get_pointees()) {
+        for (const auto &pointee : operand_lts[0]->get_pointees())
             join(getOrCreate< pt_lattice >(pointee), *operand_lts[1]);
-        }
         return mlir::success();
     }
 
