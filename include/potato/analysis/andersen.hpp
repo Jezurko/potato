@@ -16,6 +16,7 @@ struct aa_lattice : pt_lattice_base< aa_lattice > {
     aa_lattice(lattice_anchor anchor) : pt_lattice_base(anchor), unknown(false) {};
     aa_lattice(mlir_value value) : pt_lattice_base(value), unknown(false) {};
 
+    bool is_unknown() const { return unknown; }
     change_result set_unknown();
     change_result join(const aa_lattice &);
     change_result insert(lattice_anchor);

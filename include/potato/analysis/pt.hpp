@@ -653,6 +653,10 @@ public:
     }
 
     logical_result visit_pt_op(pt::AssignOp, const_lattices_ref operand_lts, lattices_ref res_lts) {
+        if (operand_lts[0]->is_unknown()) {
+            all_unknown = true;
+            return mlir::failure();
+        }
         for (const auto &pointee : operand_lts[0]->get_pointees())
             join(getOrCreate< pt_lattice >(pointee), *operand_lts[1]);
         return mlir::success();
@@ -675,6 +679,10 @@ public:
     ) {
         for (auto res_lat : res_lts) {
             for (auto operand_lat : operand_lts) {
+                if (operand_lat->is_unknown()) {
+                    propagateIfChanged(res_lat, res_lat->set_unknown());
+                    break;
+                }
                 for (const auto &pointee : operand_lat->get_pointees()) {
                     auto pointee_lat = getOrCreate< pt_lattice >(pointee);
                     pointee_lat->add_user(op, this);
@@ -796,6 +804,7 @@ public:
 
     protected:
     symbol_table_collection tables;
+    bool all_unknown;
 };
 
 void print_analysis_stats(mlir::DataFlowSolver &solver, mlir_operation *op, llvm::raw_ostream &os);
