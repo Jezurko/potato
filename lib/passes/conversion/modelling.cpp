@@ -5,15 +5,19 @@ POTATO_UNRELAX_WARNINGS
 
 #include "potato/dialect/ops.hpp"
 #include "potato/dialect/types.hpp"
-#include "potato/passes/conversions.hpp"
-#include "potato/passes/modelling/config.hpp"
-#include "potato/passes/modelling/function_models.hpp"
+#include "potato/passes/conversion/conversions.hpp"
+#include "potato/passes/conversion/modelling/config.hpp"
+#include "potato/passes/conversion/modelling/function_models.hpp"
 #include "potato/util/common.hpp"
 
-namespace potato::conv::modelling
-{
-    struct FunctionModellingPass : FunctionModellingBase< FunctionModellingPass >
-    {
+namespace potato {
+#define GEN_PASS_DEF_FUNCTIONMODELLING
+#include "potato/passes/conversion/Conversions.h.inc"
+} // namespace potato
+
+namespace potato::conv::modelling {
+
+    struct FunctionModellingPass : impl::FunctionModellingBase< FunctionModellingPass > {
         static bool is_inlineable(mlir::ArrayRef< models::function_model > models) {
             for (const auto &model : models) {
                 if (model.ret == models::ret_effect::static_alloc)

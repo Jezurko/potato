@@ -1,6 +1,6 @@
 #include "potato/analysis/andersen.hpp"
 #include "potato/analysis/pt.hpp"
-#include "potato/passes/analysis.hpp"
+#include "potato/passes/analysis/analysis.hpp"
 #include "potato/util/warnings.hpp"
 #include "potato/util/common.hpp"
 
@@ -12,14 +12,12 @@ POTATO_UNRELAX_WARNINGS
 
 #include <memory>
 
-#include "passes_details.hpp"
+namespace potato::pt {
+#define GEN_PASS_DEF_AABENCHPASS
+#include "potato/passes/analysis/Analysis.h.inc"
 
-namespace potato::pt
-{
-    struct AABenchPass : AABenchPassBase< AABenchPass >
-    {
-        void runOnOperation() override
-        {
+    struct AABenchPass : impl::AABenchPassBase< AABenchPass > {
+        void runOnOperation() override {
             auto root = getOperation();
             auto solver = mlir::DataFlowSolver();
 
@@ -39,8 +37,7 @@ namespace potato::pt
         }
     };
 
-    std::unique_ptr< mlir::Pass > createAABenchPass()
-    {
+    std::unique_ptr< mlir::Pass > createAABenchPass() {
         return std::make_unique< AABenchPass >();
     }
 } // namespace potato::pt

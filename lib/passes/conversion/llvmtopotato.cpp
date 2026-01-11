@@ -12,15 +12,16 @@ POTATO_RELAX_WARNINGS
 #include <llvm/ADT/TypeSwitch.h>
 POTATO_UNRELAX_WARNINGS
 
-#include "potato/passes/conversions.hpp"
-#include "potato/passes/common_patterns.hpp"
-#include "potato/passes/type/converter.hpp"
+#include "potato/passes/conversion/conversions.hpp"
+#include "potato/passes/conversion/common_patterns.hpp"
+#include "potato/passes/conversion/type/converter.hpp"
 #include "potato/dialect/potato.hpp"
 #include "potato/util/common.hpp"
 #include "potato/util/typelist.hpp"
 
-namespace potato::conv::llvmtopt
-{
+namespace potato::conv::llvmtopt {
+#define GEN_PASS_DEF_LLVMIRTOPOTATO
+#include "potato/passes/conversion/Conversions.h.inc"
 
     template< typename source >
     struct alloc_op : mlir::OpConversionPattern< source > {
@@ -760,8 +761,7 @@ namespace potato::conv::llvmtopt
         unknown_patterns
     >;
 
-    struct LLVMIRToPoTAToPass : LLVMIRToPoTAToBase< LLVMIRToPoTAToPass >
-    {
+    struct LLVMIRToPoTAToPass : impl::LLVMIRToPoTAToBase< LLVMIRToPoTAToPass > {
         template< typename list >
         void add_patterns(mlir::RewritePatternSet &patterns, auto &converter) {
             if constexpr (list::empty) {

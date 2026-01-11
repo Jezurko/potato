@@ -1,4 +1,4 @@
-#include "potato/passes/analysis.hpp"
+#include "potato/passes/analysis/analysis.hpp"
 #include "potato/util/warnings.hpp"
 #include "potato/analysis/trad/llvm_aa.hpp"
 
@@ -10,14 +10,12 @@ POTATO_UNRELAX_WARNINGS
 
 #include <memory>
 
-#include "passes_details.hpp"
+namespace potato::pt {
+#define GEN_PASS_DEF_LLVMPOINTSTOPASS
+#include "potato/passes/analysis/Analysis.h.inc"
 
-namespace potato::pt
-{
-    struct LLVMPointsToPass : LLVMPointsToPassBase< LLVMPointsToPass >
-    {
-        void runOnOperation() override
-        {
+    struct LLVMPointsToPass : impl::LLVMPointsToPassBase< LLVMPointsToPass > {
+        void runOnOperation() override {
             auto root = getOperation();
             auto solver = mlir::DataFlowSolver();
 
@@ -40,8 +38,7 @@ namespace potato::pt
         }
     };
 
-    std::unique_ptr< mlir::Pass > createLLVMPointsToPass()
-    {
+    std::unique_ptr< mlir::Pass > createLLVMPointsToPass() {
         return std::make_unique< LLVMPointsToPass >();
     }
 } // namespace potato::pt
