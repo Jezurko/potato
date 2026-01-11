@@ -1,6 +1,6 @@
 #include "potato/analysis/steensgaard.hpp"
 #include "potato/analysis/pt.hpp"
-#include "potato/passes/analysis.hpp"
+#include "potato/passes/analysis/analysis.hpp"
 #include "potato/util/warnings.hpp"
 
 POTATO_RELAX_WARNINGS
@@ -11,14 +11,12 @@ POTATO_UNRELAX_WARNINGS
 
 #include <memory>
 
-#include "passes_details.hpp"
+namespace potato::pt {
+#define GEN_PASS_DEF_STEENSBENCHPASS
+#include "potato/passes/analysis/Analysis.h.inc"
 
-namespace potato::pt
-{
-    struct SteensBenchPass : SteensBenchPassBase< SteensBenchPass >
-    {
-        void runOnOperation() override
-        {
+    struct SteensBenchPass : impl::SteensBenchPassBase< SteensBenchPass > {
+        void runOnOperation() override {
             auto root = getOperation();
             auto solver = mlir::DataFlowSolver();
 
@@ -38,8 +36,7 @@ namespace potato::pt
         }
     };
 
-    std::unique_ptr< mlir::Pass > createSteensBenchPass()
-    {
+    std::unique_ptr< mlir::Pass > createSteensBenchPass() {
         return std::make_unique< SteensBenchPass >();
     }
 } // namespace potato::pt

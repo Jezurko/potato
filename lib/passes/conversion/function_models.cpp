@@ -1,4 +1,4 @@
-#include "potato/passes/modelling/function_models.hpp"
+#include "potato/passes/conversion/modelling/function_models.hpp"
 
 LLVM_YAML_IS_SEQUENCE_VECTOR(potato::models::arg_effect);
 LLVM_YAML_IS_SEQUENCE_VECTOR(potato::models::function_model);

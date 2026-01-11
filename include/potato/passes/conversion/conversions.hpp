@@ -14,18 +14,13 @@ POTATO_RELAX_WARNINGS
 POTATO_UNRELAX_WARNINGS
 
 #include "potato/dialect/potato.hpp"
+#include "potato/passes/conversion/llvmtopotato.hpp"
+#include "potato/passes/conversion/modelling.hpp"
 
 #include <memory>
 
 namespace potato
 {
-    std::unique_ptr< mlir::Pass > createLLVMToPotatoPass();
-    std::unique_ptr< mlir::Pass > createFunctionModellingPass();
-
     #define GEN_PASS_REGISTRATION
-    #include "potato/passes/Conversions.h.inc"
-
-    #define GEN_PASS_CLASSES
-    #include "potato/passes/Conversions.h.inc"
-
+    #include "potato/passes/conversion/Conversions.h.inc"
 } // namespace potato
