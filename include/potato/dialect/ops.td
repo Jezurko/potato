@@ -232,4 +232,15 @@ def CallIndirectOp
   }];
 }
 
+def VaStartOp : Potato_Op< "vastart", [] > {
+    let summary = "Operation for intializing a memory cell with functions VarArg list.";
+    let description = [{
+        This operation mimics the LLVM va_start intrinsic.
+        It initializes the memory at `arg_list` with a pointer to the vararg list."
+    }];
+
+    let arguments = (ins AnyType:$arg_list);
+    let assemblyFormat = [{$arg_list attr-dict `:` type($arg_list)}];
+}
+
 #endif // POTATO_DIALECT_OPS

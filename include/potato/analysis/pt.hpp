@@ -6,6 +6,7 @@ POTATO_RELAX_WARNINGS
 #include <mlir/Analysis/CallGraph.h>
 #include <mlir/Analysis/DataFlow/DeadCodeAnalysis.h>
 #include <mlir/Analysis/DataFlow/DenseAnalysis.h>
+#include <mlir/Analysis/DataFlow/SparseAnalysis.h>
 #include <mlir/Interfaces/CallInterfaces.h>
 #include <mlir/Interfaces/FunctionInterfaces.h>
 #include <mlir/IR/SymbolTable.h>
@@ -14,213 +15,742 @@ POTATO_RELAX_WARNINGS
 #include <llvm/ADT/TypeSwitch.h>
 POTATO_UNRELAX_WARNINGS
 
+#include <ranges>
+
 #include "potato/dialect/ops.hpp"
 #include "potato/util/common.hpp"
 
 namespace potato::analysis {
 
-template< typename pt_lattice >
-struct pt_analysis : mlir_dense_dfa< pt_lattice >
-{
-    using base = mlir_dense_dfa< pt_lattice >;
-    using base::base;
+// Memory location is identified by the allocating operation first.
+// Multiple unique allocations performed by the same operation can be modelled
+// using a uniquer id.
+struct mem_loc : std::pair< mlir_operation *, size_t > {
+    using pair_t = std::pair< mlir_operation *, size_t >;
+    mem_loc(mlir_operation *op) : pair_t(op, 0) {}
+    mem_loc(mlir_operation *op, size_t uniquer) : pair_t(op, uniquer) {}
 
-    using base::propagateIfChanged;
+    friend struct ::llvm::DenseMapInfo< potato::analysis::mem_loc >;
+private:
+    mem_loc(pair_t pair) : pair_t(pair) {}
+};
 
-    change_result visit_pt_op(pt::AddressOp &op, const pt_lattice &before, pt_lattice *after) {
-        auto changed = after->join(before);
+} // namespace potato::analysis
 
-        auto symbol = symbol_table::lookupNearestSymbolFrom(
-            op.getOperation(),
-            op.getSymbolAttr()
+template<>
+struct llvm::DenseMapInfo< potato::analysis::mem_loc > {
+    using pair_info = llvm::DenseMapInfo< std::pair< mlir_operation *, size_t > >;
+    using loc = potato::analysis::mem_loc;
+
+    static inline loc getEmptyKey() { return pair_info::getEmptyKey(); };
+    static inline loc getTombstoneKey() { return pair_info::getTombstoneKey(); };
+    static inline unsigned getHashValue(const loc& loc) { return pair_info::getHashValue(loc); }
+    static bool isEqual(const loc& lhs, const loc& rhs) { return pair_info::isEqual(lhs, rhs); }
+};
+
+namespace potato::analysis {
+
+struct mem_loc_anchor : mlir::GenericLatticeAnchorBase< mem_loc_anchor, mem_loc > {
+    using Base::Base;
+
+    mlir_operation *getAllocator() const { return getValue().first; }
+    size_t getUniquer() const { return getValue().second; }
+
+    mlir_loc getLoc() const override;
+    void print(llvm::raw_ostream &) const override;
+};
+
+struct var_arg_anchor : mlir::GenericLatticeAnchorBase< var_arg_anchor, mem_loc > {
+    using Base::Base;
+
+    callable_iface getCallable() const { return mlir::cast< callable_iface >(getValue().first); }
+    size_t getUniquer() const { return getValue().second; }
+
+    mlir_loc getLoc() const override;
+    void print(llvm::raw_ostream &) const override;
+};
+
+struct named_val_anchor : mlir::GenericLatticeAnchorBase< named_val_anchor, mlir_operation * > {
+    using Base::Base;
+
+    mlir_loc getLoc() const override;
+    void print(llvm::raw_ostream &) const override;
+};
+
+template< typename derived_t >
+struct pt_lattice_base : mlir::AnalysisState {
+
+    pt_lattice_base(lattice_anchor anchor) : AnalysisState(anchor) {}
+    pt_lattice_base(mlir_value value) : AnalysisState(value) {}
+
+    void onUpdate(mlir::DataFlowSolver *solver) const override {
+        AnalysisState::onUpdate(solver);
+        if (auto value = mlir::dyn_cast< mlir_value >(anchor))
+            for (mlir_operation *user : value.getUsers())
+                for (dfa *analysis : use_def_subs)
+                   solver->enqueue({solver->getProgramPointAfter(user), analysis});
+        for (auto [dep, dep_analysis] : extra_deps)
+            solver->enqueue({solver->getProgramPointAfter(dep), dep_analysis});
+    }
+
+    // not const since lookup can modify some datastructures
+    alias_res alias(derived_t *rhs) {
+        return static_cast< derived_t & >(*this).alias_impl(rhs);
+    }
+
+    // Subscribe an analysis (including the pt analysis itself) to the updates
+    // of this lattice. If the lattice is updated, the registered analyses are
+    // invoked on the users of the anchor value
+    void use_def_subscribe(dfa *analysis) { use_def_subs.insert(analysis); }
+
+    // Add extra users. This is useful for e.g. adding dereference op
+    // as a dependency to members of arguments points-to set.
+    // Example:
+    // %ptr -> {x}, x -> {y}
+    // %set = deref %ptr
+    // In this case %set -> {y} and if the points-to set of x gets updated
+    // it has to be updated as well
+    void add_user(mlir_operation *op, dfa *analysis) { extra_deps.insert({op, analysis}); }
+private:
+    llvm::SetVector< dfa *, llvm::SmallVector< dfa *, 4 >, llvm::SmallPtrSet< dfa *, 4 > >
+        use_def_subs;
+    llvm::SetVector< std::pair< mlir_operation *, dfa * > > extra_deps;
+};
+
+// Heavily inspired by (Abstract)SparseForwardDataFlowAnalysis.
+
+template< typename derived_t, typename lattice_t >
+struct pt_analysis : dfa {
+    using pt_lattice = lattice_t;
+    using base = dfa;
+    using const_lattices_ref = llvm::ArrayRef< const pt_lattice * >;
+    using lattices_ref = llvm::ArrayRef< pt_lattice * >;
+    friend lattice_t;
+
+protected:
+
+    derived_t &derived() { return static_cast< derived_t & >(*this); }
+    const derived_t &derived() const { return static_cast< const derived_t & >(*this); }
+
+private:
+
+    ///////////////////////////////////////////////////////////////////////////////////////
+    // Functions that are user modifiable should be called through private _impl methods //
+    ///////////////////////////////////////////////////////////////////////////////////////
+
+    // Default implementation customization points:
+
+    void visit_external_call_impl(
+        mlir::CallOpInterface call, const_lattices_ref arg_lattices, lattices_ref res_lattices
+    ) {
+        derived().visit_external_call(call, arg_lattices, res_lattices);
+    }
+
+    void visit_non_control_flow_arguments_impl(
+        mlir_operation *op, const mlir::RegionSuccessor &successor,
+        lattices_ref arg_lattices, unsigned first_index
+    ) {
+        return derived().visit_non_control_flow_arguments(
+            op, successor, arg_lattices, first_index
         );
+    }
 
-        if (mlir::isa< mlir::FunctionOpInterface >(symbol)) {
-            changed |= after->join_var(op.getPtr(), pt_lattice::new_func(symbol));
+    logical_result visit_call_operation_impl(
+        mlir::CallOpInterface call,
+        const_lattices_ref operand_lattices,
+        lattices_ref result_lattices
+    ) {
+        return derived().visit_call_operation(call, operand_lattices, result_lattices);
+    }
+
+    logical_result visit_fptr_call_impl(
+        mlir::CallOpInterface call,
+        const_lattices_ref operand_lattices,
+        lattices_ref result_lattices
+    ) {
+        return derived().visit_fptr_call(call, operand_lattices, result_lattices);
+    }
+
+    constexpr bool add_deps_impl() {
+        return derived().add_deps();
+    }
+
+    logical_result visit_operation_impl(
+        mlir_operation *op, const_lattices_ref operand_lattices, lattices_ref res_lattices
+    ) {
+        return derived().visit_operation(op, operand_lattices, res_lattices);
+    }
+
+    logical_result visit_pt_op_impl(
+        auto op, const_lattices_ref operand_lattices, lattices_ref res_lattices
+    ) {
+        return derived().visit_pt_op(op, operand_lattices, res_lattices);
+    }
+
+    logical_result visit_non_pt_op_impl(
+        mlir_operation *op, const_lattices_ref operand_lattices, lattices_ref res_lattices
+    ) {
+        return derived().visit_non_pt_op(op, operand_lattices, res_lattices);
+    }
+
+    logical_result visit_unrealized_cast_impl(
+        mlir::UnrealizedConversionCastOp op,
+        const_lattices_ref operand_lattices, lattices_ref res_lattices
+    ) {
+        return derived().visit_unrealized_cast(op, operand_lattices, res_lattices);
+    }
+
+    logical_result visit_branch_impl(
+        branch_iface op, const_lattices_ref operand_lattices, lattices_ref res_lattices
+    ) {
+        return derived().visit_branch(op, operand_lattices, res_lattices);
+    }
+
+    void init_entry_func_impl(func_iface func, lattices_ref operand_lattices) {
+        return derived().init_entry_func(func, operand_lattices);
+    }
+
+    // derived_t has to provide a custom definition for the following methods:
+
+    void set_to_entry_state_impl(pt_lattice *lattice) {
+        return derived().set_to_entry_state(lattice);
+    }
+
+    void register_anchors_impl() {
+        return derived().register_anchors();
+    }
+
+public:
+
+    explicit pt_analysis(mlir::DataFlowSolver &solver)
+        : dfa(solver) {
+           // Do I want to require this?
+           registerAnchorKind< mlir::dataflow::CFGEdge >();
+           registerAnchorKind< mem_loc_anchor >();
+           registerAnchorKind< named_val_anchor >();
+           registerAnchorKind< var_arg_anchor >();
+           register_anchors_impl();
+    }
+
+    logical_result initialize(mlir_operation *root) override {
+        tables.getSymbolTable(root);
+        for (mlir_region &region : root->getRegions()) {
+            if (region.empty())
+                continue;
+            for (mlir_value argument : region.front().getArguments())
+                set_to_entry_state_impl(get_lattice_element(argument));
         }
-
-        if (mlir::isa< pt::NamedVarOp >(symbol)) {
-            changed |= after->join_var(op.getPtr(), pt_lattice::new_named_var(symbol));
-        }
-
-        return changed;
+        return initialize_recursively(root);
     };
 
-    change_result visit_pt_op(pt::NamedVarOp &op, const pt_lattice &before, pt_lattice *after) {
-        auto changed = after->join(before);
+    logical_result visit(ppoint point) override {
+        if (!point->isBlockStart())
+          return visit_operation(point->getPrevOp());
+        visit_block(point->getBlock());
+        return mlir::success();
+    };
+
+    logical_result initialize_recursively(mlir_operation *op) {
+        if (failed(visit_operation(op)))
+            return mlir::failure();
+
+        for (mlir_region &region : op->getRegions()) {
+            for (mlir_block &block : region) {
+                getOrCreate<mlir::dataflow::Executable>(
+                    getProgramPointBefore(&block))->blockContentSubscribe(this);
+                visit_block(&block);
+                for (auto &op : block)
+                    if (failed(initialize_recursively(&op)))
+                        return mlir::failure();
+            }
+        }
+        return mlir::success();
+    }
+
+    constexpr bool add_deps() { return true; }
+
+    logical_result visit_non_pt_op(mlir_operation *, const_lattices_ref, lattices_ref) {
+        return mlir::success();
+    }
+
+    void visit_external_call(
+        mlir::CallOpInterface call, const_lattices_ref arg_lattices, lattices_ref res_lattices
+    ) {
+        set_all_to_entry_state(res_lattices);
+    }
+
+    llvm::SmallVector< callable_iface > fptr_to_callables(mlir_value fptr) {
+        const auto &fptr_pointees = getOrCreate< pt_lattice >(fptr)->get_pointees();
+        llvm::SmallVector< callable_iface > callables;
+        callables.reserve(fptr_pointees.size());
+
+        for (const auto &pointee : fptr_pointees) {
+            // TODO: Potentially support callables that aren't named functions?
+            auto generic_anchor = mlir::dyn_cast< mlir::GenericLatticeAnchor * >(pointee);
+            auto named_val = mlir::dyn_cast_if_present< named_val_anchor >(generic_anchor);
+            if (!named_val)
+                continue;
+            if (auto callable = mlir::dyn_cast_if_present< callable_iface >(named_val->getValue()))
+                callables.push_back(callable);
+        }
+        // TODO: Add possibility to error out on non-funciton pointee
+        return callables;
+    }
+
+    logical_result visit_fptr_call(
+        mlir::CallOpInterface call, const_lattices_ref arg_lattices, lattices_ref res_lattices
+    ) {
+        auto callable = mlir::dyn_cast< mlir_value >(call.getCallableForCallee());
+        if (!callable)
+            return mlir::failure();
+        for (auto callable : derived().fptr_to_callables(callable)) {
+            auto callable_body = callable.getCallableRegion();
+            // TODO: Add optional error?
+            if (!callable_body)
+                continue;
+
+            // Using mutable operand range because the non-mutable iterator provides
+            // mlir values, not operands
+            pt_lattice *vararg_lattice = nullptr;
+            auto ops_range = call.getArgOperandsMutable();
+            auto operand_idx = [](mlir::OpOperand &o){ return o.getOperandNumber(); };
+            for (auto [fn_arg, call_arg_idx] :
+                llvm::zip_longest(
+                    callable_body->getArguments(),
+                    ops_range | std::views::transform(operand_idx))
+                )
+            {
+                if (!call_arg_idx)
+                    continue;
+                pt_lattice *arg_lattice = nullptr;
+                if (fn_arg) {
+                    arg_lattice = getOrCreate< pt_lattice >(fn_arg.value());
+                } else {
+                    if (!vararg_lattice)
+                        vararg_lattice = getOrCreate< pt_lattice >(
+                            getLatticeAnchor< var_arg_anchor >(callable)
+                        );
+                    arg_lattice = vararg_lattice;
+                }
+                auto call_arg = arg_lattices[call_arg_idx.value()];
+                join(arg_lattice, *call_arg);
+            }
+
+            callable_body->walk([&](mlir_operation *op) {
+                if (!op->hasTrait< mlir::OpTrait::ReturnLike >())
+                    return;
+                for (auto &&[call_res, fn_res] : llvm::zip(res_lattices, op->getOperands()))
+                    join(call_res, *get_lattice_element_for(getProgramPointAfter(call), fn_res));
+            });
+        }
+        return mlir::success();
+    }
+
+    logical_result visit_call_operation(
+        mlir::CallOpInterface call,
+        const_lattices_ref operand_lattices,
+        lattices_ref result_lattices
+    ) {
+        auto callable_op = dyn_cast_if_present< callable_iface >(
+            call.resolveCallableInTable(&tables)
+        );
+        if (!getSolverConfig().isInterprocedural() ||
+            (callable_op && !callable_op.getCallableRegion()))
+        {
+            visit_external_call_impl(call, operand_lattices, result_lattices);
+            return mlir::success();
+        }
+
+        const auto predecessors = getOrCreateFor< mlir::dataflow::PredecessorState >(
+            getProgramPointAfter(call), getProgramPointAfter(call)
+        );
+        if (mlir::isa< mlir_value >(call.getCallableForCallee()))
+            return visit_fptr_call_impl(call, operand_lattices, result_lattices);
+
+        // TODO: this should simply check that we know all return sites from the function
+        // Check if it's true and if we need to modify this in any way
+        if (!predecessors->allPredecessorsKnown()) {
+            set_all_to_entry_state(result_lattices);
+            return mlir::success();
+        }
+
+        for (mlir_operation *predecessor : predecessors->getKnownPredecessors()) {
+            for (auto &&[operand, res_lattice] :
+                llvm::zip(predecessor->getOperands(), result_lattices))
+            {
+                join(res_lattice, *get_lattice_element_for(getProgramPointAfter(call), operand));
+            }
+        }
+        return mlir::success();
+    }
+
+    void visit_callable_operation(callable_iface callable, lattices_ref arg_lattices) {
+        mlir_block *entry_block = &callable.getCallableRegion()->front();
+        const auto *callsites = getOrCreateFor< mlir::dataflow::PredecessorState >(
+            getProgramPointBefore(entry_block), getProgramPointAfter(callable));
+
+        // NOTE: Here we diverge from sparse analysis and assume all callsites are known.
+        // This is not ideal, but currently we support only WPA, so it isn't an issue.
+        // TODO: Introduce option for partial program analysis.
+        if (!getSolverConfig().isInterprocedural()) {
+            set_all_to_entry_state(arg_lattices);
+        }
+
+        pt_lattice *vararg_lattice = nullptr;
+        for (mlir_operation *callsite : callsites->getKnownPredecessors()) {
+            auto call = cast< mlir::CallOpInterface >(callsite);
+            for (auto [arg, lattice] :
+                llvm::zip_longest(call.getArgOperands(), arg_lattices)
+            ) {
+                // Arg not assigned a value?
+                if (!arg)
+                    continue;
+
+                // VarArg call
+                if (!lattice) {
+                    if (!vararg_lattice)
+                        vararg_lattice = getOrCreate< pt_lattice >(
+                            getLatticeAnchor< var_arg_anchor >(callable)
+                        );
+                    lattice = {vararg_lattice};
+                }
+
+                join(
+                    lattice.value(),
+                    *get_lattice_element_for(getProgramPointBefore(entry_block), arg.value())
+                );
+            }
+        }
+    }
+
+    void visit_non_control_flow_arguments(
+        mlir_operation *op, const mlir::RegionSuccessor &successor,
+        lattices_ref arg_lattices, unsigned first_index
+    ) {
+        set_all_to_entry_state(arg_lattices.take_front(first_index));
+        set_all_to_entry_state(arg_lattices.drop_front(
+            first_index + successor.getSuccessorInputs().size())
+        );
+    }
+
+    pt_lattice *get_lattice_element(mlir_value value) {
+        return getOrCreate< pt_lattice >(value);
+    }
+
+    const pt_lattice *get_lattice_element_for(ppoint point, mlir_value value) {
+        pt_lattice *state = get_lattice_element(value);
+        addDependency(state, point);
+        return state;
+    }
+
+    void set_all_to_entry_state(lattices_ref lattices) {
+        for (auto lattice : lattices)
+            set_to_entry_state_impl(lattice);
+    }
+
+    void join(pt_lattice *lhs, const pt_lattice &rhs) {
+        propagateIfChanged(lhs, lhs->join(rhs));
+    }
+
+    void join_all(pt_lattice *lhs, const_lattices_ref rhs) {
+        auto changed = change_result::NoChange;
+        for (auto lattice : rhs)
+            changed |= lhs->join(*lattice);
+        return propagateIfChanged(lhs, changed);
+    }
+
+    // Compared to SparseAnalysis we do not bail out on operations without results.
+    // This is because e.g. assign(store) operations do not have result yet they do have
+    // relevant points-to behaviour
+    logical_result visit_operation(mlir_operation *op) {
+        if (op->getBlock() != nullptr &&
+            !getOrCreate< mlir::dataflow::Executable >(
+                getProgramPointBefore(op->getBlock())
+            )->isLive()
+        ) {
+            return mlir::success();
+        }
+
+        mlir::SmallVector< pt_lattice * > result_lattices;
+        result_lattices.reserve(op->getNumResults());
+        for (mlir_value result : op->getResults()) {
+            pt_lattice *result_lattice = get_lattice_element(result);
+            result_lattices.push_back(result_lattice);
+        }
+
+        if (auto branch = dyn_cast< mlir::RegionBranchOpInterface >(op)) {
+            visit_region_successors(
+                getProgramPointAfter(branch), branch,
+                {branch, branch->getResults()}, result_lattices
+            );
+            return mlir::success();
+        }
+
+        mlir::SmallVector< const pt_lattice * > operand_lattices;
+        operand_lattices.reserve(op->getNumOperands());
+        for (mlir_value operand : op->getOperands()) {
+            pt_lattice *operand_lattice = get_lattice_element(operand);
+            // TODO: point of customization!
+            operand_lattice->use_def_subscribe(this);
+            operand_lattices.push_back(operand_lattice);
+        }
+        if (auto call = dyn_cast< mlir::CallOpInterface >(op))
+            return visit_call_operation_impl(call, operand_lattices, result_lattices);
+
+        return visit_operation_impl(op, operand_lattices, result_lattices);
+    }
+
+    void init_entry_func(func_iface func, lattices_ref operands) {
+        if (operands.size() > 1 && func.getName() == "main") {
+            auto var_alloc = getLatticeAnchor< mem_loc_anchor >(func);
+            propagateIfChanged(
+                operands[1],
+                operands[1]->insert(var_alloc)
+            );
+            auto alloca_lattice = getOrCreate< pt_lattice >(var_alloc);
+            propagateIfChanged(
+                alloca_lattice,
+                alloca_lattice->insert(getLatticeAnchor< mem_loc_anchor >(func, 1))
+            );
+        }
+    }
+
+    void visit_block(mlir_block *block) {
+        if (block->getNumArguments() == 0)
+            return;
+
+        if (!getOrCreate<mlir::dataflow::Executable>(getProgramPointBefore(block))->isLive())
+            return;
+        mlir::SmallVector< pt_lattice * > arg_lattices;
+        arg_lattices.reserve(block->getNumArguments());
+        for (mlir::BlockArgument arg : block->getArguments()) {
+            auto *arg_lattice = get_lattice_element(arg);
+            arg_lattices.push_back(arg_lattice);
+        }
+
+        if (block->isEntryBlock()) {
+            if (auto fn = mlir::dyn_cast< func_iface >(block->getParentOp()))
+                init_entry_func_impl(fn, arg_lattices);
+
+            auto callable = mlir::dyn_cast< callable_iface >(block->getParentOp());
+            if (callable && callable.getCallableRegion() == block->getParent())
+                return visit_callable_operation(callable, arg_lattices);
+
+            if (auto branch = dyn_cast< mlir::RegionBranchOpInterface >(block->getParentOp())) {
+                return visit_region_successors(
+                    getProgramPointBefore(block), branch, block->getParent(), arg_lattices
+                );
+            }
+
+            return visit_non_control_flow_arguments(
+                block->getParentOp(), mlir::RegionSuccessor(block->getParent()), arg_lattices, 0
+            );
+        }
+
+        for (auto it = block->pred_begin(), e = block->pred_end(); it != e; ++it) {
+            mlir_block *pred = *it;
+            auto *edge_executable = getOrCreate< mlir::dataflow::Executable >(
+                getLatticeAnchor< mlir::dataflow::CFGEdge >(pred, block));
+
+            edge_executable->blockContentSubscribe(this);
+            if (!edge_executable->isLive())
+                continue;
+
+            if (auto branch = dyn_cast< branch_iface >(pred->getTerminator())) {
+                auto operands = branch.getSuccessorOperands(it.getSuccessorIndex());
+                for (auto [idx, lattice] : llvm::enumerate(arg_lattices)) {
+                    if (auto operand = operands[idx]) {
+                        join(lattice,
+                            *get_lattice_element_for(getProgramPointBefore(block), operand)
+                        );
+                    } else {
+                        // Conservatively consider internally produced arguments as entry points.
+                        // TODO: is this necessary for us? when does this happen?
+                        set_all_to_entry_state(lattice);
+                    }
+                }
+            } else {
+                return set_all_to_entry_state(arg_lattices);
+            }
+        }
+    }
+
+    void visit_region_successors(
+        ppoint point, mlir::RegionBranchOpInterface branch,
+        mlir::RegionSuccessor successor,
+        lattices_ref lattices)
+    {
+        const auto *preds = getOrCreateFor< mlir::dataflow::PredecessorState >(point, point);
+        assert(preds->allPredecessorsKnown() && "unexpected unresolved region successors");
+
+        for (mlir_operation *op : preds->getKnownPredecessors()) {
+            std::optional< mlir::OperandRange > operands;
+
+            if (op == branch) {
+                operands = branch.getEntrySuccessorOperands(successor);
+            } else if (auto region_terminator =
+                mlir::dyn_cast< mlir::RegionBranchTerminatorOpInterface >(op)
+            ) {
+                operands = region_terminator.getSuccessorOperands(successor);
+            }
+
+            // We can't reason about the data-flow
+            if (!operands)
+                return set_all_to_entry_state(lattices);
+
+            mlir::ValueRange inputs = preds->getSuccessorInputs(op);
+            assert(inputs.size() == operands->size() &&
+                "expected the same number of successor inputs as operands"
+            );
+
+            unsigned first_idx = 0;
+            if (inputs.size() != lattices.size()) {
+                if (!point->isBlockStart()) {
+                    if (!inputs.empty())
+                        first_idx = mlir::cast< mlir::OpResult >(inputs.front()).getResultNumber();
+                    visit_non_control_flow_arguments_impl(
+                        branch,
+                        mlir::RegionSuccessor(branch, branch->getResults().slice(first_idx, inputs.size())),
+                        lattices,
+                        first_idx
+                    );
+                } else {
+                    if (!inputs.empty())
+                        first_idx = mlir::cast< mlir::BlockArgument >(inputs.front()).getArgNumber();
+                    mlir_region *region = point->getBlock()->getParent();
+                    visit_non_control_flow_arguments_impl(
+                        branch,
+                        mlir::RegionSuccessor(
+                            region,
+                            region->getArguments().slice(first_idx, inputs.size())
+                        ),
+                        lattices,
+                        first_idx
+                    );
+                }
+            }
+
+            for (auto [operand, lattice] : llvm::zip(*operands, lattices.drop_front(first_idx)))
+                join(lattice, *get_lattice_element_for(point, operand));
+        }
+    }
+
+    logical_result visit_pt_op(pt::AddressOp op, const_lattices_ref operand_lts, lattices_ref res_lts) {
+        auto symbol_op = tables.lookupNearestSymbolFrom(op.getOperation(), op.getSymbolAttr());
+        auto symbol_anchor = getLatticeAnchor< named_val_anchor >(symbol_op);
+        for (auto res_lat : res_lts)
+            propagateIfChanged(res_lat, res_lat->insert(symbol_anchor));
+        return mlir::success();
+    }
+
+    logical_result visit_pt_op(pt::AllocOp op, const_lattices_ref operand_lts, lattices_ref res_lts) {
+        for (auto res_lat : res_lts)
+            propagateIfChanged(
+                res_lat,
+                res_lat->insert(getLatticeAnchor< mem_loc_anchor >(op.getOperation()))
+            );
+        return mlir::success();
+    }
+
+    logical_result visit_pt_op(pt::AssignOp, const_lattices_ref operand_lts, lattices_ref res_lts) {
+        if (operand_lts[0]->is_unknown()) {
+            all_unknown = true;
+            return mlir::failure();
+        }
+        for (const auto &pointee : operand_lts[0]->get_pointees())
+            join(getOrCreate< pt_lattice >(pointee), *operand_lts[1]);
+        return mlir::success();
+    }
+
+    logical_result visit_pt_op(pt::ConstantOp, const_lattices_ref operand_lts, lattices_ref res_lts) {
+        return mlir::success();
+    }
+
+    logical_result visit_pt_op(pt::CopyOp, const_lattices_ref operand_lts, lattices_ref res_lts) {
+        for (auto res_lat : res_lts)
+            join_all(res_lat, operand_lts);
+        return mlir::success();
+    }
+
+    logical_result visit_pt_op(
+        pt::DereferenceOp op,
+        const_lattices_ref operand_lts,
+        lattices_ref res_lts
+    ) {
+        for (auto res_lat : res_lts) {
+            for (auto operand_lat : operand_lts) {
+                if (operand_lat->is_unknown()) {
+                    propagateIfChanged(res_lat, res_lat->set_unknown());
+                    break;
+                }
+                for (const auto &pointee : operand_lat->get_pointees()) {
+                    auto pointee_lat = getOrCreate< pt_lattice >(pointee);
+                    pointee_lat->add_user(op, this);
+                    join(res_lat, *pointee_lat);
+                }
+            }
+        }
+        return mlir::success();
+    }
+
+    logical_result visit_pt_op(pt::NamedVarOp op, const_lattices_ref operand_lts, lattices_ref res_lts) {
         auto &init = op.getInit();
         if (!init.empty()) {
             auto *ret_op = &init.back().back();
             if (ret_op->hasTrait< mlir::OpTrait::ReturnLike >()) {
-                auto ret_state = this->template getOrCreate< pt_lattice >(this->getProgramPointAfter(ret_op));
-                if (auto point = mlir::dyn_cast< ppoint >(after->getAnchor())) {
-                    ret_state->addDependency(point, this);
-                    propagateIfChanged(ret_state, ret_state->join(before));
-                    for (auto ret_arg : ret_op->getOperands()) {
-                        auto arg_pt = ret_state->lookup(ret_arg);
-                        if (arg_pt) {
-                            changed |= after->join_var(pt_lattice::new_named_var(op.getOperation()), arg_pt);
-                        }
-                    }
-                } else {
-                    assert(false);
-                }
-                return changed;
-            }
-        }
-        return changed;
-    }
-
-    change_result visit_pt_op(pt::AssignOp &op, const pt_lattice &before, pt_lattice *after) {
-        auto changed = after->join(before);
-
-        auto lhs = after->lookup(op.getLhs());
-        if (!lhs) {
-            return changed;
-        }
-
-        const auto rhs = after->lookup(op.getRhs());
-        if (!rhs) {
-            return changed;
-        }
-
-        if (lhs->is_top()) {
-            // all pointers may alias, because they contain rhs
-            return after->set_all_unknown();
-        }
-
-        changed |= after->join_all_pointees_with(lhs, rhs);
-
-        if (changed == change_result::Change) {
-            pt_lattice::propagate_members_changed(lhs, get_or_create(), propagate());
-        }
-
-        return changed;
-    };
-
-    change_result visit_pt_op(pt::CopyOp &op, const pt_lattice &before, pt_lattice *after) {
-        auto changed = after->join(before);
-
-        for (auto operand : op.getOperands()) {
-            auto operand_pt = after->lookup(operand);
-            if (operand_pt) {
-                changed |= after->join_var(op.getResult(), operand_pt);
-            }
-        }
-
-        return changed;
-    };
-
-    change_result visit_pt_op(pt::DereferenceOp &op, const pt_lattice &before, pt_lattice *after) {
-        auto changed = after->join(before);
-
-        const auto rhs_pt = after->lookup(op.getPtr());
-        if (!rhs_pt) {
-            return changed;
-        }
-        if (rhs_pt->is_top()) {
-            changed |= after->join_var(op.getResult(), after->new_top_set());
-            return changed;
-        }
-        changed |= after->copy_all_pts_into({op.getResult()}, rhs_pt);
-
-        if (auto point = mlir::dyn_cast< ppoint >(after->getAnchor())) {
-            pt_lattice::depend_on_members(rhs_pt, add_dep(point));
-        } else {
-            assert(false);
-        }
-
-        return changed;
-    };
-
-    change_result visit_pt_op(pt::AllocOp &op, const pt_lattice &before, pt_lattice *after) {
-        auto changed = after->join(before);
-        changed |= after->new_alloca(op.getResult());
-        return changed;
-    }
-
-    change_result visit_pt_op(pt::ConstantOp &op, const pt_lattice &before, pt_lattice *after) {
-        auto changed = after->join(before);
-        changed |= after->add_constant(op.getResult());
-        return changed;
-
-    }
-
-    change_result visit_pt_op(pt::UnknownPtrOp &op, const pt_lattice &before, pt_lattice *after) {
-        auto changed = after->join(before);
-        changed |= after->join_var(op.getResult(), pt_lattice::new_top_set());
-        return changed;
-    }
-
-    change_result visit_unrealized_cast(mlir::UnrealizedConversionCastOp &op,
-                               const pt_lattice &before, pt_lattice *after)
-    {
-        auto changed = after->join(before);
-
-        for (auto operand : op.getOperands()) {
-            auto operand_pt = after->lookup(operand);
-            if (operand_pt) {
-                for (auto res : op.getResults()) {
-                    changed |= after->join_var(res, operand_pt);
+                auto var_state =
+                    getOrCreate< pt_lattice >(getLatticeAnchor< named_val_anchor >(op.getOperation()));
+                for (auto ret_val : ret_op->getOperands()) {
+                    auto ret_lat = getOrCreate< pt_lattice >(ret_val);
+                    ret_lat->add_user(op, this);
+                    join(var_state, *ret_lat);
                 }
             }
         }
-        return changed;
+        return mlir::success();
     }
 
-    void visit_branch_interface(mlir::BranchOpInterface &op, const pt_lattice &before, pt_lattice *after) {
-        auto changed = after->join(before);
+    logical_result visit_pt_op(pt::UnknownPtrOp, const_lattices_ref operand_lts, lattices_ref res_lts) {
+        for (auto res_lt : res_lts)
+            propagateIfChanged(res_lt, res_lt->set_unknown());
+        return mlir::success();
+    }
 
-        for (const auto &[i, successor] : llvm::enumerate(op->getSuccessors())) {
-            auto succ_changed = change_result::NoChange;
-            for (const auto &[pred_op, succ_arg] :
-                llvm::zip_equal(op.getSuccessorOperands(i).getForwardedOperands(), successor->getArguments())) {
-                    auto operand_pt = after->lookup(pred_op);
-                    if (!operand_pt) {
-                        continue;
-                    }
-                    succ_changed |= after->join_var(succ_arg, operand_pt);
+    logical_result visit_pt_op(pt::VaStartOp op, const_lattices_ref operand_lts, lattices_ref res_lts) {
+        auto parent_callable = op->getParentOfType< callable_iface >();
+        if (!parent_callable)
+            return mlir::failure();
+
+        for (auto operand_lt : operand_lts)
+            for (auto pointee : operand_lt->get_pointees()) {
+                auto pointee_lat = getOrCreate< pt_lattice >(pointee);
+                propagateIfChanged(
+                    pointee_lat,
+                    pointee_lat->insert(getLatticeAnchor< var_arg_anchor >(parent_callable))
+                );
             }
-            changed |= succ_changed;
-            if constexpr (pt_lattice::propagate_assign()) {
-                auto succ_lattice = this->template getOrCreate< pt_lattice >(this->getProgramPointBefore(successor));
-                propagateIfChanged(succ_lattice, succ_changed);
-            }
-        }
-        propagateIfChanged(after, changed);
+
+        return mlir::success();
     }
 
-    auto get_or_create() {
-        return [this](auto arg) -> pt_lattice * {
-            if constexpr (std::same_as< mlir::Block *, decltype(arg) >) {
-                return this->template getOrCreate< pt_lattice >(this->getProgramPointBefore(arg));
-            } else {
-                return this->template getOrCreate< pt_lattice >(this->getProgramPointAfter(arg));
-            }
-        };
+    logical_result visit_unrealized_cast(
+        mlir::UnrealizedConversionCastOp,
+        const_lattices_ref operand_lts,
+        lattices_ref res_lts
+    ) {
+        for (auto [res_lt, operand_lt] : llvm::zip_equal(res_lts, operand_lts))
+            join(res_lt, *operand_lt);
+        return mlir::success();
     }
 
-    auto add_dep(ppoint dep) {
-        return [=, this](auto dep_on) {
-            auto dep_on_state = get_or_create()(dep_on);
-            dep_on_state->addDependency(dep, this);
-        };
+    logical_result visit_branch(branch_iface, const_lattices_ref, lattices_ref) {
+        return mlir::success();
     }
 
-    auto propagate() {
-        return [this](pt_lattice *lattice, change_result change) -> void {
-            propagateIfChanged(lattice, change);
-        };
-    }
-
-    logical_result visitOperation(mlir::Operation *op, const pt_lattice &before, pt_lattice *after) override {
-        if (auto point = mlir::dyn_cast< ppoint >(after->getAnchor())) {
-            pt_lattice::add_dependencies(op, this, point, get_or_create());
-        } else {
-            assert(false);
-        }
-
-        llvm::TypeSwitch< mlir::Operation *, void >(op)
+    logical_result visit_operation(
+        mlir_operation *op, const_lattices_ref operand_lts, lattices_ref res_lts
+    ) {
+        return llvm::TypeSwitch< mlir::Operation *, logical_result >(op)
             .Case< pt::AddressOp,
                    pt::AllocOp,
                    pt::AssignOp,
@@ -228,174 +758,54 @@ struct pt_analysis : mlir_dense_dfa< pt_lattice >
                    pt::CopyOp,
                    pt::DereferenceOp,
                    pt::NamedVarOp,
-                   pt::UnknownPtrOp >
-            ([&](auto &pt_op) { auto changed = visit_pt_op(pt_op, before, after); propagateIfChanged(after, changed); })
+                   pt::UnknownPtrOp,
+                   pt::VaStartOp >
+            ([&](auto &pt_op) {
+                return visit_pt_op_impl(pt_op, operand_lts, res_lts);
+            })
             .template Case< mlir::UnrealizedConversionCastOp >(
-                    [&](auto &cast_op) { auto changed = visit_unrealized_cast(cast_op, before, after); propagateIfChanged(after, changed); }
-            )
-            .template Case< mlir::BranchOpInterface >([&](auto &branch_op) { visit_branch_interface(branch_op, before, after); })
-            .Default([&](auto &pt_op) { propagateIfChanged(after, after->join(before)); });
-        return mlir::success();
-    };
-
-    change_result visit_function_at_exit(const pt_lattice &before, pt_lattice *after, mlir_operation *callee, mlir::CallOpInterface call) {
-        auto changed = change_result::NoChange;
-        auto &callee_entry = callee->getRegion(0).front();
-        auto callee_args   = callee_entry.getArguments();
-
-        mlir_value last_call_arg;
-        mlir_value last_callee_arg;
-        for (const auto &[callee_arg, caller_arg] :
-             llvm::zip_longest(callee_args, call.getArgOperands()))
-        {
-            if (caller_arg) {
-                last_call_arg = caller_arg.value();
-            }
-            if (callee_arg) {
-                last_callee_arg = callee_arg.value();
-            }
-            if (auto arg_pt = after->lookup(last_call_arg))
-                changed |= after->join_var(last_callee_arg, arg_pt);
-        }
-        if constexpr (pt_lattice::propagate_call_arg_zip()) {
-            propagateIfChanged(this->template getOrCreate< pt_lattice >(this->getProgramPointBefore(&callee_entry)), changed);
-        }
-
-        // Manage the callee exit
-        if (auto anchor_point = mlir::dyn_cast< ppoint >(before.getAnchor())) {
-            if (auto before_exit = anchor_point->getPrevOp();
-                     before_exit && before_exit-> template hasTrait< mlir::OpTrait::ReturnLike>()
-            ) {
-                for (size_t i = 0; i < call->getNumResults(); i++) {
-                    auto res_arg = before_exit->getOperand(i);
-                    if (auto res_pt = after->lookup(res_arg)) {
-                        changed |= after->join_var(call->getResult(i), res_pt);
-                    }
-                    if (pt_lattice::propagate_assign()) {
-                        pt_lattice *dep_on_state = this->template getOrCreate< pt_lattice >(get_val_def_point(res_arg));
-                        if (auto point = mlir::dyn_cast< ppoint >(after->getAnchor())) {
-                            dep_on_state->addDependency(point, this);
-                        } else {
-                            assert(false);
-                        }
-                    }
-                }
-            }
-        }
-        return changed;
+                    [&](auto &cast_op) {
+                        return visit_unrealized_cast_impl(cast_op, operand_lts, res_lts);
+            })
+            .template Case< branch_iface >([&](auto &branch_op) {
+                return visit_branch_impl(branch_op, operand_lts, res_lts);
+            })
+            .Default([&](auto &pt_op) {
+                return visit_non_pt_op_impl(pt_op, operand_lts, res_lts);
+            });
     }
 
-    void visitCallControlFlowTransfer(
-        mlir::CallOpInterface call, call_cf_action action,
-        const pt_lattice &before, pt_lattice *after
-    ) override {
-        auto changed     = after->join(before);
-        auto callee      = call.resolveCallable();
-
-        // - `action == CallControlFlowAction::Enter` indicates that:
-        //   - `before` is the state before the call operation;
-        //   - `after` is the state at the beginning of the callee entry block;
-        if (action == call_cf_action::EnterCallee) {
-            auto &callee_entry = callee->getRegion(0).front();
-            auto callee_args   = callee_entry.getArguments();
-
-            mlir_value last_call_arg;
-            mlir_value last_callee_arg;
-            for (const auto &[callee_arg, caller_arg] :
-                 llvm::zip_longest(callee_args, call.getArgOperands()))
-            {
-                if (caller_arg) {
-                    last_call_arg = caller_arg.value();
-                }
-                if (callee_arg) {
-                    last_callee_arg = callee_arg.value();
-                }
-                if (auto arg_pt = after->lookup(last_call_arg))
-                    changed |= after->join_var(last_callee_arg, arg_pt);
-            }
-
-            return propagateIfChanged(after, changed);
-        }
-
-        // - `action == CallControlFlowAction::Exit` indicates that:
-        //   - `before` is the state at the end of a callee exit block;
-        //   - `after` is the state after the call operation.
-        if (action == call_cf_action::ExitCallee) {
-            changed |= visit_function_at_exit(before, after, callee, call);
-            return propagateIfChanged(after, changed);
-        }
-
-        if (action == call_cf_action::ExternalCallee) {
-            propagateIfChanged(after, changed);
-        }
-    };
-
-    // Default implementation via join should be fine for us (at least for now)
-    //void visitRegionBranchControlFlowTransfer(mlir::RegionBranchOpInterface branch,
-    //                                          std::optional< unsigned > regionFrom,
-    //                                          std::optional< unsigned > regionTo,
-    //                                          const ctxed_lattice &before,
-    //                                          ctxed_lattice *after) override;
-
-    void setToEntryState(pt_lattice *lattice) override {
-        auto changed = change_result::NoChange;
-        if (!lattice->initialized()) {
-            lattice->initialize_with(relation.get());
-            changed |= change_result::Change;
-        }
-        if (auto point = mlir::dyn_cast< ppoint >(lattice->getAnchor())) {
-            if (!point->isBlockStart()) {
-                if (auto op = point->getPrevOp()) {
-                    pt_lattice::add_dependencies(op, this, point, get_or_create());
-                    if (auto call = mlir::dyn_cast< mlir::CallOpInterface >(op)) {
-                        if (auto val = mlir::dyn_cast< mlir_value >(call.getCallableForCallee())) {
-                            changed |= lattice->resolve_fptr_call(
-                                val, call, get_or_create(), add_dep(point), propagate(), this
-                            );
-                        }
-                    }
-                }
-            }
-        } else {
-            assert(false);
-        }
-        propagateIfChanged(lattice, changed);
+    static void print_analysis(
+        mlir_operation *root,
+        mlir::DataFlowSolver &solver,
+        llvm::raw_ostream &os
+    ) {
+        llvm::DenseSet< lattice_anchor > visited;
+        auto visit_anchor([&](const auto &anchor, auto &visitor) -> void {
+            auto [it, inserted] = visited.insert(anchor);
+            if (!inserted)
+                return;
+            auto state = solver.lookupState< pt_lattice >(anchor);
+            if (!state)
+                return;
+            state->print(os);
+            for (const auto &pointee : state->get_pointees())
+                visitor(pointee, visitor);
+        });
+        root->walk([&](mlir_operation *op) {
+            for (mlir_value res : op->getResults())
+                visit_anchor(lattice_anchor(res), visit_anchor);
+        });
+        root->walk([&](mlir_block *op) {
+            for (mlir_value arg : op->getArguments())
+                visit_anchor(lattice_anchor(arg), visit_anchor);
+        });
     }
 
-    mlir::LogicalResult initialize(mlir_operation *op) override {
-        auto state = this->template getOrCreate< pt_lattice >(this->getProgramPointAfter(op));
-        state->initialize_with(relation.get());
-        if (auto fun = mlir::dyn_cast< mlir::FunctionOpInterface >(op)) {
-            if (fun.getNumArguments() == 2 && fun.getName() == "main") {
-                state->add_argc(fun.getArguments()[1], op);
-            }
-        }
-        return base::initialize(op);
-    }
-
-    void print(llvm::raw_ostream &os) {
-        relation->print(os);
-    }
-
-    pt_analysis(mlir::DataFlowSolver &solver)
-        : base(solver),
-          relation(std::make_unique< typename pt_lattice::info_t >()) {}
-
-    pt_analysis(mlir::DataFlowSolver &solver, std::string config)
-        : base(solver),
-          relation(std::make_unique< typename pt_lattice::info_t >()) {}
-
-    private:
-    ppoint get_val_def_point(mlir_value val) {
-        if (auto op = val.getDefiningOp())
-            return this->getProgramPointAfter(op);
-        return this->getProgramPointBefore(val.getParentBlock());
-    }
-    std::unique_ptr< typename pt_lattice::info_t > relation;
-
+    protected:
+    symbol_table_collection tables;
+    bool all_unknown;
 };
-
-void print_analysis_result(mlir::DataFlowSolver &solver, mlir_operation *op, llvm::raw_ostream &os);
 
 void print_analysis_stats(mlir::DataFlowSolver &solver, mlir_operation *op, llvm::raw_ostream &os);
 

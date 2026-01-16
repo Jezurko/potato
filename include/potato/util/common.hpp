@@ -20,13 +20,16 @@ using mlir_operation = mlir::Operation;
 using mlir_block = mlir::Block;
 using mlir_region = mlir::Region;
 using change_result = mlir::ChangeResult;
+using lattice_anchor = mlir::LatticeAnchor;
 using mlir_loc = mlir::Location;
 using operand_range = mlir::OperandRange;
 using result_range = mlir::ResultRange;
 using value_range = mlir::ValueRange;
 
 using func_iface = mlir::FunctionOpInterface;
+using callable_iface = mlir::CallableOpInterface;
 using branch_iface = mlir::BranchOpInterface;
+using symbol_iface = mlir::SymbolOpInterface;
 
 using op_builder = mlir::OpBuilder;
 using logical_result = mlir::LogicalResult;
@@ -34,6 +37,7 @@ using logical_result = mlir::LogicalResult;
 using ppoint = mlir::ProgramPoint *;
 using call_cf_action = mlir::dataflow::CallControlFlowAction;
 
+using symbol_table_collection = mlir::SymbolTableCollection;
 using symbol_table = mlir::SymbolTable;
 
 using alias_res = mlir::AliasResult;
@@ -42,6 +46,7 @@ using alias_kind = mlir::AliasResult::Kind;
 template < typename lattice >
 using mlir_dense_dfa = mlir::dataflow::DenseForwardDataFlowAnalysis< lattice >;
 using mlir_dense_abstract_lattice = mlir::dataflow::AbstractDenseLattice;
+using dfa = mlir::DataFlowAnalysis;
 
 using call_graph = mlir::CallGraph;
 using cg_node    = mlir::CallGraphNode;
