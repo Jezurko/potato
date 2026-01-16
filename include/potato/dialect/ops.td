@@ -9,7 +9,7 @@ include "mlir/Interfaces/FunctionInterfaces.td"
 include "mlir/Interfaces/SideEffectInterfaces.td"
 
 def Potato_AddressOp
-  : Potato_Op< "address", [SymbolUserOpInterface, DeclareOpInterfaceMethods<SymbolUserOpInterface>] >
+  : Potato_Op< "address", [Pure, SymbolUserOpInterface, DeclareOpInterfaceMethods<SymbolUserOpInterface>] >
   , Arguments<( ins FlatSymbolRefAttr:$symbol )>
   , Results<( outs AnyType:$ptr )>
 {
@@ -37,7 +37,7 @@ def Potato_AssignOp
 }
 
 def Potato_DereferenceOp
-  : Potato_Op< "deref" >
+  : Potato_Op< "deref", [Pure] >
   , Arguments<( ins AnyType: $ptr )>
   , Results<( outs AnyType: $val )>
 {
