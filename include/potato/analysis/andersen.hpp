@@ -4,6 +4,7 @@
 
 POTATO_RELAX_WARNINGS
 #include <llvm/ADT/DenseSet.h>
+#include <llvm/ADT/DenseMap.h>
 POTATO_UNRELAX_WARNINGS
 
 #include "potato/analysis/pt.hpp"
@@ -27,6 +28,8 @@ struct aa_lattice : pt_lattice_base< aa_lattice > {
 private:
     bool unknown = false;
     llvm::DenseSet< lattice_anchor > pointees;
+    llvm::DenseMap< const aa_lattice*, size_t > stamps;
+    size_t update_count = 0;
 };
 
 struct aa_analysis : pt_analysis< aa_analysis, aa_lattice > {

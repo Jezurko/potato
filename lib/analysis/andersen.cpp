@@ -13,6 +13,7 @@ namespace potato::analysis {
     change_result aa_lattice::set_unknown() {
         if (unknown)
             return change_result::NoChange;
+        update_count++;
         unknown = true;
         return change_result::NoChange;
     }
@@ -21,16 +22,27 @@ namespace potato::analysis {
         if (unknown)
             return change_result::NoChange;
 
+        auto stamp = stamps.find(&rhs);
+        if (stamp != stamps.end() && stamp->second == rhs.update_count)
+            return change_result::NoChange;
+        stamps[&rhs] = rhs.update_count;
+
         if (rhs.unknown)
             return set_unknown();
 
-        return llvm::set_union(pointees, rhs.pointees) ?
-            change_result::Change : change_result::NoChange;
+        if (llvm::set_union(pointees, rhs.pointees)) {
+            update_count++;
+            return change_result::Change;
+        }
+        return change_result::NoChange;
     }
 
     change_result aa_lattice::insert(lattice_anchor anchor) {
-        return pointees.insert(anchor).second ?
-            change_result::Change : change_result::NoChange;
+        if (pointees.insert(anchor).second) {
+            update_count++;
+            return change_result::Change;
+        }
+        return change_result::NoChange;
     }
 
     void aa_lattice::print(llvm::raw_ostream &os) const {
