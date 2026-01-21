@@ -425,6 +425,7 @@ namespace potato::conv::llvmtopt {
         copy_op< mlir::LLVM::SSubSat >,
         copy_op< mlir::LLVM::USHLSat >,
         copy_op< mlir::LLVM::SSHLSat >,
+        copy_op< mlir::LLVM::IntToPtrOp>,
         shift_op< mlir::LLVM::ShlOp >,
         shift_op< mlir::LLVM::LShrOp >,
         shift_op< mlir::LLVM::AShrOp >,
@@ -482,7 +483,6 @@ namespace potato::conv::llvmtopt {
     };
 
     using unknown_patterns = util::type_list<
-        unknown_op< mlir::LLVM::IntToPtrOp >,
         inline_asm
     >;
 
