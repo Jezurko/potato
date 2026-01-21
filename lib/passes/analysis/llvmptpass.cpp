@@ -24,13 +24,13 @@ namespace potato::pt {
             solver.load< mlir::dataflow::DeadCodeAnalysis >();
 
             // Load our analysis
-            solver.load< analysis::trad::llvm_andersen >();
+            //solver.load< analysis::trad::llvm_andersen >();
 
-            if (failed(solver.initializeAndRun(root)))
-                signalPassFailure();
+            //if (failed(solver.initializeAndRun(root)))
+            //    signalPassFailure();
 
-            if (print_lattice)
-                analysis::trad::print_analysis_result(solver, root, llvm::outs());
+            //if (print_lattice)
+            //    analysis::trad::print_analysis_result(solver, root, llvm::outs());
             //if (print_stats)
             //    analysis::trad::print_analysis_stats(solver, root, llvm::outs());
             //if (print_func_stats)

@@ -25,14 +25,14 @@ namespace potato::pt {
             solver.load< mlir::dataflow::DeadCodeAnalysis >();
 
             // Load our analysis
-            solver.load< analysis::pt_analysis< analysis::steensgaard > >();
+            //solver.load< analysis::pt_analysis< analysis::steensgaard > >();
 
-            if (failed(solver.initializeAndRun(root)))
-                signalPassFailure();
-            auto analysis = util::get_analysis< analysis::steensgaard >(solver, root);
-            if (analysis->is_all_unknown()) {
-                signalPassFailure();
-            }
+            //if (failed(solver.initializeAndRun(root)))
+            //    signalPassFailure();
+            //auto analysis = util::get_analysis< analysis::steensgaard >(solver, root);
+            //if (analysis->is_all_unknown()) {
+            //    signalPassFailure();
+            //}
         }
     };
 
