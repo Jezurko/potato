@@ -148,10 +148,11 @@ private:
 
     void visit_non_control_flow_arguments_impl(
         mlir_operation *op, const mlir::RegionSuccessor &successor,
-        lattices_ref arg_lattices, unsigned first_index
+        value_range non_successor_inputs,
+        lattices_ref non_successor_input_lattices
     ) {
         return derived().visit_non_control_flow_arguments(
-            op, successor, arg_lattices, first_index
+            op, successor, non_successor_inputs, non_successor_input_lattices
         );
     }
 
@@ -425,12 +426,12 @@ public:
 
     void visit_non_control_flow_arguments(
         mlir_operation *op, const mlir::RegionSuccessor &successor,
-        lattices_ref arg_lattices, unsigned first_index
+        value_range non_successor_inputs,
+        lattices_ref non_successor_input_lattices
     ) {
-        set_all_to_entry_state(arg_lattices.take_front(first_index));
-        set_all_to_entry_state(arg_lattices.drop_front(
-            first_index + successor.getSuccessorInputs().size())
-        );
+        assert(non_successor_inputs.size() == non_successor_input_lattices.size() &&
+               "size mismatch");
+        set_all_to_entry_state(non_successor_input_lattices);
     }
 
     pt_lattice *get_lattice_element(mlir_value value) {
@@ -481,7 +482,7 @@ public:
         if (auto branch = dyn_cast< mlir::RegionBranchOpInterface >(op)) {
             visit_region_successors(
                 getProgramPointAfter(branch), branch,
-                {branch, branch->getResults()}, result_lattices
+                mlir::RegionSuccessor::parent(), result_lattices
             );
             return mlir::success();
         }
@@ -542,8 +543,9 @@ public:
                 );
             }
 
-            return visit_non_control_flow_arguments(
-                block->getParentOp(), mlir::RegionSuccessor(block->getParent()), arg_lattices, 0
+            return visit_non_control_flow_arguments_impl(
+                block->getParentOp(), mlir::RegionSuccessor(block->getParent()),
+                block->getArguments(), arg_lattices
             );
         }
 
@@ -603,29 +605,35 @@ public:
                 "expected the same number of successor inputs as operands"
             );
 
+            auto val_to_lattices = [&](mlir_value v) { return get_lattice_element(v); };
             unsigned first_idx = 0;
             if (inputs.size() != lattices.size()) {
                 if (!point->isBlockStart()) {
                     if (!inputs.empty())
                         first_idx = mlir::cast< mlir::OpResult >(inputs.front()).getResultNumber();
+                    mlir::SmallVector< mlir_value > non_succ_inputs =
+                        branch.getNonSuccessorInputs(mlir::RegionSuccessor::parent());
+                    mlir::SmallVector< pt_lattice * > non_succ_input_lattices =
+                        llvm::map_to_vector(non_succ_inputs, val_to_lattices);
                     visit_non_control_flow_arguments_impl(
                         branch,
-                        mlir::RegionSuccessor(branch, branch->getResults().slice(first_idx, inputs.size())),
-                        lattices,
-                        first_idx
+                        mlir::RegionSuccessor::parent(),
+                        non_succ_inputs,
+                        non_succ_input_lattices
                     );
                 } else {
                     if (!inputs.empty())
                         first_idx = mlir::cast< mlir::BlockArgument >(inputs.front()).getArgNumber();
                     mlir_region *region = point->getBlock()->getParent();
+                    mlir::SmallVector< mlir_value > non_succ_inputs =
+                        branch.getNonSuccessorInputs(mlir::RegionSuccessor(region));
+                    mlir::SmallVector< pt_lattice * > non_succ_input_lattices =
+                        llvm::map_to_vector(non_succ_inputs, val_to_lattices);
                     visit_non_control_flow_arguments_impl(
                         branch,
-                        mlir::RegionSuccessor(
-                            region,
-                            region->getArguments().slice(first_idx, inputs.size())
-                        ),
-                        lattices,
-                        first_idx
+                        mlir::RegionSuccessor(region),
+                        non_succ_inputs,
+                        non_succ_input_lattices
                     );
                 }
             }
@@ -655,6 +663,7 @@ public:
     logical_result visit_pt_op(pt::AssignOp, const_lattices_ref operand_lts, lattices_ref res_lts) {
         if (operand_lts[0]->is_unknown()) {
             all_unknown = true;
+            llvm::errs() << "All unknown!\n";
             return mlir::failure();
         }
         for (const auto &pointee : operand_lts[0]->get_pointees())
