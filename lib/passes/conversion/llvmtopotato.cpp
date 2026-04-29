@@ -497,16 +497,19 @@ namespace potato::conv::llvmtopt {
                                        adaptor_t adaptor,
                                        mlir::ConversionPatternRewriter &rewriter
         ) const override {
-            if (mlir::isa< mlir::LLVM::LLVMPointerType >(op.getType())) {
-                rewriter.replaceOpWithNewOp< pt::UnknownPtrOp >(
-                        op,
-                        this->typeConverter->convertType(op.getType())
-                );
-            } else {
-                rewriter.replaceOpWithNewOp< pt::ConstantOp >(
-                        op,
-                        this->typeConverter->convertType(op.getType()));
-            }
+            //if (mlir::isa< mlir::LLVM::LLVMPointerType >(op.getType())) {
+            //    rewriter.replaceOpWithNewOp< pt::UnknownPtrOp >(
+            //            op,
+            //            this->typeConverter->convertType(op.getType())
+            //    );
+            //} else {
+            //    rewriter.replaceOpWithNewOp< pt::ConstantOp >(
+            //            op,
+            //            this->typeConverter->convertType(op.getType()));
+            //}
+            rewriter.replaceOpWithNewOp< pt::ConstantOp >(
+                    op,
+                    this->typeConverter->convertType(op.getType()));
             return mlir::success();
         }
     };
@@ -516,6 +519,22 @@ namespace potato::conv::llvmtopt {
         using base::base;
         using adaptor_t = typename mlir::LLVM::ZeroOp::Adaptor;
         logical_result matchAndRewrite(mlir::LLVM::ZeroOp op,
+                                       adaptor_t adaptor,
+                                       mlir::ConversionPatternRewriter &rewriter
+        ) const override {
+            rewriter.replaceOpWithNewOp< pt::ConstantOp >(
+                    op,
+                    typeConverter->convertType(op.getType())
+            );
+            return mlir::success();
+        }
+    };
+
+    struct poison_op : mlir::OpConversionPattern< mlir::LLVM::PoisonOp > {
+        using base = mlir::OpConversionPattern< mlir::LLVM::PoisonOp >;
+        using base::base;
+        using adaptor_t = typename mlir::LLVM::PoisonOp::Adaptor;
+        logical_result matchAndRewrite(mlir::LLVM::PoisonOp op,
                                        adaptor_t adaptor,
                                        mlir::ConversionPatternRewriter &rewriter
         ) const override {
@@ -563,6 +582,7 @@ namespace potato::conv::llvmtopt {
         constant_op< mlir::LLVM::CtPopOp >,
         constant_op< mlir::LLVM::UCmpOp >,
         constant_op< mlir::LLVM::SCmpOp >,
+        poison_op,
         zero_op
     >;
 
